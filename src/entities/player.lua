@@ -1,5 +1,7 @@
 local player = {}
 
+local physics = require("src.core.physics")
+
 player.state = {
     x = 0,
     y = 0,
@@ -11,7 +13,16 @@ player.state = {
     health = 100,
     maxHealth = 100,
     score = 0,
-    isMoving = false
+    isMoving = false,
+    body = nil,
+    shape = nil,
+    fixture = nil,
+    weapon = {
+        name = "Pulse Laser",
+        fireInterval = 0.3,
+        projectileSpeed = 600,
+        damage = 20
+    }
 }
 
 function player.centerInWindow()
@@ -22,12 +33,37 @@ function player.centerInWindow()
     p.targetY = p.y
 end
 
+local function createBody()
+    local p = player.state
+    if p.body then
+        p.body:destroy()
+        p.body = nil
+        p.shape = nil
+        p.fixture = nil
+    end
+    local world = physics.getWorld()
+    if not world then
+        return
+    end
+    p.body = love.physics.newBody(world, p.x, p.y, "dynamic")
+    p.body:setFixedRotation(true)
+    p.shape = love.physics.newCircleShape(p.size)
+    p.fixture = love.physics.newFixture(p.body, p.shape, 1)
+end
+
 function player.reset()
     local p = player.state
     player.centerInWindow()
     p.health = p.maxHealth
     p.score = 0
     p.isMoving = false
+    createBody()
+    p.weapon = {
+        name = "Pulse Laser",
+        fireInterval = 0.3,
+        projectileSpeed = 600,
+        damage = 20
+    }
 end
 
 function player.update(dt, world)
@@ -59,6 +95,10 @@ function player.update(dt, world)
     else
         p.x = math.max(p.size, math.min(love.graphics.getWidth() - p.size, p.x))
         p.y = math.max(p.size, math.min(love.graphics.getHeight() - p.size, p.y))
+    end
+
+    if p.body then
+        p.body:setPosition(p.x, p.y)
     end
 end
 

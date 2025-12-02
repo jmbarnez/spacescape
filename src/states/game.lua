@@ -4,8 +4,9 @@
 -- Module imports
 local playerModule = require("src.entities.player")
 local enemyModule = require("src.entities.enemy")
+local asteroidModule = require("src.entities.asteroid")
 local ui = require("src.render.hud")
-local bulletModule = require("src.entities.bullet")
+local projectileModule = require("src.entities.projectile")
 local particlesModule = require("src.entities.particles")
 local starfield = require("src.render.starfield")
 local world = require("src.core.world")
@@ -13,6 +14,8 @@ local camera = require("src.core.camera")
 local physics = require("src.core.physics")
 local spawnSystem = require("src.systems.spawn")
 local combatSystem = require("src.systems.combat")
+local collisionSystem = require("src.systems.collision")
+local inputSystem = require("src.systems.input")
 local engineTrail = require("src.entities.engine_trail")
 
 -- Module definition
@@ -29,7 +32,7 @@ local gameState = "playing" -- "playing", "gameover"
 local colors = {
     ship = {0.2, 0.6, 1},
     shipOutline = {0.4, 0.8, 1},
-    bullet = {1, 1, 0.3},
+    projectile = {1, 1, 0.3},
     enemy = {1, 0.3, 0.3},
     enemyOutline = {1, 0.5, 0.5},
     health = {0.3, 1, 0.3},
@@ -42,8 +45,6 @@ local colors = {
 -- Constants
 local SCORE_PER_KILL = 100
 local DAMAGE_PER_HIT = 20
-local SELECTION_RADIUS = 40
-
 --------------------------------------------------------------------------------
 -- Initialization
 --------------------------------------------------------------------------------
@@ -72,19 +73,15 @@ function game.update(dt)
         return
     end
     
-    if love.mouse.isDown(2) then
-        local sx, sy = love.mouse.getPosition()
-        local worldX, worldY = camera.screenToWorld(sx, sy)
-        worldX, worldY = world.clampToWorld(worldX, worldY, player.size)
-        playerModule.setTarget(worldX, worldY)
-    end
+    inputSystem.update(dt)
 
     physics.update(dt)
     playerModule.update(dt, world)
     engineTrail.update(dt, player)
     camera.update(dt, player)
     starfield.update(dt, camera.x, camera.y)
-    bulletModule.update(dt, world)
+    asteroidModule.update(dt)
+    projectileModule.update(dt, world)
     enemyModule.update(dt, player, world)
     particlesModule.update(dt)
     spawnSystem.update(dt)
@@ -92,60 +89,11 @@ function game.update(dt)
     game.checkCollisions()
 end
 
---------------------------------------------------------------------------------
--- Collision Detection
---------------------------------------------------------------------------------
-
-local function checkDistance(x1, y1, x2, y2)
-    local dx = x1 - x2
-    local dy = y1 - y2
-    return math.sqrt(dx * dx + dy * dy)
-end
-
-local function handleBulletEnemyCollisions()
-    for bi = #bulletModule.list, 1, -1 do
-        local bullet = bulletModule.list[bi]
-        for ei = #enemies, 1, -1 do
-            local enemy = enemies[ei]
-            local distance = checkDistance(bullet.x, bullet.y, enemy.x, enemy.y)
-            
-            if distance < enemy.size then
-                enemy.health = (enemy.health or 0) - DAMAGE_PER_HIT
-                table.remove(bulletModule.list, bi)
-
-                if enemy.health <= 0 then
-                    particlesModule.explosion(enemy.x, enemy.y, colors.enemy)
-                    table.remove(enemies, ei)
-                    player.score = player.score + SCORE_PER_KILL
-                end
-
-                break
-            end
-        end
-    end
-end
-
-local function handlePlayerEnemyCollisions()
-    for i = #enemies, 1, -1 do
-        local enemy = enemies[i]
-        local distance = checkDistance(player.x, player.y, enemy.x, enemy.y)
-        
-        if distance < player.size + enemy.size then
-            particlesModule.explosion(enemy.x, enemy.y, colors.enemy)
-            table.remove(enemies, i)
-            player.health = player.health - DAMAGE_PER_HIT
-            
-            if player.health <= 0 then
-                gameState = "gameover"
-                particlesModule.explosion(player.x, player.y, colors.ship)
-            end
-        end
-    end
-end
-
 function game.checkCollisions()
-    handleBulletEnemyCollisions()
-    handlePlayerEnemyCollisions()
+    local playerDied = collisionSystem.update(player, particlesModule, colors, SCORE_PER_KILL, DAMAGE_PER_HIT)
+    if playerDied then
+        gameState = "gameover"
+    end
 end
 
 --------------------------------------------------------------------------------
@@ -160,14 +108,7 @@ function game.mousepressed(x, y, button)
         return
     end
     
-    local worldX, worldY = camera.screenToWorld(x, y)
-    worldX, worldY = world.clampToWorld(worldX, worldY, player.size)
-
-    if button == 2 then
-        playerModule.setTarget(worldX, worldY)
-    elseif button == 1 then
-        combatSystem.handleLeftClick(worldX, worldY, SELECTION_RADIUS)
-    end
+    inputSystem.mousepressed(x, y, button)
 end
 
 function game.wheelmoved(x, y)
@@ -175,10 +116,7 @@ function game.wheelmoved(x, y)
         return
     end
 
-    if y ~= 0 then
-        -- Positive y = wheel up = zoom in; negative y = zoom out
-        camera.zoom(y * 0.1)
-    end
+    inputSystem.wheelmoved(x, y)
 end
 
 function game.resize(w, h)
@@ -194,7 +132,7 @@ function game.restartGame()
     world.initFromPlayer(player)
     camera.centerOnPlayer(player)
     
-    bulletModule.clear()
+    projectileModule.clear()
     enemyModule.clear()
     particlesModule.clear()
     engineTrail.reset()
@@ -269,8 +207,9 @@ end
 
 local function drawWorldObjects()
     drawMovementIndicator()
+    asteroidModule.draw()
     particlesModule.draw()
-    bulletModule.draw(colors)
+    projectileModule.draw(colors)
     enemyModule.draw(colors)
     drawTargetIndicator()
     

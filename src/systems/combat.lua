@@ -1,5 +1,5 @@
 local enemyModule = require("src.entities.enemy")
-local bulletModule = require("src.entities.bullet")
+local projectileModule = require("src.entities.projectile")
 
 local combat = {}
 
@@ -50,9 +50,14 @@ function combat.updateAutoShoot(dt, player)
     end
 
     fireTimer = fireTimer + dt
-    if fireTimer >= fireInterval then
+    local interval = fireInterval
+    if player.weapon and player.weapon.fireInterval then
+        interval = player.weapon.fireInterval
+    end
+
+    if fireTimer >= interval then
         fireTimer = 0
-        bulletModule.spawn(player, targetEnemy.x, targetEnemy.y)
+        projectileModule.spawn(player, targetEnemy.x, targetEnemy.y)
     end
 end
 
@@ -68,7 +73,7 @@ function combat.handleLeftClick(worldX, worldY, selectionRadius)
 end
 
 function combat.shoot(player, targetX, targetY)
-    bulletModule.spawn(player, targetX, targetY)
+    projectileModule.spawn(player, targetX, targetY)
 end
 
 function combat.getTargetEnemy()

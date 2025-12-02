@@ -3,6 +3,7 @@ local enemy = {}
 enemy.list = {}
 
 local ship_generator = require("src.utils.procedural_ship_generator")
+local physics = require("src.core.physics")
 
 function enemy.spawn(world)
     local side = math.random(1, 4)
@@ -35,6 +36,15 @@ function enemy.spawn(world)
     local ship = ship_generator.generate(size)
     local maxHealth = (ship and ship.hull and ship.hull.maxHealth) or 1
 
+    local physicsWorld = physics.getWorld()
+    local body, shape, fixture
+    if physicsWorld then
+        body = love.physics.newBody(physicsWorld, x, y, "dynamic")
+        shape = love.physics.newCircleShape(size)
+        fixture = love.physics.newFixture(body, shape, 1)
+        body:setFixedRotation(true)
+    end
+
     table.insert(enemy.list, {
         x = x,
         y = y,
@@ -43,7 +53,10 @@ function enemy.spawn(world)
         health = maxHealth,
         maxHealth = maxHealth,
         angle = 0,
-        ship = ship
+        ship = ship,
+        body = body,
+        shape = shape,
+        fixture = fixture
     })
 end
 
@@ -65,6 +78,10 @@ function enemy.update(dt, playerState, world)
             local margin = e.size
             e.x = math.max(world.minX + margin, math.min(world.maxX - margin, e.x))
             e.y = math.max(world.minY + margin, math.min(world.maxY - margin, e.y))
+        end
+
+        if e.body then
+            e.body:setPosition(e.x, e.y)
         end
     end
 end
@@ -98,6 +115,10 @@ end
 
 function enemy.clear()
     for i = #enemy.list, 1, -1 do
+        local e = enemy.list[i]
+        if e.body then
+            e.body:destroy()
+        end
         table.remove(enemy.list, i)
     end
 end
