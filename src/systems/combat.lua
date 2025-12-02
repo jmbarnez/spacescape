@@ -57,7 +57,7 @@ function combat.updateAutoShoot(dt, player)
 
     if fireTimer >= interval then
         fireTimer = 0
-        projectileModule.spawn(player, targetEnemy.x, targetEnemy.y)
+        projectileModule.spawn(player, targetEnemy.x, targetEnemy.y, targetEnemy)
     end
 end
 

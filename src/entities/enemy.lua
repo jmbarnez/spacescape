@@ -4,6 +4,7 @@ enemy.list = {}
 
 local ship_generator = require("src.utils.procedural_ship_generator")
 local physics = require("src.core.physics")
+local weapons = require("src.core.weapons")
 local projectileModule = require("src.entities.projectile")
 
 function enemy.spawn(world)
@@ -62,11 +63,7 @@ function enemy.spawn(world)
         shape = shape,
         fixture = fixture,
         faction = "enemy",
-        weapon = {
-            projectileSpeed = 400 + math.random() * 80,
-            damage = 10,
-            fireInterval = 1.2 + math.random() * 0.5
-        },
+        weapon = weapons.enemyPulseLaser,
         state = "idle",
         detectionRange = 600,
         attackRange = 350,
@@ -112,7 +109,7 @@ function enemy.update(dt, playerState, world)
             e.fireTimer = (e.fireTimer or 0) + dt
             if e.fireTimer >= interval then
                 e.fireTimer = 0
-                projectileModule.spawn(e, playerState.x, playerState.y)
+                projectileModule.spawn(e, playerState.x, playerState.y, playerState)
             end
         end
 

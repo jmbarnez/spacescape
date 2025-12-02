@@ -1,6 +1,7 @@
 local player = {}
 
 local physics = require("src.core.physics")
+local weapons = require("src.core.weapons")
 
 player.state = {
     x = 0,
@@ -17,12 +18,7 @@ player.state = {
     body = nil,
     shape = nil,
     fixture = nil,
-    weapon = {
-        name = "Pulse Laser",
-        fireInterval = 0.3,
-        projectileSpeed = 600,
-        damage = 20
-    }
+    weapon = weapons.playerPulseLaser
 }
 
 function player.centerInWindow()
@@ -58,12 +54,7 @@ function player.reset()
     p.score = 0
     p.isMoving = false
     createBody()
-    p.weapon = {
-        name = "Pulse Laser",
-        fireInterval = 0.3,
-        projectileSpeed = 600,
-        damage = 20
-    }
+    p.weapon = weapons.playerPulseLaser
 end
 
 function player.update(dt, world)

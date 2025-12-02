@@ -20,29 +20,39 @@ local function handleBulletEnemyCollisions(player, particlesModule, colors, scor
         if bullet.faction ~= "enemy" then
             for ei = #enemies, 1, -1 do
                 local enemy = enemies[ei]
-                local distance = checkDistance(bullet.x, bullet.y, enemy.x, enemy.y)
-                local enemyRadius = enemy.collisionRadius or enemy.size or 0
+                if not (bullet.target and bullet.willHit and enemy ~= bullet.target) then
+                    local distance = checkDistance(bullet.x, bullet.y, enemy.x, enemy.y)
+                    local enemyRadius = enemy.collisionRadius or enemy.size or 0
 
-                if distance < enemyRadius then
-                    particlesModule.explosion(bullet.x, bullet.y, colors.projectile)
-
-                    local damage = bullet.damage or damagePerHit
-                    enemy.health = (enemy.health or 0) - damage
-                    if bullet.body then
-                        bullet.body:destroy()
-                    end
-                    table.remove(bullets, bi)
-
-                    if enemy.health <= 0 then
-                        particlesModule.explosion(enemy.x, enemy.y, colors.enemy)
-                        if enemy.body then
-                            enemy.body:destroy()
+                    if distance < enemyRadius then
+                        if bullet.willHit == false then
+                            if bullet.body then
+                                bullet.body:destroy()
+                            end
+                            table.remove(bullets, bi)
+                            break
                         end
-                        table.remove(enemies, ei)
-                        player.score = player.score + scorePerKill
-                    end
 
-                    break
+                        particlesModule.explosion(bullet.x, bullet.y, colors.projectile)
+
+                        local damage = bullet.damage or damagePerHit
+                        enemy.health = (enemy.health or 0) - damage
+                        if bullet.body then
+                            bullet.body:destroy()
+                        end
+                        table.remove(bullets, bi)
+
+                        if enemy.health <= 0 then
+                            particlesModule.explosion(enemy.x, enemy.y, colors.enemy)
+                            if enemy.body then
+                                enemy.body:destroy()
+                            end
+                            table.remove(enemies, ei)
+                            player.score = player.score + scorePerKill
+                        end
+
+                        break
+                    end
                 end
             end
         end
@@ -79,24 +89,35 @@ local function handleBulletAsteroidCollisions(player, particlesModule, colors, s
     for bi = #bullets, 1, -1 do
         local bullet = bullets[bi]
         if bullet.faction ~= "enemy" then
-            for ai = #asteroids, 1, -1 do
-                local asteroid = asteroids[ai]
-                local distance = checkDistance(bullet.x, bullet.y, asteroid.x, asteroid.y)
-                local asteroidRadius = asteroid.collisionRadius or asteroid.size or 0
+            local canHitAsteroids = not (bullet.willHit and bullet.target)
+            if canHitAsteroids then
+                for ai = #asteroids, 1, -1 do
+                    local asteroid = asteroids[ai]
+                    local distance = checkDistance(bullet.x, bullet.y, asteroid.x, asteroid.y)
+                    local asteroidRadius = asteroid.collisionRadius or asteroid.size or 0
 
-                if distance < asteroidRadius then
-                    particlesModule.explosion(bullet.x, bullet.y, colors.projectile)
+                    if distance < asteroidRadius then
+                        if bullet.willHit == false then
+                            if bullet.body then
+                                bullet.body:destroy()
+                            end
+                            table.remove(bullets, bi)
+                            break
+                        end
 
-                    if bullet.body then
-                        bullet.body:destroy()
+                        particlesModule.explosion(bullet.x, bullet.y, colors.projectile)
+
+                        if bullet.body then
+                            bullet.body:destroy()
+                        end
+                        table.remove(bullets, bi)
+
+                        particlesModule.explosion(asteroid.x, asteroid.y, colors.enemy)
+                        table.remove(asteroids, ai)
+                        player.score = player.score + scorePerKill
+
+                        break
                     end
-                    table.remove(bullets, bi)
-
-                    particlesModule.explosion(asteroid.x, asteroid.y, colors.enemy)
-                    table.remove(asteroids, ai)
-                    player.score = player.score + scorePerKill
-
-                    break
                 end
             end
         end
@@ -112,18 +133,25 @@ local function handleEnemyBulletPlayerCollisions(player, particlesModule, colors
             local distance = checkDistance(bullet.x, bullet.y, player.x, player.y)
 
             if distance < player.size then
-                particlesModule.explosion(bullet.x, bullet.y, colors.projectile)
+                if bullet.willHit == false then
+                    if bullet.body then
+                        bullet.body:destroy()
+                    end
+                    table.remove(bullets, bi)
+                else
+                    particlesModule.explosion(bullet.x, bullet.y, colors.projectile)
 
-                local damage = bullet.damage or damagePerHit
-                player.health = player.health - damage
-                if bullet.body then
-                    bullet.body:destroy()
-                end
-                table.remove(bullets, bi)
+                    local damage = bullet.damage or damagePerHit
+                    player.health = player.health - damage
+                    if bullet.body then
+                        bullet.body:destroy()
+                    end
+                    table.remove(bullets, bi)
 
-                if player.health <= 0 then
-                    particlesModule.explosion(player.x, player.y, colors.ship)
-                    playerDied = true
+                    if player.health <= 0 then
+                        particlesModule.explosion(player.x, player.y, colors.ship)
+                        playerDied = true
+                    end
                 end
             end
         end
