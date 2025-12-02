@@ -1,6 +1,6 @@
 local world = {
-    width = 3000,
-    height = 3000,
+    width = 6000,
+    height = 6000,
     centerX = 0,
     centerY = 0,
     minX = 0,

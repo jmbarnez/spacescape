@@ -1,6 +1,6 @@
-local ui = {}
+local hud = {}
 
-function ui.drawUI(player, colors)
+function hud.drawHUD(player, colors)
     local barWidth = 200
     local barHeight = 20
     local barX = 20
@@ -20,10 +20,6 @@ function ui.drawUI(player, colors)
     love.graphics.setColor(1, 1, 1)
     love.graphics.print("HP: " .. player.health .. "/" .. player.maxHealth, barX + 5, barY + 2)
 
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.print("Score: " .. player.score, barX, barY + 30)
-
-    -- FPS counter top-right corner
     local fps = love.timer.getFPS()
     local fpsText = "FPS: " .. fps
     local font = love.graphics.getFont()
@@ -35,7 +31,7 @@ function ui.drawUI(player, colors)
     love.graphics.print("Right-click: Move | Left-click: Shoot", 20, love.graphics.getHeight() - 30)
 end
 
-function ui.drawGameOver(player)
+function hud.drawGameOver()
     love.graphics.setColor(0, 0, 0, 0.7)
     love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
 
@@ -45,15 +41,10 @@ function ui.drawGameOver(player)
     local textWidth = font:getWidth(text)
     love.graphics.print(text, love.graphics.getWidth() / 2 - textWidth / 2, love.graphics.getHeight() / 2 - 50)
 
-    love.graphics.setColor(1, 1, 1)
-    local scoreText = "Final Score: " .. player.score
-    local scoreWidth = font:getWidth(scoreText)
-    love.graphics.print(scoreText, love.graphics.getWidth() / 2 - scoreWidth / 2, love.graphics.getHeight() / 2)
-
     love.graphics.setColor(0.7, 0.7, 0.7)
     local restartText = "Click to restart"
     local restartWidth = font:getWidth(restartText)
     love.graphics.print(restartText, love.graphics.getWidth() / 2 - restartWidth / 2, love.graphics.getHeight() / 2 + 40)
 end
 
-return ui
+return hud

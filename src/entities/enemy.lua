@@ -9,19 +9,9 @@ function enemy.spawn(world)
     local x, y
 
     if world then
-        if side == 1 then
-            x = math.random(world.minX, world.maxX)
-            y = world.minY - 30
-        elseif side == 2 then
-            x = world.maxX + 30
-            y = math.random(world.minY, world.maxY)
-        elseif side == 3 then
-            x = math.random(world.minX, world.maxX)
-            y = world.maxY + 30
-        else
-            x = world.minX - 30
-            y = math.random(world.minY, world.maxY)
-        end
+        local margin = 50
+        x = math.random(world.minX + margin, world.maxX - margin)
+        y = math.random(world.minY + margin, world.maxY - margin)
     else
         local width = love.graphics.getWidth()
         local height = love.graphics.getHeight()
@@ -42,15 +32,18 @@ function enemy.spawn(world)
     end
 
     local size = 15 + math.random() * 10
+    local ship = ship_generator.generate(size)
+    local maxHealth = (ship and ship.hull and ship.hull.maxHealth) or 1
 
     table.insert(enemy.list, {
         x = x,
         y = y,
         size = size,
         speed = 80 + math.random() * 60,
-        health = 1,
+        health = maxHealth,
+        maxHealth = maxHealth,
         angle = 0,
-        ship = ship_generator.generate(size)
+        ship = ship
     })
 end
 
@@ -85,6 +78,21 @@ function enemy.draw(colors)
         ship_generator.draw(e.ship, colors)
 
         love.graphics.pop()
+
+        if e.maxHealth and e.health and e.health < e.maxHealth then
+            local radius = (e.ship and e.ship.boundingRadius) or e.size or 10
+            local barWidth = radius * 0.9
+            local barHeight = 3
+            local barX = e.x - barWidth
+            local barY = e.y - radius - 10
+
+            love.graphics.setColor(colors.healthBg)
+            love.graphics.rectangle("fill", barX, barY, barWidth * 2, barHeight)
+
+            local ratio = math.max(0, math.min(1, e.health / e.maxHealth))
+            love.graphics.setColor(colors.health)
+            love.graphics.rectangle("fill", barX, barY, barWidth * 2 * ratio, barHeight)
+        end
     end
 end
 

@@ -432,6 +432,8 @@ function ship_generator.generate(size, options)
     local complexity = options.complexity or (0.6 + math.random() * 0.4)
     complexity = clamp01(complexity)
 
+    local baseHullHealth = options.hullHealth or math.floor(40 + size * 1.5 + complexity * 60)
+
     local hullType = options.hullType or randomFrom(HULL_TYPES)
     local wingStyle = options.wingStyle or randomFrom(WING_STYLES)
     local engineConfig = options.engineConfig or randomFrom(ENGINE_CONFIGS)
@@ -453,7 +455,8 @@ function ship_generator.generate(size, options)
         faction = paletteName,
         palette = palette,
         hull = {
-            points = hullPoints
+            points = hullPoints,
+            maxHealth = baseHullHealth
         },
         baseOutline = flattenPoints(hullPoints),
         wings = {},
@@ -471,6 +474,14 @@ function ship_generator.generate(size, options)
     ship.boundingRadius = computeBoundingRadius(ship)
 
     return ship
+end
+
+function ship_generator.getHullMaxHealth(ship)
+    if ship and ship.hull and ship.hull.maxHealth then
+        return ship.hull.maxHealth
+    end
+
+    return nil
 end
 
 function ship_generator.getBaseOutline(ship)

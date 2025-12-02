@@ -4,7 +4,7 @@
 -- Module imports
 local playerModule = require("src.entities.player")
 local enemyModule = require("src.entities.enemy")
-local ui = require("src.render.ui")
+local ui = require("src.render.hud")
 local bulletModule = require("src.entities.bullet")
 local particlesModule = require("src.entities.particles")
 local starfield = require("src.render.starfield")
@@ -110,10 +110,15 @@ local function handleBulletEnemyCollisions()
             local distance = checkDistance(bullet.x, bullet.y, enemy.x, enemy.y)
             
             if distance < enemy.size then
-                particlesModule.explosion(enemy.x, enemy.y, colors.enemy)
+                enemy.health = (enemy.health or 0) - DAMAGE_PER_HIT
                 table.remove(bulletModule.list, bi)
-                table.remove(enemies, ei)
-                player.score = player.score + SCORE_PER_KILL
+
+                if enemy.health <= 0 then
+                    particlesModule.explosion(enemy.x, enemy.y, colors.enemy)
+                    table.remove(enemies, ei)
+                    player.score = player.score + SCORE_PER_KILL
+                end
+
                 break
             end
         end
@@ -276,7 +281,7 @@ local function drawWorldObjects()
 end
 
 local function drawOverlay()
-    ui.drawUI(player, colors)
+    ui.drawHUD(player, colors)
     
     if gameState == "gameover" then
         ui.drawGameOver(player)
