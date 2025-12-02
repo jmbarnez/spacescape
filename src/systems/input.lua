@@ -1,14 +1,11 @@
 local playerModule = require("src.entities.player")
-local world = require("src.core.world")
-local camera = require("src.core.camera")
 local combatSystem = require("src.systems.combat")
 
 local input = {}
 
-local player = playerModule.state
 local SELECTION_RADIUS = 40
 
-function input.update(dt)
+function input.update(dt, player, world, camera)
     if love.mouse.isDown(2) then
         local sx, sy = love.mouse.getPosition()
         local worldX, worldY = camera.screenToWorld(sx, sy)
@@ -17,7 +14,7 @@ function input.update(dt)
     end
 end
 
-function input.mousepressed(x, y, button)
+function input.mousepressed(x, y, button, player, world, camera)
     local worldX, worldY = camera.screenToWorld(x, y)
     worldX, worldY = world.clampToWorld(worldX, worldY, player.size)
 
@@ -28,7 +25,7 @@ function input.mousepressed(x, y, button)
     end
 end
 
-function input.wheelmoved(x, y)
+function input.wheelmoved(x, y, camera)
     if y ~= 0 then
         -- Positive y = wheel up = zoom in; negative y = zoom out
         camera.zoom(y * 0.1)

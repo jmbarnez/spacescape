@@ -20,6 +20,7 @@ function asteroid.populate(world, count)
         local size = 20 + math.random() * 50
 
         local data = asteroid_generator.generate(size)
+        local collisionRadius = (data and data.shape and data.shape.boundingRadius) or size
 
         table.insert(asteroid.list, {
             x = x,
@@ -27,7 +28,8 @@ function asteroid.populate(world, count)
             size = size,
             angle = math.random() * math.pi * 2,
             rotationSpeed = (math.random() - 0.5) * 0.4,
-            data = data
+            data = data,
+            collisionRadius = collisionRadius
         })
     end
 end

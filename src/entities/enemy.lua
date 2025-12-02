@@ -4,6 +4,7 @@ enemy.list = {}
 
 local ship_generator = require("src.utils.procedural_ship_generator")
 local physics = require("src.core.physics")
+local projectileModule = require("src.entities.projectile")
 
 function enemy.spawn(world)
     local side = math.random(1, 4)
@@ -36,11 +37,13 @@ function enemy.spawn(world)
     local ship = ship_generator.generate(size)
     local maxHealth = (ship and ship.hull and ship.hull.maxHealth) or 1
 
+    local collisionRadius = (ship and ship.boundingRadius) or size
+
     local physicsWorld = physics.getWorld()
     local body, shape, fixture
     if physicsWorld then
         body = love.physics.newBody(physicsWorld, x, y, "dynamic")
-        shape = love.physics.newCircleShape(size)
+        shape = love.physics.newCircleShape(collisionRadius)
         fixture = love.physics.newFixture(body, shape, 1)
         body:setFixedRotation(true)
     end
@@ -54,9 +57,20 @@ function enemy.spawn(world)
         maxHealth = maxHealth,
         angle = 0,
         ship = ship,
+        collisionRadius = collisionRadius,
         body = body,
         shape = shape,
-        fixture = fixture
+        fixture = fixture,
+        faction = "enemy",
+        weapon = {
+            projectileSpeed = 400 + math.random() * 80,
+            damage = 10,
+            fireInterval = 1.2 + math.random() * 0.5
+        },
+        state = "idle",
+        detectionRange = 600,
+        attackRange = 350,
+        fireTimer = 0
     })
 end
 
@@ -68,14 +82,46 @@ function enemy.update(dt, playerState, world)
         local dy = playerState.y - e.y
         local distance = math.sqrt(dx * dx + dy * dy)
 
+        local detectionRange = e.detectionRange or 600
+        local attackRange = e.attackRange or 350
+
+        if distance > detectionRange then
+            e.state = "idle"
+        elseif distance > attackRange then
+            e.state = "chase"
+        else
+            e.state = "attack"
+        end
+
+        if e.state == "chase" then
+            if distance > 0 then
+                e.x = e.x + (dx / distance) * e.speed * dt
+                e.y = e.y + (dy / distance) * e.speed * dt
+            end
+        elseif e.state == "attack" then
+            if distance > attackRange * 1.1 and distance > 0 then
+                e.x = e.x + (dx / distance) * e.speed * dt
+                e.y = e.y + (dy / distance) * e.speed * dt
+            elseif distance < attackRange * 0.8 and distance > 0 then
+                e.x = e.x - (dx / distance) * e.speed * dt * 0.5
+                e.y = e.y - (dy / distance) * e.speed * dt * 0.5
+            end
+
+            local weapon = e.weapon or {}
+            local interval = weapon.fireInterval or 1.0
+            e.fireTimer = (e.fireTimer or 0) + dt
+            if e.fireTimer >= interval then
+                e.fireTimer = 0
+                projectileModule.spawn(e, playerState.x, playerState.y)
+            end
+        end
+
         if distance > 0 then
-            e.x = e.x + (dx / distance) * e.speed * dt
-            e.y = e.y + (dy / distance) * e.speed * dt
             e.angle = math.atan2(dy, dx)
         end
 
         if world then
-            local margin = e.size
+            local margin = e.collisionRadius or e.size
             e.x = math.max(world.minX + margin, math.min(world.maxX - margin, e.x))
             e.y = math.max(world.minY + margin, math.min(world.maxY - margin, e.y))
         end

@@ -15,15 +15,17 @@ local function isOffscreen(p, world)
     end
 end
 
-function projectile.spawn(player, targetX, targetY)
-    local angle = math.atan2(targetY - player.y, targetX - player.x)
+function projectile.spawn(shooter, targetX, targetY)
 
-    local weapon = player.weapon or {}
+    local angle = math.atan2(targetY - shooter.y, targetX - shooter.x)
+
+    local weapon = shooter.weapon or {}
     local speed = weapon.projectileSpeed or 600
     local damage = weapon.damage or 20
+    local faction = shooter.faction or "player"
 
-    local x = player.x + math.cos(angle) * player.size
-    local y = player.y + math.sin(angle) * player.size
+    local x = shooter.x + math.cos(angle) * shooter.size
+    local y = shooter.y + math.sin(angle) * shooter.size
 
     local physicsWorld = physics.getWorld()
     local body, shape, fixture
@@ -31,6 +33,7 @@ function projectile.spawn(player, targetX, targetY)
         body = love.physics.newBody(physicsWorld, x, y, "dynamic")
         shape = love.physics.newCircleShape(4)
         fixture = love.physics.newFixture(body, shape, 1)
+        fixture:setSensor(true)
         body:setBullet(true)
         body:setFixedRotation(true)
         body:setLinearVelocity(math.cos(angle) * speed, math.sin(angle) * speed)
@@ -42,12 +45,14 @@ function projectile.spawn(player, targetX, targetY)
         angle = angle,
         speed = speed,
         damage = damage,
+        faction = faction,
+        owner = shooter,
         body = body,
         shape = shape,
         fixture = fixture
     })
 
-    player.angle = angle
+    shooter.angle = angle
 end
 
 function projectile.update(dt, world)
@@ -71,17 +76,28 @@ function projectile.update(dt, world)
 end
 
 function projectile.draw(colors)
-    love.graphics.setColor(colors.projectile)
     for _, p in ipairs(projectile.list) do
-        love.graphics.circle("fill", p.x, p.y, 4)
+        local beamLength = 20
+        local beamWidth = 2
+        local tailX = p.x - math.cos(p.angle) * beamLength
+        local tailY = p.y - math.sin(p.angle) * beamLength
 
-        -- Projectile trail
+        -- Outer glow
         love.graphics.setColor(colors.projectile[1], colors.projectile[2], colors.projectile[3], 0.3)
-        local trailX = p.x - math.cos(p.angle) * 15
-        local trailY = p.y - math.sin(p.angle) * 15
-        love.graphics.line(p.x, p.y, trailX, trailY)
+        love.graphics.setLineWidth(beamWidth + 2)
+        love.graphics.line(p.x, p.y, tailX, tailY)
+
+        -- Core beam
         love.graphics.setColor(colors.projectile)
+        love.graphics.setLineWidth(beamWidth)
+        love.graphics.line(p.x, p.y, tailX, tailY)
+
+        -- Bright tip
+        love.graphics.setColor(colors.projectile)
+        love.graphics.setLineWidth(beamWidth)
+        love.graphics.line(p.x, p.y, p.x + math.cos(p.angle) * 3, p.y + math.sin(p.angle) * 3)
     end
+    love.graphics.setLineWidth(1)
 end
 
 function projectile.clear()

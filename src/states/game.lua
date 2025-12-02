@@ -32,7 +32,7 @@ local gameState = "playing" -- "playing", "gameover"
 local colors = {
     ship = {0.2, 0.6, 1},
     shipOutline = {0.4, 0.8, 1},
-    projectile = {1, 1, 0.3},
+    projectile = {0.3, 0.7, 1.0},
     enemy = {1, 0.3, 0.3},
     enemyOutline = {1, 0.5, 0.5},
     health = {0.3, 1, 0.3},
@@ -73,7 +73,7 @@ function game.update(dt)
         return
     end
     
-    inputSystem.update(dt)
+    inputSystem.update(dt, player, world, camera)
 
     physics.update(dt)
     playerModule.update(dt, world)
@@ -108,7 +108,7 @@ function game.mousepressed(x, y, button)
         return
     end
     
-    inputSystem.mousepressed(x, y, button)
+    inputSystem.mousepressed(x, y, button, player, world, camera)
 end
 
 function game.wheelmoved(x, y)
@@ -116,7 +116,7 @@ function game.wheelmoved(x, y)
         return
     end
 
-    inputSystem.wheelmoved(x, y)
+    inputSystem.wheelmoved(x, y, camera)
 end
 
 function game.resize(w, h)
