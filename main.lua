@@ -16,6 +16,10 @@ function love.mousepressed(x, y, button)
     state_machine.mousepressed(x, y, button)
 end
 
+function love.wheelmoved(x, y)
+    state_machine.wheelmoved(x, y)
+end
+
 function love.resize(w, h)
     state_machine.resize(w, h)
 end

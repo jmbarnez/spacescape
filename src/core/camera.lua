@@ -3,7 +3,9 @@ local world = require("src.core.world")
 local camera = {
     x = 0,
     y = 0,
-    scale = 1
+    scale = 1,
+    minScale = 0.5,
+    maxScale = 2.0
 }
 
 function camera.centerOnPlayer(player)
@@ -34,6 +36,24 @@ function camera.update(dt, player)
     else
         camera.y = math.max(minCamY, math.min(maxCamY, player.y))
     end
+end
+
+function camera.setScale(scale)
+    local minScale = camera.minScale or 0.5
+    local maxScale = camera.maxScale or 2.0
+    local current = camera.scale or 1
+    scale = scale or current
+    if scale < minScale then
+        scale = minScale
+    elseif scale > maxScale then
+        scale = maxScale
+    end
+    camera.scale = scale
+end
+
+function camera.zoom(delta)
+    local current = camera.scale or 1
+    camera.setScale(current + (delta or 0))
 end
 
 function camera.screenToWorld(sx, sy)

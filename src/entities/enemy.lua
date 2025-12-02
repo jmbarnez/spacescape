@@ -2,6 +2,8 @@ local enemy = {}
 
 enemy.list = {}
 
+local ship_generator = require("src.utils.procedural_ship_generator")
+
 function enemy.spawn(world)
     local side = math.random(1, 4)
     local x, y
@@ -39,13 +41,16 @@ function enemy.spawn(world)
         end
     end
 
+    local size = 15 + math.random() * 10
+
     table.insert(enemy.list, {
         x = x,
         y = y,
-        size = 15 + math.random() * 10,
+        size = size,
         speed = 80 + math.random() * 60,
         health = 1,
-        angle = 0
+        angle = 0,
+        ship = ship_generator.generate(size)
     })
 end
 
@@ -77,17 +82,7 @@ function enemy.draw(colors)
         love.graphics.translate(e.x, e.y)
         love.graphics.rotate(e.angle)
 
-        love.graphics.setColor(colors.enemy)
-        local points = {
-            e.size, 0,
-            -e.size * 0.7, -e.size * 0.6,
-            -e.size * 0.7, e.size * 0.6
-        }
-        love.graphics.polygon("fill", points)
-
-        love.graphics.setColor(colors.enemyOutline)
-        love.graphics.setLineWidth(2)
-        love.graphics.polygon("line", points)
+        ship_generator.draw(e.ship, colors)
 
         love.graphics.pop()
     end

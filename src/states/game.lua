@@ -10,8 +10,10 @@ local particlesModule = require("src.entities.particles")
 local starfield = require("src.render.starfield")
 local world = require("src.core.world")
 local camera = require("src.core.camera")
+local physics = require("src.core.physics")
 local spawnSystem = require("src.systems.spawn")
 local combatSystem = require("src.systems.combat")
+local engineTrail = require("src.entities.engine_trail")
 
 -- Module definition
 local game = {}
@@ -50,12 +52,15 @@ function game.load()
     love.window.setTitle("Spacescape")
     math.randomseed(os.time())
     
+    physics.init()
     playerModule.reset()
     world.initFromPlayer(player)
     camera.centerOnPlayer(player)
     starfield.generate()
     spawnSystem.reset()
     combatSystem.reset()
+    engineTrail.load()
+    engineTrail.reset()
 end
 
 --------------------------------------------------------------------------------
@@ -67,7 +72,16 @@ function game.update(dt)
         return
     end
     
+    if love.mouse.isDown(2) then
+        local sx, sy = love.mouse.getPosition()
+        local worldX, worldY = camera.screenToWorld(sx, sy)
+        worldX, worldY = world.clampToWorld(worldX, worldY, player.size)
+        playerModule.setTarget(worldX, worldY)
+    end
+
+    physics.update(dt)
     playerModule.update(dt, world)
+    engineTrail.update(dt, player)
     camera.update(dt, player)
     starfield.update(dt, camera.x, camera.y)
     bulletModule.update(dt, world)
@@ -151,6 +165,17 @@ function game.mousepressed(x, y, button)
     end
 end
 
+function game.wheelmoved(x, y)
+    if gameState == "gameover" then
+        return
+    end
+
+    if y ~= 0 then
+        -- Positive y = wheel up = zoom in; negative y = zoom out
+        camera.zoom(y * 0.1)
+    end
+end
+
 function game.resize(w, h)
     starfield.generate()
 end
@@ -167,6 +192,7 @@ function game.restartGame()
     bulletModule.clear()
     enemyModule.clear()
     particlesModule.clear()
+    engineTrail.reset()
     
     spawnSystem.reset()
     combatSystem.reset()
@@ -229,7 +255,11 @@ local function drawTargetIndicator()
 
     love.graphics.setColor(colors.targetRing)
     love.graphics.setLineWidth(1)
-    love.graphics.circle("line", targetEnemy.x, targetEnemy.y, targetEnemy.size + 8)
+    local radius = targetEnemy.size or 0
+    if targetEnemy.ship and targetEnemy.ship.boundingRadius then
+        radius = targetEnemy.ship.boundingRadius
+    end
+    love.graphics.circle("line", targetEnemy.x, targetEnemy.y, radius + 8)
 end
 
 local function drawWorldObjects()
@@ -240,6 +270,7 @@ local function drawWorldObjects()
     drawTargetIndicator()
     
     if gameState == "playing" then
+        engineTrail.draw()
         playerModule.draw(colors)
     end
 end

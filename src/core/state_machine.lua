@@ -36,6 +36,12 @@ function state_machine.mousepressed(x, y, button)
         current.mousepressed(x, y, button)
     end
 end
+ 
+function state_machine.wheelmoved(x, y)
+    if current and current.wheelmoved then
+        current.wheelmoved(x, y)
+    end
+end
 
 function state_machine.resize(w, h)
     if current and current.resize then

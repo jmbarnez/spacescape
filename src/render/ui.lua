@@ -23,6 +23,14 @@ function ui.drawUI(player, colors)
     love.graphics.setColor(1, 1, 1)
     love.graphics.print("Score: " .. player.score, barX, barY + 30)
 
+    -- FPS counter top-right corner
+    local fps = love.timer.getFPS()
+    local fpsText = "FPS: " .. fps
+    local font = love.graphics.getFont()
+    local fpsWidth = font:getWidth(fpsText)
+    love.graphics.setColor(1, 1, 1, 0.7)
+    love.graphics.print(fpsText, love.graphics.getWidth() - fpsWidth - 20, 20)
+
     love.graphics.setColor(1, 1, 1, 0.5)
     love.graphics.print("Right-click: Move | Left-click: Shoot", 20, love.graphics.getHeight() - 30)
 end
