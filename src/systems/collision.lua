@@ -14,6 +14,18 @@ local function checkDistance(x1, y1, x2, y2)
     return math.sqrt(dx * dx + dy * dy)
 end
 
+local function cleanupBulletsForTarget(target)
+    for bi = #bullets, 1, -1 do
+        local bullet = bullets[bi]
+        if bullet.target == target then
+            if bullet.body then
+                bullet.body:destroy()
+            end
+            table.remove(bullets, bi)
+        end
+    end
+end
+
 local function handleBulletEnemyCollisions(player, particlesModule, colors, scorePerKill, damagePerHit)
     for bi = #bullets, 1, -1 do
         local bullet = bullets[bi]
@@ -47,6 +59,7 @@ local function handleBulletEnemyCollisions(player, particlesModule, colors, scor
                             if enemy.body then
                                 enemy.body:destroy()
                             end
+                            cleanupBulletsForTarget(enemy)
                             table.remove(enemies, ei)
                             player.score = player.score + scorePerKill
                         end
@@ -72,6 +85,7 @@ local function handlePlayerEnemyCollisions(player, particlesModule, colors, dama
             if enemy.body then
                 enemy.body:destroy()
             end
+            cleanupBulletsForTarget(enemy)
             table.remove(enemies, i)
             player.health = player.health - damagePerHit
 

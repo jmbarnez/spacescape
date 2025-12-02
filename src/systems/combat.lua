@@ -73,7 +73,17 @@ function combat.handleLeftClick(worldX, worldY, selectionRadius)
 end
 
 function combat.shoot(player, targetX, targetY)
-    projectileModule.spawn(player, targetX, targetY)
+    local target = combat.getTargetEnemy()
+
+    if not target then
+        target = findEnemyAtPosition(targetX, targetY, nil)
+    end
+
+    if target then
+        projectileModule.spawn(player, target.x, target.y, target)
+    else
+        projectileModule.spawn(player, targetX, targetY)
+    end
 end
 
 function combat.getTargetEnemy()
