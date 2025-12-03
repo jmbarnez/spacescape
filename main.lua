@@ -12,6 +12,10 @@ function love.draw()
     state_machine.draw()
 end
 
+function love.keypressed(key)
+    state_machine.keypressed(key)
+end
+
 function love.mousepressed(x, y, button)
     state_machine.mousepressed(x, y, button)
 end

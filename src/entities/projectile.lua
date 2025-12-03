@@ -82,6 +82,7 @@ function projectile.spawn(shooter, targetX, targetY, targetEntity)
         owner = shooter,
         target = targetEntity,
         willHit = willHit,
+        projectileConfig = weapon.projectile,
         body = body,
         shape = shape,
         fixture = fixture
@@ -132,27 +133,47 @@ function projectile.update(dt, world)
     end
 end
 
+local function drawBeamProjectile(p, colors, config)
+    local length = (config and config.length) or 20
+    local width = (config and config.width) or 2
+    local outerAlpha = (config and config.outerGlowAlpha) or 0.3
+    local tipLength = (config and config.tipLength) or 3
+    local color = (config and config.color) or colors.projectile
+
+    local tailX = p.x - math.cos(p.angle) * length
+    local tailY = p.y - math.sin(p.angle) * length
+
+    -- Outer glow
+    love.graphics.setColor(color[1], color[2], color[3], outerAlpha)
+    love.graphics.setLineWidth(width + 2)
+    love.graphics.line(p.x, p.y, tailX, tailY)
+
+    -- Core beam
+    love.graphics.setColor(color)
+    love.graphics.setLineWidth(width)
+    love.graphics.line(p.x, p.y, tailX, tailY)
+
+    -- Bright tip
+    love.graphics.setColor(color)
+    love.graphics.setLineWidth(width)
+    love.graphics.line(
+        p.x,
+        p.y,
+        p.x + math.cos(p.angle) * tipLength,
+        p.y + math.sin(p.angle) * tipLength
+    )
+end
+
 function projectile.draw(colors)
     for _, p in ipairs(projectile.list) do
-        local beamLength = 20
-        local beamWidth = 2
-        local tailX = p.x - math.cos(p.angle) * beamLength
-        local tailY = p.y - math.sin(p.angle) * beamLength
+        local config = p.projectileConfig
+        local style = (config and config.style) or "beam"
 
-        -- Outer glow
-        love.graphics.setColor(colors.projectile[1], colors.projectile[2], colors.projectile[3], 0.3)
-        love.graphics.setLineWidth(beamWidth + 2)
-        love.graphics.line(p.x, p.y, tailX, tailY)
-
-        -- Core beam
-        love.graphics.setColor(colors.projectile)
-        love.graphics.setLineWidth(beamWidth)
-        love.graphics.line(p.x, p.y, tailX, tailY)
-
-        -- Bright tip
-        love.graphics.setColor(colors.projectile)
-        love.graphics.setLineWidth(beamWidth)
-        love.graphics.line(p.x, p.y, p.x + math.cos(p.angle) * 3, p.y + math.sin(p.angle) * 3)
+        if style == "beam" then
+            drawBeamProjectile(p, colors, config)
+        else
+            drawBeamProjectile(p, colors, config)
+        end
     end
     love.graphics.setLineWidth(1)
 end

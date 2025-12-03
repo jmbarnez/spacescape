@@ -31,6 +31,12 @@ function state_machine.draw()
     end
 end
 
+function state_machine.keypressed(key)
+    if current and current.keypressed then
+        current.keypressed(key)
+    end
+end
+
 function state_machine.mousepressed(x, y, button)
     if current and current.mousepressed then
         current.mousepressed(x, y, button)

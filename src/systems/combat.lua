@@ -1,9 +1,11 @@
 local enemyModule = require("src.entities.enemy")
+local asteroidModule = require("src.entities.asteroid")
 local projectileModule = require("src.entities.projectile")
 
 local combat = {}
 
 local enemies = enemyModule.list
+local asteroids = asteroidModule.list
 
 local targetEnemy = nil
 local fireTimer = 0
@@ -20,6 +22,12 @@ local function isEnemyValid(e)
         end
     end
 
+    for i = 1, #asteroids do
+        if asteroids[i] == e then
+            return true
+        end
+    end
+
     return false
 end
 
@@ -28,7 +36,7 @@ local function findEnemyAtPosition(x, y, maxRadius)
     local closestDistSq = nil
     local maxRadiusSq = maxRadius and maxRadius * maxRadius or nil
 
-    for _, e in ipairs(enemies) do
+    local function considerEntity(e)
         local dx = e.x - x
         local dy = e.y - y
         local distSq = dx * dx + dy * dy
@@ -37,6 +45,14 @@ local function findEnemyAtPosition(x, y, maxRadius)
             closestDistSq = distSq
             closestEnemy = e
         end
+    end
+
+    for _, e in ipairs(enemies) do
+        considerEntity(e)
+    end
+
+    for _, a in ipairs(asteroids) do
+        considerEntity(a)
     end
 
     return closestEnemy
@@ -53,6 +69,11 @@ function combat.updateAutoShoot(dt, player)
     local interval = fireInterval
     if player.weapon and player.weapon.fireInterval then
         interval = player.weapon.fireInterval
+    end
+
+    local bonus = player.attackSpeedBonus or 0
+    if bonus > 0 then
+        interval = interval / (1 + bonus)
     end
 
     if fireTimer >= interval then
@@ -73,17 +94,10 @@ function combat.handleLeftClick(worldX, worldY, selectionRadius)
 end
 
 function combat.shoot(player, targetX, targetY)
-    local target = combat.getTargetEnemy()
-
-    if not target then
-        target = findEnemyAtPosition(targetX, targetY, nil)
-    end
-
-    if target then
-        projectileModule.spawn(player, target.x, target.y, target)
-    else
-        projectileModule.spawn(player, targetX, targetY)
-    end
+    -- Generic manual shot: does not automatically home.
+    -- Abilities that want homing behavior should call projectile.spawn
+    -- themselves and pass an explicit target entity.
+    projectileModule.spawn(player, targetX, targetY)
 end
 
 function combat.getTargetEnemy()

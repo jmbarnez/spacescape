@@ -108,41 +108,32 @@ function player.draw(colors)
 
     -- Main body (solid diamond/rhombus drone shape)
     love.graphics.setColor(colors.ship)
-    local bodyPoints = {
-        p.size, 0,
-        0, -p.size * 0.5,
-        -p.size * 0.6, 0,
-        0, p.size * 0.5
-    }
-    love.graphics.polygon("fill", bodyPoints)
+    local coreRadius = p.size * 0.55
+    love.graphics.circle("fill", 0, 0, coreRadius)
 
     -- Side panels (symmetrical)
     love.graphics.setColor(colors.ship[1] * 0.8, colors.ship[2] * 0.8, colors.ship[3] * 0.8)
-    local topPanel = {
-        p.size * 0.3, -p.size * 0.15,
-        -p.size * 0.2, -p.size * 0.4,
-        -p.size * 0.4, -p.size * 0.3,
-        -p.size * 0.1, -p.size * 0.1
-    }
-    love.graphics.polygon("fill", topPanel)
-    local bottomPanel = {
-        p.size * 0.3, p.size * 0.15,
-        -p.size * 0.2, p.size * 0.4,
-        -p.size * 0.4, p.size * 0.3,
-        -p.size * 0.1, p.size * 0.1
-    }
-    love.graphics.polygon("fill", bottomPanel)
+    local armLength = p.size * 0.9
+    local armWidth = p.size * 0.25
+    love.graphics.rectangle("fill", -armLength * 0.4, -armWidth * 0.5, armLength * 0.8, armWidth)
+    love.graphics.rectangle("fill", -armWidth * 0.5, -armLength * 0.4, armWidth, armLength * 0.8)
+
+    local podRadius = p.size * 0.22
+    love.graphics.circle("fill", p.size * 0.7, 0, podRadius)
+    love.graphics.circle("fill", -p.size * 0.3, -p.size * 0.7, podRadius * 0.9)
+    love.graphics.circle("fill", -p.size * 0.3, p.size * 0.7, podRadius * 0.9)
 
     -- Central sensor
     love.graphics.setColor(colors.ship[1] * 0.6, colors.ship[2] * 0.6, colors.ship[3] * 0.6)
-    love.graphics.circle("fill", p.size * 0.2, 0, p.size * 0.15)
+    love.graphics.circle("fill", p.size * 0.4, 0, p.size * 0.18)
 
     -- Outline
     love.graphics.setColor(colors.shipOutline)
     love.graphics.setLineWidth(2)
-    love.graphics.polygon("line", bodyPoints)
-    love.graphics.polygon("line", topPanel)
-    love.graphics.polygon("line", bottomPanel)
+    love.graphics.circle("line", 0, 0, coreRadius)
+    love.graphics.circle("line", p.size * 0.7, 0, podRadius)
+    love.graphics.circle("line", -p.size * 0.3, -p.size * 0.7, podRadius * 0.9)
+    love.graphics.circle("line", -p.size * 0.3, p.size * 0.7, podRadius * 0.9)
 
     -- Engine indicator
     if p.isMoving then

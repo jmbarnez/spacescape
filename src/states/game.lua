@@ -16,7 +16,10 @@ local spawnSystem = require("src.systems.spawn")
 local combatSystem = require("src.systems.combat")
 local collisionSystem = require("src.systems.collision")
 local inputSystem = require("src.systems.input")
+local abilitiesSystem = require("src.systems.abilities")
 local engineTrail = require("src.entities.engine_trail")
+local explosionFx = require("src.entities.explosion_fx")
+local floatingText = require("src.entities.floating_text")
 
 -- Module definition
 local game = {}
@@ -53,6 +56,9 @@ function game.load()
     love.window.setTitle("Spacescape")
     math.randomseed(os.time())
     
+    local font = love.graphics.newFont("assets/fonts/Orbitron-Bold.ttf", 16)
+    love.graphics.setFont(font)
+
     physics.init()
     playerModule.reset()
     world.initFromPlayer(player)
@@ -62,6 +68,9 @@ function game.load()
     combatSystem.reset()
     engineTrail.load()
     engineTrail.reset()
+    explosionFx.load()
+    floatingText.clear()
+    abilitiesSystem.load(player)
 end
 
 --------------------------------------------------------------------------------
@@ -84,6 +93,9 @@ function game.update(dt)
     projectileModule.update(dt, world)
     enemyModule.update(dt, player, world)
     particlesModule.update(dt)
+    explosionFx.update(dt)
+    floatingText.update(dt)
+    abilitiesSystem.update(dt, player, world, camera)
     spawnSystem.update(dt)
     combatSystem.updateAutoShoot(dt, player)
     game.checkCollisions()
@@ -119,6 +131,14 @@ function game.wheelmoved(x, y)
     inputSystem.wheelmoved(x, y, camera)
 end
 
+function game.keypressed(key)
+    if gameState ~= "playing" then
+        return
+    end
+
+    abilitiesSystem.keypressed(key, player, world, camera)
+end
+
 function game.resize(w, h)
     starfield.generate()
 end
@@ -136,9 +156,12 @@ function game.restartGame()
     enemyModule.clear()
     particlesModule.clear()
     engineTrail.reset()
+    explosionFx.clear()
+    floatingText.clear()
     
     spawnSystem.reset()
     combatSystem.reset()
+    abilitiesSystem.reset(player)
     gameState = "playing"
 end
 
@@ -201,6 +224,8 @@ local function drawTargetIndicator()
     local radius = targetEnemy.size or 0
     if targetEnemy.ship and targetEnemy.ship.boundingRadius then
         radius = targetEnemy.ship.boundingRadius
+    elseif targetEnemy.collisionRadius then
+        radius = targetEnemy.collisionRadius
     end
     love.graphics.circle("line", targetEnemy.x, targetEnemy.y, radius + 8)
 end
@@ -211,12 +236,15 @@ local function drawWorldObjects()
     particlesModule.draw()
     projectileModule.draw(colors)
     enemyModule.draw(colors)
-    drawTargetIndicator()
+    explosionFx.draw()
     
     if gameState == "playing" then
         engineTrail.draw()
         playerModule.draw(colors)
     end
+    
+    floatingText.draw()
+    drawTargetIndicator()
 end
 
 local function drawOverlay()

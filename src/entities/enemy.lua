@@ -65,7 +65,7 @@ function enemy.spawn(world)
         faction = "enemy",
         weapon = weapons.enemyPulseLaser,
         state = "idle",
-        detectionRange = 600,
+        detectionRange = 1000,
         attackRange = 350,
         fireTimer = 0
     })
@@ -79,8 +79,10 @@ function enemy.update(dt, playerState, world)
         local dy = playerState.y - e.y
         local distance = math.sqrt(dx * dx + dy * dy)
 
-        local detectionRange = e.detectionRange or 600
-        local attackRange = e.attackRange or 350
+        local weapon = e.weapon or {}
+        local optimalRange = weapon.optimalRange or e.attackRange or 350
+        local detectionRange = e.detectionRange or 1000
+        local attackRange = optimalRange
 
         if distance > detectionRange then
             e.state = "idle"
@@ -103,14 +105,13 @@ function enemy.update(dt, playerState, world)
                 e.x = e.x - (dx / distance) * e.speed * dt * 0.5
                 e.y = e.y - (dy / distance) * e.speed * dt * 0.5
             end
+        end
 
-            local weapon = e.weapon or {}
-            local interval = weapon.fireInterval or 1.0
-            e.fireTimer = (e.fireTimer or 0) + dt
-            if e.fireTimer >= interval then
-                e.fireTimer = 0
-                projectileModule.spawn(e, playerState.x, playerState.y, playerState)
-            end
+        local interval = weapon.fireInterval or 1.0
+        e.fireTimer = (e.fireTimer or 0) + dt
+        if distance <= detectionRange and e.fireTimer >= interval then
+            e.fireTimer = 0
+            projectileModule.spawn(e, playerState.x, playerState.y, playerState)
         end
 
         if distance > 0 then
