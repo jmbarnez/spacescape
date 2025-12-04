@@ -12,8 +12,19 @@ local function set_state(name)
 end
 
 function state_machine.load()
+    states.skin_select = require("src.states.skin_select")
     states.game = require("src.states.game")
-    set_state("game")
+    set_state("skin_select")
+    if current and current.load then
+        current.load()
+    end
+end
+
+function state_machine.change(name)
+    if current and current == states[name] then
+        return
+    end
+    set_state(name)
     if current and current.load then
         current.load()
     end

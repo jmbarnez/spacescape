@@ -3,10 +3,10 @@ local engine_trail = {}
 engine_trail.points = {}
 engine_trail.shader = nil
 engine_trail.mesh = nil
-engine_trail.spawnInterval = 0.02
+engine_trail.spawnInterval = 0.012
 engine_trail.timeSinceLast = 0
-engine_trail.maxPoints = 200
-engine_trail.trailLifetime = 0.4
+engine_trail.maxPoints = 450
+engine_trail.trailLifetime = 0.8
 engine_trail.time = 0
 
 function engine_trail.load()
@@ -31,7 +31,7 @@ function engine_trail.update(dt, player)
     engine_trail.timeSinceLast = engine_trail.timeSinceLast + dt
     engine_trail.time = engine_trail.time + dt
 
-    if player.isMoving and engine_trail.timeSinceLast >= engine_trail.spawnInterval then
+    if player.isThrusting and engine_trail.timeSinceLast >= engine_trail.spawnInterval then
         engine_trail.timeSinceLast = 0
         local offset = player.size * 0.9
         local baseDirX = math.cos(player.angle + math.pi)
@@ -39,11 +39,11 @@ function engine_trail.update(dt, player)
         local rightX = -baseDirY
         local rightY = baseDirX
 
-        local baseSpeed = 80
-        local speedJitter = 40
-        local dirJitter = 0.5
+        local baseSpeed = 120
+        local speedJitter = 60
+        local dirJitter = 0.8
 
-        for n = 1, 2 do
+        for n = 1, 3 do
             local lateral = (math.random() - 0.5) * player.size * 0.9
             local ox = baseDirX * offset + rightX * lateral
             local oy = baseDirY * offset + rightY * lateral
@@ -60,7 +60,7 @@ function engine_trail.update(dt, player)
                 maxLife = engine_trail.trailLifetime,
                 noiseOffset = math.random() * math.pi * 2,
                 spawnTime = engine_trail.time,
-                size = 14,
+                size = 18,
                 seed = math.random()
             })
         end
@@ -70,8 +70,8 @@ function engine_trail.update(dt, player)
         end
     end
 
-    local drag = 0.8
-    local turbulenceStrength = 25
+    local drag = 0.86
+    local turbulenceStrength = 35
 
     for i = #engine_trail.points, 1, -1 do
         local p = engine_trail.points[i]
@@ -127,9 +127,9 @@ function engine_trail.draw()
         engine_trail.shader:send("u_time", engine_trail.time)
         engine_trail.shader:send("u_trailLifetime", engine_trail.trailLifetime)
         engine_trail.shader:send("u_colorMode", 2)
-        engine_trail.shader:send("u_colorA", {0.3, 0.7, 1.0})
-        engine_trail.shader:send("u_colorB", {0.8, 0.9, 1.0})
-        engine_trail.shader:send("u_intensity", 2.0)
+        engine_trail.shader:send("u_colorA", {0.22, 0.55, 1.0})
+        engine_trail.shader:send("u_colorB", {0.9, 0.95, 1.0})
+        engine_trail.shader:send("u_intensity", 3.5)
 
         love.graphics.setColor(1, 1, 1, 1)
         love.graphics.draw(engine_trail.mesh)
@@ -143,17 +143,17 @@ function engine_trail.draw()
 
     for i, p in ipairs(engine_trail.points) do
         local life01 = p.life / p.maxLife
-        local size = 2 + (1 - life01) * 4
+        local size = 3 + (1 - life01) * 6
 
-        local blueStart = {0.25, 0.6, 1.0}
-        local blueEnd   = {0.6, 0.9, 1.0}
+        local blueStart = {0.22, 0.55, 1.0}
+        local blueEnd   = {0.9, 0.95, 1.0}
         local t = 1 - life01
 
         local r = blueStart[1] + (blueEnd[1] - blueStart[1]) * t
         local g = blueStart[2] + (blueEnd[2] - blueStart[2]) * t
         local b = blueStart[3] + (blueEnd[3] - blueStart[3]) * t
 
-        local alpha = 0.15 + 0.85 * life01
+        local alpha = 0.25 + 0.9 * life01
 
         love.graphics.setColor(r, g, b, alpha)
         love.graphics.circle("fill", p.x, p.y, size)

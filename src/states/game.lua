@@ -10,6 +10,7 @@ local projectileModule = require("src.entities.projectile")
 local particlesModule = require("src.entities.particles")
 local starfield = require("src.render.starfield")
 local world = require("src.core.world")
+local skins = require("src.core.skins")
 local camera = require("src.core.camera")
 local physics = require("src.core.physics")
 local spawnSystem = require("src.systems.spawn")
@@ -31,19 +32,10 @@ local enemies = enemyModule.list
 -- Game state
 local gameState = "playing" -- "playing", "gameover"
 
--- Color palette
-local colors = {
-    ship = {0.2, 0.6, 1},
-    shipOutline = {0.4, 0.8, 1},
-    projectile = {0.3, 0.7, 1.0},
-    enemy = {1, 0.3, 0.3},
-    enemyOutline = {1, 0.5, 0.5},
-    health = {0.3, 1, 0.3},
-    healthBg = {0.3, 0.3, 0.3},
-    movementIndicator = {0.3, 1, 0.3, 0.5},
-    star = {1, 1, 1},
-    targetRing = {1, 0, 0, 0.9}
-}
+-- Color palette (selected via skins module)
+local colors = nil
+
+local lockOnShader = nil
 
 -- Constants
 local SCORE_PER_KILL = 100
@@ -59,6 +51,9 @@ function game.load()
     local font = love.graphics.newFont("assets/fonts/Orbitron-Bold.ttf", 16)
     love.graphics.setFont(font)
 
+    local skin = skins.getCurrent()
+    colors = (skin and skin.colors) or colors
+
     physics.init()
     playerModule.reset()
     world.initFromPlayer(player)
@@ -72,6 +67,11 @@ function game.load()
     explosionFx.load()
     floatingText.clear()
     abilitiesSystem.load(player)
+
+    local ok, shader = pcall(love.graphics.newShader, "assets/shaders/lock_on.glsl")
+    if ok then
+        lockOnShader = shader
+    end
 end
 
 --------------------------------------------------------------------------------
@@ -90,7 +90,7 @@ function game.update(dt)
     engineTrail.update(dt, player)
     camera.update(dt, player)
     starfield.update(dt, camera.x, camera.y)
-    asteroidModule.update(dt)
+    asteroidModule.update(dt, world)
     projectileModule.update(dt, world)
     enemyModule.update(dt, player, world)
     particlesModule.update(dt)
@@ -185,7 +185,12 @@ local function endWorldTransform()
 end
 
 local function drawMovementIndicator()
-    if not player.isMoving then
+    -- Check if target is far enough to show indicator
+    local dx = player.targetX - player.x
+    local dy = player.targetY - player.y
+    local distance = math.sqrt(dx * dx + dy * dy)
+    
+    if distance < 30 then
         return
     end
     
@@ -203,7 +208,7 @@ local function drawMovementIndicator()
         player.targetX, player.targetY + markerSize
     )
     
-    -- Draw path line
+    -- Draw path line (shows intended direction, not actual trajectory)
     love.graphics.setColor(
         colors.movementIndicator[1],
         colors.movementIndicator[2],
@@ -212,11 +217,42 @@ local function drawMovementIndicator()
     )
     love.graphics.setLineWidth(1)
     love.graphics.line(player.x, player.y, player.targetX, player.targetY)
+    
+    -- Draw velocity vector (shows actual momentum)
+    if player.vx and player.vy then
+        local speed = math.sqrt(player.vx * player.vx + player.vy * player.vy)
+        if speed > 5 then
+            love.graphics.setColor(0.5, 0.8, 1.0, 0.4)
+            love.graphics.setLineWidth(2)
+            local velScale = 0.5  -- Scale velocity for visualization
+            love.graphics.line(
+                player.x, player.y,
+                player.x + player.vx * velScale,
+                player.y + player.vy * velScale
+            )
+        end
+    end
 end
 
 local function drawTargetIndicator()
     local targetEnemy = combatSystem.getTargetEnemy()
-    if not targetEnemy then
+    local lockTarget, lockTimer, lockDuration, lockedEnemy = combatSystem.getLockStatus()
+
+    local drawEnemy = nil
+    local isLocking = false
+    local progress = 0
+
+    if lockTarget and (not targetEnemy or lockTarget ~= targetEnemy) then
+        drawEnemy = lockTarget
+        if lockDuration and lockDuration > 0 then
+            progress = math.max(0, math.min(1, lockTimer / lockDuration))
+            isLocking = true
+        end
+    elseif targetEnemy then
+        drawEnemy = targetEnemy
+    end
+
+    if not drawEnemy then
         return
     end
 
@@ -229,21 +265,98 @@ local function drawTargetIndicator()
     local camX = math.floor(camera.x)
     local camY = math.floor(camera.y)
 
-    local sx = (targetEnemy.x - camX) * scale + halfW
-    local sy = (targetEnemy.y - camY) * scale + halfH
+    local sx = (drawEnemy.x - camX) * scale + halfW
+    local sy = (drawEnemy.y - camY) * scale + halfH
 
-    local radius = targetEnemy.size or 0
-    if targetEnemy.ship and targetEnemy.ship.boundingRadius then
-        radius = targetEnemy.ship.boundingRadius
-    elseif targetEnemy.collisionRadius then
-        radius = targetEnemy.collisionRadius
+    local radius = drawEnemy.size or 0
+    if drawEnemy.ship and drawEnemy.ship.boundingRadius then
+        radius = drawEnemy.ship.boundingRadius
+    elseif drawEnemy.collisionRadius then
+        radius = drawEnemy.collisionRadius
     end
 
     local screenRadius = (radius + 8) * scale
 
-    love.graphics.setColor(colors.targetRing)
-    love.graphics.setLineWidth(2)
-    love.graphics.circle("line", sx, sy, screenRadius)
+    local isLocked = (not isLocking) and targetEnemy ~= nil and drawEnemy == targetEnemy
+
+    local ringColor
+    if isLocking then
+        ringColor = colors.targetRingLocking or colors.targetRing
+    elseif isLocked then
+        ringColor = colors.targetRingLocked or colors.targetRing
+    else
+        ringColor = colors.targetRing
+    end
+
+    local shader = lockOnShader
+    if shader and (isLocking or isLocked) then
+        local prevShader = love.graphics.getShader()
+        local prevBlend, prevAlpha = love.graphics.getBlendMode()
+
+        love.graphics.setBlendMode("add", "alphamultiply")
+        love.graphics.setShader(shader)
+
+        local now = love.timer.getTime()
+        shader:send("time", now)
+        shader:send("center", {sx, sy})
+        shader:send("radius", screenRadius)
+        shader:send("color", {ringColor[1], ringColor[2], ringColor[3]})
+        local lockProgress = isLocked and 1 or progress
+        shader:send("progress", lockProgress)
+
+        love.graphics.setColor(1, 1, 1, 1)
+        local size = screenRadius * 1.7
+        love.graphics.rectangle("fill", sx - size, sy - size, size * 2, size * 2)
+
+        love.graphics.setBlendMode(prevBlend, prevAlpha)
+        love.graphics.setShader(prevShader)
+    else
+        if isLocking then
+            love.graphics.setColor(ringColor)
+            love.graphics.setLineWidth(2)
+            local startAngle = -math.pi / 2
+            local endAngle = startAngle + 2 * math.pi * progress
+            local segments = math.max(4, math.floor(32 * progress))
+            local points = {}
+            for i = 0, segments do
+                local t = i / segments
+                local angle = startAngle + (endAngle - startAngle) * t
+                local px = sx + math.cos(angle) * screenRadius
+                local py = sy + math.sin(angle) * screenRadius
+                table.insert(points, px)
+                table.insert(points, py)
+            end
+            if #points >= 4 then
+                love.graphics.line(points)
+            end
+        else
+            love.graphics.setColor(ringColor)
+            love.graphics.setLineWidth(2)
+            love.graphics.circle("line", sx, sy, screenRadius)
+        end
+    end
+
+    local labelText
+    local labelColor
+    if isLocking then
+        labelText = "LOCKING..."
+        labelColor = colors.targetRingLocking or colors.targetRing
+    elseif isLocked then
+        labelText = "LOCKED"
+        labelColor = colors.targetRingLocked or colors.targetRing
+    end
+
+    if labelText then
+        local font = love.graphics.getFont()
+        if font then
+            local textWidth = font:getWidth(labelText)
+            local textHeight = font:getHeight()
+            local textX = sx - textWidth / 2
+            local textY = sy - screenRadius - textHeight - 4
+            love.graphics.setColor(labelColor[1], labelColor[2], labelColor[3], labelColor[4] or 1)
+            love.graphics.print(labelText, textX, textY)
+        end
+    end
 end
 
 local function drawWorldObjects()

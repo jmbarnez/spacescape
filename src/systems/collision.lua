@@ -38,12 +38,15 @@ local function handleBulletEnemyCollisions(player, particlesModule, colors, scor
         if bullet.faction ~= "enemy" then
             for ei = #enemies, 1, -1 do
                 local enemy = enemies[ei]
-                if not (bullet.target and bullet.willHit and enemy ~= bullet.target) then
+                if not (bullet.target and enemy ~= bullet.target) then
                     local distance = checkDistance(bullet.x, bullet.y, enemy.x, enemy.y)
                     local enemyRadius = enemy.collisionRadius or enemy.size or 0
 
                     if distance < enemyRadius then
-                        if bullet.willHit == false then
+                        local weapon = bullet.weapon or (bullet.owner and bullet.owner.weapon) or {}
+                        local traveled = bullet.distanceTraveled or 0
+                        local hitChance = projectileModule.calculateHitChance(weapon, traveled)
+                        if math.random() > hitChance then
                             local textY = enemy.y - enemyRadius - 10
                             floatingText.spawn("0", enemy.x, textY, nil, { bgColor = MISS_BG_COLOR })
                             if bullet.body then
@@ -166,7 +169,10 @@ local function handleEnemyBulletPlayerCollisions(player, particlesModule, colors
             local distance = checkDistance(bullet.x, bullet.y, player.x, player.y)
 
             if distance < player.size then
-                if bullet.willHit == false then
+                local weapon = bullet.weapon or (bullet.owner and bullet.owner.weapon) or {}
+                local traveled = bullet.distanceTraveled or 0
+                local hitChance = projectileModule.calculateHitChance(weapon, traveled)
+                if math.random() > hitChance then
                     local textY = player.y - player.size - 10
                     floatingText.spawn("0", player.x, textY, nil, { bgColor = MISS_BG_COLOR })
                     if bullet.body then

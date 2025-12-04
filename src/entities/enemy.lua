@@ -7,14 +7,33 @@ local physics = require("src.core.physics")
 local weapons = require("src.core.weapons")
 local projectileModule = require("src.entities.projectile")
 
-function enemy.spawn(world)
+function enemy.spawn(world, safeRadius)
     local side = math.random(1, 4)
     local x, y
 
     if world then
         local margin = 50
-        x = math.random(world.minX + margin, world.maxX - margin)
-        y = math.random(world.minY + margin, world.maxY - margin)
+        local centerX = world.centerX or (world.minX + world.maxX) / 2
+        local centerY = world.centerY or (world.minY + world.maxY) / 2
+        local minRadius = safeRadius or 0
+        local halfWidth = (world.maxX - world.minX) / 2
+        local halfHeight = (world.maxY - world.minY) / 2
+        local maxRadius = math.min(halfWidth, halfHeight) - margin
+        if maxRadius < 0 then
+            maxRadius = 0
+        end
+        if not safeRadius or minRadius <= 0 or minRadius >= maxRadius then
+            x = math.random(world.minX + margin, world.maxX - margin)
+            y = math.random(world.minY + margin, world.maxY - margin)
+        else
+            local rMin = minRadius
+            local rMax = maxRadius
+            local t = math.random()
+            local r = math.sqrt((rMax * rMax - rMin * rMin) * t + rMin * rMin)
+            local angle = math.random() * math.pi * 2
+            x = centerX + math.cos(angle) * r
+            y = centerY + math.sin(angle) * r
+        end
     else
         local width = love.graphics.getWidth()
         local height = love.graphics.getHeight()
@@ -49,14 +68,21 @@ function enemy.spawn(world)
         body:setFixedRotation(true)
     end
 
+    local consts = physics.constants
+    
     table.insert(enemy.list, {
         x = x,
         y = y,
+        -- Zero-g velocity
+        vx = (math.random() - 0.5) * 20,  -- Small initial drift
+        vy = (math.random() - 0.5) * 20,
         size = size,
-        speed = 80 + math.random() * 60,
+        thrust = consts.enemyThrust,
+        maxSpeed = consts.enemyMaxSpeed,
         health = maxHealth,
         maxHealth = maxHealth,
-        angle = 0,
+        angle = math.random() * math.pi * 2,
+        targetAngle = 0,
         ship = ship,
         collisionRadius = collisionRadius,
         body = body,
@@ -69,11 +95,13 @@ function enemy.spawn(world)
         attackRange = 350,
         fireTimer = 0,
         wanderAngle = math.random() * math.pi * 2,
-        wanderTimer = math.random() * 2
+        wanderTimer = math.random() * 2,
+        isThrusting = false
     })
 end
 
 function enemy.update(dt, playerState, world)
+    local consts = physics.constants
     local activeEnemyIndex = nil
     local closestDistSq = math.huge
 
@@ -102,6 +130,7 @@ function enemy.update(dt, playerState, world)
         local detectionRange = e.detectionRange or 1000
         local attackRange = optimalRange
 
+        -- Determine AI state
         if i == activeEnemyIndex then
             if distance > detectionRange then
                 e.state = "idle"
@@ -114,35 +143,76 @@ function enemy.update(dt, playerState, world)
             e.state = "idle"
         end
 
+        -- Calculate target angle based on state
+        local thrustAngle = e.angle
+        e.isThrusting = false
+        
         if e.state == "chase" then
+            -- Chase: thrust towards player
             if distance > 0 then
-                e.x = e.x + (dx / distance) * e.speed * dt
-                e.y = e.y + (dy / distance) * e.speed * dt
+                e.targetAngle = math.atan2(dy, dx)
+                local angleDiff = math.abs(physics.normalizeAngle(e.targetAngle - e.angle))
+                if angleDiff < math.pi / 2 then
+                    e.isThrusting = true
+                    thrustAngle = e.angle
+                end
             end
         elseif e.state == "attack" then
+            -- Attack: maintain optimal range
+            e.targetAngle = math.atan2(dy, dx)
             if distance > attackRange * 1.1 and distance > 0 then
-                e.x = e.x + (dx / distance) * e.speed * dt
-                e.y = e.y + (dy / distance) * e.speed * dt
-            elseif distance < attackRange * 0.8 and distance > 0 then
-                e.x = e.x - (dx / distance) * e.speed * dt * 0.5
-                e.y = e.y - (dy / distance) * e.speed * dt * 0.5
+                -- Too far, thrust towards
+                local angleDiff = math.abs(physics.normalizeAngle(e.targetAngle - e.angle))
+                if angleDiff < math.pi / 2 then
+                    e.isThrusting = true
+                    thrustAngle = e.angle
+                end
+            elseif distance < attackRange * 0.7 and distance > 0 then
+                -- Too close, thrust away (reverse thrust)
+                local awayAngle = math.atan2(-dy, -dx)
+                local angleDiff = math.abs(physics.normalizeAngle(awayAngle - e.angle))
+                if angleDiff < math.pi / 2 then
+                    e.isThrusting = true
+                    thrustAngle = awayAngle
+                end
             end
-        end
-
-        if e.state == "idle" then
+        elseif e.state == "idle" then
+            -- Idle: gentle wandering with occasional thrust
             e.wanderTimer = (e.wanderTimer or 0) - dt
             if not e.wanderAngle then
                 e.wanderAngle = math.random() * math.pi * 2
             end
             if e.wanderTimer <= 0 then
                 e.wanderAngle = math.random() * math.pi * 2
-                e.wanderTimer = 1.5 + math.random() * 2.0
+                e.wanderTimer = 3.0 + math.random() * 4.0  -- Longer intervals for space feel
             end
-            local wanderSpeed = (e.speed or 80) * 0.3
-            e.x = e.x + math.cos(e.wanderAngle) * wanderSpeed * dt
-            e.y = e.y + math.sin(e.wanderAngle) * wanderSpeed * dt
+            e.targetAngle = e.wanderAngle
+            -- Only thrust occasionally when idle (drifting mostly)
+            if e.wanderTimer > 2.5 then
+                local angleDiff = math.abs(physics.normalizeAngle(e.targetAngle - e.angle))
+                if angleDiff < math.pi / 4 then
+                    e.isThrusting = true
+                    thrustAngle = e.angle
+                end
+            end
         end
 
+        -- Smoothly rotate towards target angle
+        e.angle = physics.rotateTowards(e.angle, e.targetAngle, consts.shipRotationSpeed * 0.8, dt)
+
+        -- Apply thrust if thrusting
+        if e.isThrusting then
+            e.vx, e.vy = physics.applyThrust(e.vx, e.vy, thrustAngle, e.thrust, dt, e.maxSpeed)
+        end
+
+        -- Apply minimal damping
+        e.vx, e.vy = physics.applyDamping(e.vx, e.vy, consts.linearDamping, dt)
+
+        -- Update position based on velocity
+        e.x = e.x + e.vx * dt
+        e.y = e.y + e.vy * dt
+
+        -- Firing logic
         local interval = weapon.fireInterval or 1.0
         e.fireTimer = (e.fireTimer or 0) + dt
         if i == activeEnemyIndex and distance <= detectionRange and e.fireTimer >= interval then
@@ -150,16 +220,23 @@ function enemy.update(dt, playerState, world)
             projectileModule.spawn(e, playerState.x, playerState.y, playerState)
         end
 
-        if i == activeEnemyIndex and distance > 0 then
-            e.angle = math.atan2(dy, dx)
-        elseif e.state == "idle" and e.wanderAngle then
-            e.angle = e.wanderAngle
-        end
-
+        -- World boundary handling with bounce
         if world then
             local margin = e.collisionRadius or e.size
-            e.x = math.max(world.minX + margin, math.min(world.maxX - margin, e.x))
-            e.y = math.max(world.minY + margin, math.min(world.maxY - margin, e.y))
+            if e.x < world.minX + margin then
+                e.x = world.minX + margin
+                e.vx = math.abs(e.vx) * 0.5
+            elseif e.x > world.maxX - margin then
+                e.x = world.maxX - margin
+                e.vx = -math.abs(e.vx) * 0.5
+            end
+            if e.y < world.minY + margin then
+                e.y = world.minY + margin
+                e.vy = math.abs(e.vy) * 0.5
+            elseif e.y > world.maxY - margin then
+                e.y = world.maxY - margin
+                e.vy = -math.abs(e.vy) * 0.5
+            end
         end
 
         if e.body then

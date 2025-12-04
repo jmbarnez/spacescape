@@ -31,6 +31,8 @@ local function calculateHitChance(weapon, distance)
     end
 end
 
+projectile.calculateHitChance = calculateHitChance
+
 local function isOffscreen(p, world)
     if world then
         local margin = 100
@@ -46,16 +48,12 @@ function projectile.spawn(shooter, targetX, targetY, targetEntity)
 
     local dx = targetX - shooter.x
     local dy = targetY - shooter.y
-    local distance = math.sqrt(dx * dx + dy * dy)
     local angle = math.atan2(dy, dx)
 
     local weapon = shooter.weapon or {}
     local speed = weapon.projectileSpeed or 600
     local damage = weapon.damage or 20
     local faction = shooter.faction or "player"
-
-    local hitChance = calculateHitChance(weapon, distance)
-    local willHit = math.random() <= hitChance
 
     local x = shooter.x + math.cos(angle) * shooter.size
     local y = shooter.y + math.sin(angle) * shooter.size
@@ -81,7 +79,8 @@ function projectile.spawn(shooter, targetX, targetY, targetEntity)
         faction = faction,
         owner = shooter,
         target = targetEntity,
-        willHit = willHit,
+        weapon = weapon,
+        distanceTraveled = 0,
         projectileConfig = weapon.projectile,
         body = body,
         shape = shape,
@@ -95,6 +94,9 @@ function projectile.update(dt, world)
     for i = #projectile.list, 1, -1 do
         local p = projectile.list[i]
         local target = p.target
+
+        local oldX = p.x
+        local oldY = p.y
 
         if p.body then
             p.x, p.y = p.body:getPosition()
@@ -121,6 +123,13 @@ function projectile.update(dt, world)
 
             p.x = p.x + math.cos(p.angle) * p.speed * dt
             p.y = p.y + math.sin(p.angle) * p.speed * dt
+        end
+
+        if oldX and oldY then
+            local dx = p.x - oldX
+            local dy = p.y - oldY
+            local stepDist = math.sqrt(dx * dx + dy * dy)
+            p.distanceTraveled = (p.distanceTraveled or 0) + stepDist
         end
 
         -- Remove projectiles that are off screen

@@ -10,6 +10,9 @@ local asteroids = asteroidModule.list
 local targetEnemy = nil
 local fireTimer = 0
 local fireInterval = 0.3
+local lockTarget = nil
+local lockTimer = 0
+local lockDuration = 1.0
 
 local function isEnemyValid(e)
     if not e then
@@ -59,9 +62,26 @@ local function findEnemyAtPosition(x, y, maxRadius)
 end
 
 function combat.updateAutoShoot(dt, player)
-    if not targetEnemy or not isEnemyValid(targetEnemy) then
+    if lockTarget and not isEnemyValid(lockTarget) then
+        lockTarget = nil
+        lockTimer = 0
+    end
+
+    if targetEnemy and not isEnemyValid(targetEnemy) then
         targetEnemy = nil
         fireTimer = 0
+    end
+
+    if lockTarget and not targetEnemy then
+        lockTimer = lockTimer + dt
+        if lockDuration > 0 and lockTimer >= lockDuration then
+            lockTimer = lockDuration
+            targetEnemy = lockTarget
+            fireTimer = 0
+        end
+    end
+
+    if not targetEnemy then
         return
     end
 
@@ -86,10 +106,17 @@ function combat.handleLeftClick(worldX, worldY, selectionRadius)
     local enemy = findEnemyAtPosition(worldX, worldY, selectionRadius)
 
     if enemy then
-        targetEnemy = enemy
-        fireTimer = 0
+        if enemy ~= targetEnemy then
+            lockTarget = enemy
+            lockTimer = 0
+            targetEnemy = nil
+            fireTimer = 0
+        end
     else
         targetEnemy = nil
+        lockTarget = nil
+        lockTimer = 0
+        fireTimer = 0
     end
 end
 
@@ -112,9 +139,19 @@ function combat.getTargetEnemy()
     return nil
 end
 
+function combat.getLockStatus()
+    if lockTarget and isEnemyValid(lockTarget) then
+        return lockTarget, lockTimer, lockDuration, targetEnemy
+    end
+
+    return nil
+end
+
 function combat.reset()
     targetEnemy = nil
     fireTimer = 0
+    lockTarget = nil
+    lockTimer = 0
 end
 
 return combat

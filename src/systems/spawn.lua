@@ -6,12 +6,13 @@ local spawn = {
     spawnTimer = 0,
     spawnInterval = 2,
     initialEnemyCount = 15,
-    initialAsteroidCount = 80
+    initialAsteroidCount = 80,
+    safeEnemyRadius = 2500
 }
 
 local function spawnInitialEnemies()
     for i = 1, spawn.initialEnemyCount do
-        enemyModule.spawn(world)
+        enemyModule.spawn(world, spawn.safeEnemyRadius)
     end
 end
 

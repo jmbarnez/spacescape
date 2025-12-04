@@ -3,6 +3,7 @@ local asteroid = {}
 asteroid.list = {}
 
 local asteroid_generator = require("src.utils.procedural_asteroid_generator")
+local physics = require("src.core.physics")
 
 local HEALTH_PER_SIZE = 2.0
 
@@ -25,13 +26,21 @@ function asteroid.populate(world, count)
         local collisionRadius = (data and data.shape and data.shape.boundingRadius) or size
 
         local maxHealth = size * HEALTH_PER_SIZE
+        
+        -- Zero-g drift velocity (asteroids drift slowly through space)
+        local consts = physics.constants
+        local driftSpeed = consts.asteroidMinDrift + math.random() * (consts.asteroidMaxDrift - consts.asteroidMinDrift)
+        local driftAngle = math.random() * math.pi * 2
 
         table.insert(asteroid.list, {
             x = x,
             y = y,
+            -- Drift velocity for zero-g feel
+            vx = math.cos(driftAngle) * driftSpeed,
+            vy = math.sin(driftAngle) * driftSpeed,
             size = size,
             angle = math.random() * math.pi * 2,
-            rotationSpeed = (math.random() - 0.5) * 0.4,
+            rotationSpeed = (math.random() - 0.5) * 0.3,  -- Slower rotation
             data = data,
             collisionRadius = collisionRadius,
             health = maxHealth,
@@ -40,9 +49,31 @@ function asteroid.populate(world, count)
     end
 end
 
-function asteroid.update(dt)
+function asteroid.update(dt, world)
     for _, a in ipairs(asteroid.list) do
+        -- Update rotation
         a.angle = a.angle + (a.rotationSpeed or 0) * dt
+        
+        -- Update position based on drift velocity (zero-g momentum)
+        if a.vx and a.vy then
+            a.x = a.x + a.vx * dt
+            a.y = a.y + a.vy * dt
+            
+            -- Wrap around world boundaries (asteroids drift endlessly)
+            if world then
+                local margin = a.collisionRadius or a.size
+                if a.x < world.minX - margin then
+                    a.x = world.maxX + margin
+                elseif a.x > world.maxX + margin then
+                    a.x = world.minX - margin
+                end
+                if a.y < world.minY - margin then
+                    a.y = world.maxY + margin
+                elseif a.y > world.maxY + margin then
+                    a.y = world.minY - margin
+                end
+            end
+        end
     end
 end
 

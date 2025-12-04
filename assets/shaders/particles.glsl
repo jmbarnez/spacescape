@@ -28,7 +28,8 @@ vec4 effect(vec4 color, Image tex, vec2 uv, vec2 screen_pos) {
     float core = 1.0 - smoothstep(0.0, 0.3, dist);
     
     vec3 finalColor = v_color * glow + vec3(1.0) * core * 0.5;
-    float alpha = glow * v_life;
+    float flicker = 0.8 + 0.2 * sin(u_time * 6.28318);
+    float alpha = glow * v_life * flicker;
     
     return vec4(finalColor, alpha);
 }
