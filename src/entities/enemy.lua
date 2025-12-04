@@ -63,15 +63,33 @@ function enemy.spawn(world)
         shape = shape,
         fixture = fixture,
         faction = "enemy",
-        weapon = weapons.enemyPulseLaser,
+        weapon = weapons.pulseLaser,
         state = "idle",
         detectionRange = 1000,
         attackRange = 350,
-        fireTimer = 0
+        fireTimer = 0,
+        wanderAngle = math.random() * math.pi * 2,
+        wanderTimer = math.random() * 2
     })
 end
 
 function enemy.update(dt, playerState, world)
+    local activeEnemyIndex = nil
+    local closestDistSq = math.huge
+
+    for i = 1, #enemy.list do
+        local e = enemy.list[i]
+        local dx = playerState.x - e.x
+        local dy = playerState.y - e.y
+        local distSq = dx * dx + dy * dy
+        local detectionRange = e.detectionRange or 1000
+
+        if distSq <= detectionRange * detectionRange and distSq < closestDistSq then
+            closestDistSq = distSq
+            activeEnemyIndex = i
+        end
+    end
+
     for i = #enemy.list, 1, -1 do
         local e = enemy.list[i]
 
@@ -84,12 +102,16 @@ function enemy.update(dt, playerState, world)
         local detectionRange = e.detectionRange or 1000
         local attackRange = optimalRange
 
-        if distance > detectionRange then
-            e.state = "idle"
-        elseif distance > attackRange then
-            e.state = "chase"
+        if i == activeEnemyIndex then
+            if distance > detectionRange then
+                e.state = "idle"
+            elseif distance > attackRange then
+                e.state = "chase"
+            else
+                e.state = "attack"
+            end
         else
-            e.state = "attack"
+            e.state = "idle"
         end
 
         if e.state == "chase" then
@@ -107,15 +129,31 @@ function enemy.update(dt, playerState, world)
             end
         end
 
+        if e.state == "idle" then
+            e.wanderTimer = (e.wanderTimer or 0) - dt
+            if not e.wanderAngle then
+                e.wanderAngle = math.random() * math.pi * 2
+            end
+            if e.wanderTimer <= 0 then
+                e.wanderAngle = math.random() * math.pi * 2
+                e.wanderTimer = 1.5 + math.random() * 2.0
+            end
+            local wanderSpeed = (e.speed or 80) * 0.3
+            e.x = e.x + math.cos(e.wanderAngle) * wanderSpeed * dt
+            e.y = e.y + math.sin(e.wanderAngle) * wanderSpeed * dt
+        end
+
         local interval = weapon.fireInterval or 1.0
         e.fireTimer = (e.fireTimer or 0) + dt
-        if distance <= detectionRange and e.fireTimer >= interval then
+        if i == activeEnemyIndex and distance <= detectionRange and e.fireTimer >= interval then
             e.fireTimer = 0
             projectileModule.spawn(e, playerState.x, playerState.y, playerState)
         end
 
-        if distance > 0 then
+        if i == activeEnemyIndex and distance > 0 then
             e.angle = math.atan2(dy, dx)
+        elseif e.state == "idle" and e.wanderAngle then
+            e.angle = e.wanderAngle
         end
 
         if world then

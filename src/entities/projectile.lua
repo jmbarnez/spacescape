@@ -99,7 +99,7 @@ function projectile.update(dt, world)
         if p.body then
             p.x, p.y = p.body:getPosition()
 
-            if p.willHit and target and target.x and target.y then
+            if target and target.x and target.y then
                 local dx = target.x - p.x
                 local dy = target.y - p.y
                 local distSq = dx * dx + dy * dy
@@ -110,7 +110,7 @@ function projectile.update(dt, world)
                 end
             end
         else
-            if p.willHit and target and target.x and target.y then
+            if target and target.x and target.y then
                 local dx = target.x - p.x
                 local dy = target.y - p.y
                 local dist = math.sqrt(dx * dx + dy * dy)

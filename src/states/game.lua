@@ -66,6 +66,7 @@ function game.load()
     starfield.generate()
     spawnSystem.reset()
     combatSystem.reset()
+    particlesModule.load()
     engineTrail.load()
     engineTrail.reset()
     explosionFx.load()
@@ -219,15 +220,30 @@ local function drawTargetIndicator()
         return
     end
 
-    love.graphics.setColor(colors.targetRing)
-    love.graphics.setLineWidth(1)
+    local width = love.graphics.getWidth()
+    local height = love.graphics.getHeight()
+    local scale = camera.scale or 1
+
+    local halfW = math.floor(width / 2)
+    local halfH = math.floor(height / 2)
+    local camX = math.floor(camera.x)
+    local camY = math.floor(camera.y)
+
+    local sx = (targetEnemy.x - camX) * scale + halfW
+    local sy = (targetEnemy.y - camY) * scale + halfH
+
     local radius = targetEnemy.size or 0
     if targetEnemy.ship and targetEnemy.ship.boundingRadius then
         radius = targetEnemy.ship.boundingRadius
     elseif targetEnemy.collisionRadius then
         radius = targetEnemy.collisionRadius
     end
-    love.graphics.circle("line", targetEnemy.x, targetEnemy.y, radius + 8)
+
+    local screenRadius = (radius + 8) * scale
+
+    love.graphics.setColor(colors.targetRing)
+    love.graphics.setLineWidth(2)
+    love.graphics.circle("line", sx, sy, screenRadius)
 end
 
 local function drawWorldObjects()
@@ -244,10 +260,10 @@ local function drawWorldObjects()
     end
     
     floatingText.draw()
-    drawTargetIndicator()
 end
 
 local function drawOverlay()
+    drawTargetIndicator()
     ui.drawHUD(player, colors)
     
     if gameState == "gameover" then

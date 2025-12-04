@@ -53,7 +53,7 @@ local function handleBulletEnemyCollisions(player, particlesModule, colors, scor
                             break
                         end
 
-                        particlesModule.explosion(bullet.x, bullet.y, colors.projectile)
+                        particlesModule.impact(bullet.x, bullet.y, colors.projectile, 6)
 
                         local damage = bullet.damage or damagePerHit
                         enemy.health = (enemy.health or 0) - damage
@@ -117,48 +117,40 @@ end
 local function handleBulletAsteroidCollisions(player, particlesModule, colors, scorePerKill, damagePerHit)
     for bi = #bullets, 1, -1 do
         local bullet = bullets[bi]
+        -- Only allow player (and other non-enemy) projectiles to interact with asteroids
         if bullet.faction ~= "enemy" then
             for ai = #asteroids, 1, -1 do
                 local asteroid = asteroids[ai]
 
-                if not (bullet.target and bullet.willHit and asteroid ~= bullet.target) then
-                    local distance = checkDistance(bullet.x, bullet.y, asteroid.x, asteroid.y)
-                    local asteroidRadius = asteroid.collisionRadius or asteroid.size or 0
+                local distance = checkDistance(bullet.x, bullet.y, asteroid.x, asteroid.y)
+                local asteroidRadius = asteroid.collisionRadius or asteroid.size or 0
 
-                    if distance < asteroidRadius then
-                        if bullet.willHit == false then
-                            local textY = asteroid.y - asteroidRadius - 10
-                            floatingText.spawn("0", asteroid.x, textY, nil, { bgColor = MISS_BG_COLOR })
-                            if bullet.body then
-                                bullet.body:destroy()
-                            end
-                            table.remove(bullets, bi)
-                            break
-                        end
+                if distance < asteroidRadius then
+                    -- Any physical hit on an asteroid consumes the bullet and damages the rock,
+                    -- regardless of its target / willHit RNG.
+                    local asteroidColor = (asteroid.data and asteroid.data.color) or colors.projectile
+                    particlesModule.impact(bullet.x, bullet.y, asteroidColor, 6)
 
-                        particlesModule.explosion(bullet.x, bullet.y, colors.projectile)
+                    local damage = bullet.damage or damagePerHit
+                    asteroid.health = (asteroid.health or 0) - damage
+                    local amount = math.floor(damage + 0.5)
+                    local textY = asteroid.y - asteroidRadius - 10
+                    floatingText.spawn(tostring(amount), asteroid.x, textY, DAMAGE_COLOR_ENEMY)
 
-                        local damage = bullet.damage or damagePerHit
-                        asteroid.health = (asteroid.health or 0) - damage
-                        local amount = math.floor(damage + 0.5)
-                        local textY = asteroid.y - asteroidRadius - 10
-                        floatingText.spawn(tostring(amount), asteroid.x, textY, DAMAGE_COLOR_ENEMY)
-
-                        if bullet.body then
-                            bullet.body:destroy()
-                        end
-                        table.remove(bullets, bi)
-
-                        if asteroid.health <= 0 then
-                            local deathRadius = asteroid.collisionRadius or asteroid.size or 20
-                            particlesModule.explosion(asteroid.x, asteroid.y, colors.enemy)
-                            cleanupBulletsForTarget(asteroid)
-                            table.remove(asteroids, ai)
-                            player.score = player.score + scorePerKill
-                        end
-
-                        break
+                    if bullet.body then
+                        bullet.body:destroy()
                     end
+                    table.remove(bullets, bi)
+
+                    if asteroid.health <= 0 then
+                        local deathRadius = asteroid.collisionRadius or asteroid.size or 20
+                        particlesModule.explosion(asteroid.x, asteroid.y, colors.enemy)
+                        cleanupBulletsForTarget(asteroid)
+                        table.remove(asteroids, ai)
+                        player.score = player.score + scorePerKill
+                    end
+
+                    break
                 end
             end
         end
@@ -182,7 +174,7 @@ local function handleEnemyBulletPlayerCollisions(player, particlesModule, colors
                     end
                     table.remove(bullets, bi)
                 else
-                    particlesModule.explosion(bullet.x, bullet.y, colors.projectile)
+                    particlesModule.impact(bullet.x, bullet.y, colors.projectile, 6)
 
                     local damage = bullet.damage or damagePerHit
                     player.health = player.health - damage
@@ -211,21 +203,26 @@ local function handlePlayerAsteroidCollisions(player, particlesModule, colors, d
 
     for i = #asteroids, 1, -1 do
         local asteroid = asteroids[i]
-        local distance = checkDistance(player.x, player.y, asteroid.x, asteroid.y)
+        local dx = player.x - asteroid.x
+        local dy = player.y - asteroid.y
+        local distance = math.sqrt(dx * dx + dy * dy)
         local asteroidRadius = asteroid.collisionRadius or asteroid.size or 0
+        local minDistance = player.size + asteroidRadius
 
-        if distance < player.size + asteroidRadius then
-            particlesModule.explosion(asteroid.x, asteroid.y, colors.enemy)
-            table.remove(asteroids, i)
-            player.health = player.health - damagePerHit
-            local amount = math.floor(damagePerHit + 0.5)
-            local textY = player.y - player.size - 10
-            floatingText.spawn(tostring(amount), player.x, textY, DAMAGE_COLOR_PLAYER)
+        if distance < minDistance and distance > 0 then
+            local overlap = minDistance - distance
+            local invDist = 1.0 / distance
+            player.x = player.x + dx * invDist * overlap
+            player.y = player.y + dy * invDist * overlap
 
-            if player.health <= 0 then
-                explosionFx.spawn(player.x, player.y, colors.ship, player.size * 2.2)
-                playerDied = true
+            if player.body then
+                player.body:setPosition(player.x, player.y)
             end
+
+            -- Subtle spark effect instead of a large explosion
+            local contactX = asteroid.x + dx * invDist * asteroidRadius
+            local contactY = asteroid.y + dy * invDist * asteroidRadius
+            particlesModule.spark(contactX, contactY, {0.9, 0.85, 0.7}, 4)
         end
     end
 

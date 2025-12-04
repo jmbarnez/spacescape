@@ -1,49 +1,178 @@
 local particles = {}
 
 particles.list = {}
+particles.shader = nil
+particles.mesh = nil
+particles.maxParticles = 1000
+particles.time = 0
 
-function particles.explosion(x, y, color)
-    for i = 1, 20 do
+function particles.load()
+    local ok, shader = pcall(love.graphics.newShader, "assets/shaders/particles.glsl")
+    if ok then
+        particles.shader = shader
+        local format = {
+            {"VertexPosition", "float", 2},
+            {"a_life", "float", 1},
+            {"a_maxLife", "float", 1},
+            {"a_color", "float", 3},
+            {"a_size", "float", 1}
+        }
+        particles.mesh = love.graphics.newMesh(format, particles.maxParticles, "points", "dynamic")
+    end
+end
+
+function particles.explosion(x, y, color, count, speedMult)
+    count = count or 10
+    speedMult = speedMult or 1.0
+    color = color or {1, 0.8, 0.4}
+    
+    for i = 1, count do
         local angle = math.random() * math.pi * 2
-        local speed = math.random() * 200 + 50
+        local speed = (math.random() * 200 + 50) * speedMult
+        local life = math.random() * 0.5 + 0.3
+        
         table.insert(particles.list, {
             x = x,
             y = y,
             vx = math.cos(angle) * speed,
             vy = math.sin(angle) * speed,
-            life = math.random() * 0.5 + 0.3,
-            maxLife = 0.8,
-            color = color,
-            size = math.random() * 4 + 2
+            life = life,
+            maxLife = life,
+            color = {color[1] or 1, color[2] or 1, color[3] or 1},
+            size = math.random() * 6 + 3,
+            drag = 0.98
+        })
+    end
+end
+
+function particles.impact(x, y, color, count)
+	count = count or 6
+	color = color or {1, 1, 1}
+	
+	for i = 1, count do
+		local angle = math.random() * math.pi * 2
+		local speed = math.random() * 200 + 150
+		local life = math.random() * 0.15 + 0.1
+		
+		table.insert(particles.list, {
+			x = x,
+			y = y,
+			vx = math.cos(angle) * speed,
+			vy = math.sin(angle) * speed,
+			life = life,
+			maxLife = life,
+			color = {color[1] or 1, color[2] or 1, color[3] or 1},
+			size = math.random() * 2 + 1,
+			drag = 0.9
+		})
+	end
+end
+
+function particles.spark(x, y, color, count)
+    count = count or 4
+    color = color or {1, 1, 0.8}
+    
+    for i = 1, count do
+        local angle = math.random() * math.pi * 2
+        local speed = math.random() * 150 + 100
+        local life = math.random() * 0.2 + 0.1
+        
+        table.insert(particles.list, {
+            x = x,
+            y = y,
+            vx = math.cos(angle) * speed,
+            vy = math.sin(angle) * speed,
+            life = life,
+            maxLife = life,
+            color = {color[1] or 1, color[2] or 1, color[3] or 1},
+            size = math.random() * 2 + 1,
+            drag = 0.95
         })
     end
 end
 
 function particles.update(dt)
+    particles.time = particles.time + dt
+    
     for i = #particles.list, 1, -1 do
         local p = particles.list[i]
+        
+        p.vx = p.vx * (p.drag or 1.0)
+        p.vy = p.vy * (p.drag or 1.0)
+        
         p.x = p.x + p.vx * dt
         p.y = p.y + p.vy * dt
         p.life = p.life - dt
-
+        
         if p.life <= 0 then
             table.remove(particles.list, i)
         end
     end
+    
+    if particles.mesh and #particles.list > 0 then
+        local count = math.min(#particles.list, particles.maxParticles)
+        for i = 1, count do
+            local p = particles.list[i]
+            particles.mesh:setVertex(i,
+                p.x, p.y,
+                p.life, p.maxLife,
+                p.color[1], p.color[2], p.color[3],
+                p.size * 0.5
+            )
+        end
+        particles.mesh:setDrawRange(1, count)
+    end
 end
 
 function particles.draw()
-    for _, p in ipairs(particles.list) do
-        local alpha = p.life / p.maxLife
-        love.graphics.setColor(p.color[1], p.color[2], p.color[3], alpha)
-        love.graphics.circle("fill", p.x, p.y, p.size * alpha)
+    if #particles.list == 0 then
+        return
     end
+    
+    local prevShader = love.graphics.getShader()
+    local prevBlend, prevAlpha = love.graphics.getBlendMode()
+
+    if particles.shader and particles.mesh then
+        love.graphics.setShader(particles.shader)
+        love.graphics.setBlendMode("add", "alphamultiply")
+
+        particles.shader:send("u_time", particles.time)
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(particles.mesh)
+
+        love.graphics.setBlendMode(prevBlend, prevAlpha)
+        love.graphics.setShader(prevShader)
+        return
+    end
+
+    love.graphics.setBlendMode("add", "alphamultiply")
+    
+    for _, p in ipairs(particles.list) do
+        local lifeRatio = math.max(0, p.life / p.maxLife)
+        local size = p.size * (0.5 + lifeRatio * 0.5)
+        local alpha = lifeRatio
+        
+        local r, g, b = p.color[1], p.color[2], p.color[3]
+        
+        love.graphics.setColor(r * 0.3, g * 0.3, b * 0.3, alpha * 0.4)
+        love.graphics.circle("fill", p.x, p.y, size * 2)
+        
+        love.graphics.setColor(r * 0.6, g * 0.6, b * 0.6, alpha * 0.6)
+        love.graphics.circle("fill", p.x, p.y, size * 1.3)
+        
+        love.graphics.setColor(r, g, b, alpha)
+        love.graphics.circle("fill", p.x, p.y, size)
+        
+        love.graphics.setColor(1, 1, 1, alpha * 0.8)
+        love.graphics.circle("fill", p.x, p.y, size * 0.3)
+    end
+    
+    love.graphics.setBlendMode(prevBlend, prevAlpha)
+    love.graphics.setShader(prevShader)
 end
 
 function particles.clear()
-    for i = #particles.list, 1, -1 do
-        table.remove(particles.list, i)
-    end
+    particles.list = {}
 end
 
 return particles

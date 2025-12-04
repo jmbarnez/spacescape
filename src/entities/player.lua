@@ -18,7 +18,7 @@ player.state = {
     body = nil,
     shape = nil,
     fixture = nil,
-    weapon = weapons.playerPulseLaser
+    weapon = weapons.pulseLaser
 }
 
 function player.centerInWindow()
@@ -54,7 +54,7 @@ function player.reset()
     p.score = 0
     p.isMoving = false
     createBody()
-    p.weapon = weapons.playerPulseLaser
+    p.weapon = weapons.pulseLaser
 end
 
 function player.update(dt, world)

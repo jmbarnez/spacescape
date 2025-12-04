@@ -94,10 +94,14 @@ function combat.handleLeftClick(worldX, worldY, selectionRadius)
 end
 
 function combat.shoot(player, targetX, targetY)
-    -- Generic manual shot: does not automatically home.
-    -- Abilities that want homing behavior should call projectile.spawn
-    -- themselves and pass an explicit target entity.
-    projectileModule.spawn(player, targetX, targetY)
+    local selectionRadius = 40
+    local target = findEnemyAtPosition(targetX, targetY, selectionRadius)
+
+    if target then
+        projectileModule.spawn(player, target.x, target.y, target)
+    else
+        projectileModule.spawn(player, targetX, targetY)
+    end
 end
 
 function combat.getTargetEnemy()

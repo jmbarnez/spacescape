@@ -1,12 +1,12 @@
 local weapon = {
     name = "Pulse Laser",
     fireInterval = 1,
-    projectileSpeed = 600,
-    damage = 20,
+    projectileSpeed = 1000,
+    damage = 5,
     hitMax = 0.95,
     hitMin = 0.6,
-    optimalRange = 450,
-    maxRange = 900,
+    optimalRange = 350,
+    maxRange = 550,
     projectile = {
         style = "beam",
         length = 22,
