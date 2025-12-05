@@ -33,6 +33,14 @@ physics.masks = {
     ENEMY_PROJECTILE = 0x0001 + 0x0004,
 }
 
+physics.fixtureTypes = {
+    PLAYER = "player",
+    ENEMY = "enemy",
+    ASTEROID = "asteroid",
+    PLAYER_PROJECTILE = "playerprojectile",
+    ENEMY_PROJECTILE = "enemyprojectile",
+}
+
 --------------------------------------------------------------------------------
 -- COLLISION CALLBACKS
 -- These are set on the physics world and called automatically by Box2D
@@ -183,6 +191,17 @@ end
 -- These helpers configure fixtures with proper collision filtering and user data
 --------------------------------------------------------------------------------
 
+local function getDefaultFixtureType(categoryName)
+    local mapped = physics.fixtureTypes[categoryName]
+    if mapped then
+        return mapped
+    end
+    if type(categoryName) == "string" then
+        return categoryName:lower():gsub("_", "")
+    end
+    return nil
+end
+
 --- Configure a fixture with collision category, mask, and user data
 --- @param fixture userdata The Box2D fixture to configure
 --- @param categoryName string One of: "PLAYER", "ENEMY", "ASTEROID", "PLAYER_PROJECTILE", "ENEMY_PROJECTILE"
@@ -191,11 +210,25 @@ function physics.setupFixture(fixture, categoryName, userData)
     local category = physics.categories[categoryName]
     local mask = physics.masks[categoryName]
     
-    if category and mask then
+    if not category or not mask then
+        if type(categoryName) == "string" then
+            print(("physics.setupFixture: unknown collision category '%s'"):format(categoryName))
+        else
+            print("physics.setupFixture: missing or invalid collision category")
+        end
+    else
         fixture:setFilterData(category, mask, 0)
     end
     
     if userData then
+        local defaultType = getDefaultFixtureType(categoryName)
+        if not userData.type then
+            userData.type = defaultType
+        elseif defaultType and userData.type ~= defaultType then
+            print(("physics.setupFixture: userData.type '%s' does not match default type '%s' for category '%s'")
+                :format(tostring(userData.type), tostring(defaultType), tostring(categoryName)))
+        end
+
         fixture:setUserData(userData)
     end
 end
@@ -234,7 +267,7 @@ function physics.createCircleBody(x, y, radius, categoryName, entity, options)
     
     -- Setup collision filtering and user data
     physics.setupFixture(fixture, categoryName, {
-        type = categoryName:lower():gsub("_", ""),  -- e.g., "PLAYER_PROJECTILE" -> "playerprojectile"
+        type = getDefaultFixtureType(categoryName),  -- e.g., "PLAYER_PROJECTILE" -> "playerprojectile"
         entity = entity
     })
     
@@ -288,7 +321,7 @@ function physics.createPolygonBody(x, y, vertices, categoryName, entity, options
     local shapes = {}
     local fixtures = {}
     local userData = {
-        type = categoryName:lower():gsub("_", ""),
+        type = getDefaultFixtureType(categoryName),
         entity = entity
     }
     

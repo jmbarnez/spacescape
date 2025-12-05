@@ -48,7 +48,7 @@ function abilities.update(dt, player, world, camera)
         end
         if inst.activeTime > 0 then
             inst.activeTime = math.max(0, inst.activeTime - dt)
-            if inst.activeTime == 0 and id == "q_attack_speed" then
+            if inst.activeTime == 0 and id == "q_attack_speed" and player then
                 player.attackSpeedBonus = 0
             end
         end
@@ -56,6 +56,10 @@ function abilities.update(dt, player, world, camera)
 end
 
 local function tryCastQ(player)
+    if not player then
+        return
+    end
+
     local inst = instances["q_attack_speed"]
     if not inst or inst.cooldown > 0 then
         return
@@ -67,6 +71,10 @@ local function tryCastQ(player)
 end
 
 local function tryCastE(player, world, camera)
+    if not (player and camera) then
+        return
+    end
+
     local inst = instances["e_dash"]
     if not inst or inst.cooldown > 0 then
         return
@@ -106,6 +114,10 @@ end
 
 function abilities.keypressed(key, player, world, camera)
     initIfNeeded()
+
+    if not player then
+        return
+    end
 
     if key == "q" then
         tryCastQ(player)
