@@ -50,7 +50,6 @@ local lockOnShader = nil
 local lockLabelLockedAt = nil
 
 -- Constants
-local SCORE_PER_KILL = 100
 local DAMAGE_PER_HIT = 20
 --------------------------------------------------------------------------------
 -- Initialization
@@ -64,6 +63,7 @@ function game.load()
     love.graphics.setFont(font)
 
     physics.init()
+    collisionSystem.init()  -- Register collision callbacks with physics
     playerModule.reset()
     world.initFromPlayer(player)
     camera.centerOnPlayer(player)
@@ -112,7 +112,7 @@ function game.update(dt)
 end
 
 function game.checkCollisions()
-    local playerDied = collisionSystem.update(player, particlesModule, colors, SCORE_PER_KILL, DAMAGE_PER_HIT)
+    local playerDied = collisionSystem.update(player, particlesModule, colors, DAMAGE_PER_HIT)
     if playerDied then
         gameState = "gameover"
     end
@@ -164,10 +164,12 @@ function game.restartGame()
     
     projectileModule.clear()
     enemyModule.clear()
+    asteroidModule.clear()
     particlesModule.clear()
     engineTrail.reset()
     explosionFx.clear()
     floatingText.clear()
+    collisionSystem.clear()
     
     spawnSystem.reset()
     combatSystem.reset()

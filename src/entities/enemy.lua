@@ -58,19 +58,10 @@ function enemy.spawn(world, safeRadius)
     local maxHealth = 12
 
     local collisionRadius = (ship and ship.boundingRadius) or size
-
-    local physicsWorld = physics.getWorld()
-    local body, shape, fixture
-    if physicsWorld then
-        body = love.physics.newBody(physicsWorld, x, y, "dynamic")
-        shape = love.physics.newCircleShape(collisionRadius)
-        fixture = love.physics.newFixture(body, shape, 1)
-        body:setFixedRotation(true)
-    end
-
     local consts = physics.constants
     
-    table.insert(enemy.list, {
+    -- Create the enemy entity first (so we can pass it to physics)
+    local newEnemy = {
         x = x,
         y = y,
         -- Zero-g velocity
@@ -85,9 +76,9 @@ function enemy.spawn(world, safeRadius)
         targetAngle = 0,
         ship = ship,
         collisionRadius = collisionRadius,
-        body = body,
-        shape = shape,
-        fixture = fixture,
+        body = nil,
+        shape = nil,
+        fixture = nil,
         faction = "enemy",
         weapon = weapons.enemyPulseLaser,
         state = "idle",
@@ -97,7 +88,17 @@ function enemy.spawn(world, safeRadius)
         wanderAngle = math.random() * math.pi * 2,
         wanderTimer = math.random() * 2,
         isThrusting = false
-    })
+    }
+    
+    -- Create physics body with proper collision filtering
+    newEnemy.body, newEnemy.shape, newEnemy.fixture = physics.createCircleBody(
+        x, y,
+        collisionRadius,
+        "ENEMY",
+        newEnemy
+    )
+    
+    table.insert(enemy.list, newEnemy)
 end
 
 function enemy.update(dt, playerState, world)

@@ -58,19 +58,8 @@ function projectile.spawn(shooter, targetX, targetY, targetEntity)
     local x = shooter.x + math.cos(angle) * shooter.size
     local y = shooter.y + math.sin(angle) * shooter.size
 
-    local physicsWorld = physics.getWorld()
-    local body, shape, fixture
-    if physicsWorld then
-        body = love.physics.newBody(physicsWorld, x, y, "dynamic")
-        shape = love.physics.newCircleShape(4)
-        fixture = love.physics.newFixture(body, shape, 1)
-        fixture:setSensor(true)
-        body:setBullet(true)
-        body:setFixedRotation(true)
-        body:setLinearVelocity(math.cos(angle) * speed, math.sin(angle) * speed)
-    end
-
-    table.insert(projectile.list, {
+    -- Create projectile entity first (so we can pass it to physics)
+    local newProjectile = {
         x = x,
         y = y,
         angle = angle,
@@ -82,11 +71,29 @@ function projectile.spawn(shooter, targetX, targetY, targetEntity)
         weapon = weapon,
         distanceTraveled = 0,
         projectileConfig = weapon.projectile,
-        body = body,
-        shape = shape,
-        fixture = fixture
-    })
+        body = nil,
+        shape = nil,
+        fixture = nil
+    }
+    
+    -- Determine collision category based on faction
+    local categoryName = (faction == "enemy") and "ENEMY_PROJECTILE" or "PLAYER_PROJECTILE"
+    
+    -- Create physics body with proper collision filtering
+    newProjectile.body, newProjectile.shape, newProjectile.fixture = physics.createCircleBody(
+        x, y,
+        4,  -- Projectile radius
+        categoryName,
+        newProjectile,
+        { isSensor = true, isBullet = true }  -- Sensors don't cause physical response, bullets have CCD
+    )
+    
+    -- Set velocity if body was created
+    if newProjectile.body then
+        newProjectile.body:setLinearVelocity(math.cos(angle) * speed, math.sin(angle) * speed)
+    end
 
+    table.insert(projectile.list, newProjectile)
     shooter.angle = angle
 end
 

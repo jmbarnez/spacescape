@@ -79,7 +79,6 @@ player.state = {
     approachAngle = nil,
     health = 100,
     maxHealth = 100,
-    score = 0,
     isThrusting = false,
     body = nil,
     shape = nil,
@@ -95,29 +94,34 @@ function player.centerInWindow()
     p.targetY = p.y
 end
 
+--------------------------------------------------------------------------------
+-- PHYSICS BODY CREATION
+-- Creates the player's physics body with proper collision filtering
+--------------------------------------------------------------------------------
 local function createBody()
     local p = player.state
+    
+    -- Clean up existing body if present
     if p.body then
         p.body:destroy()
         p.body = nil
         p.shape = nil
         p.fixture = nil
     end
-    local world = physics.getWorld()
-    if not world then
-        return
-    end
-    p.body = love.physics.newBody(world, p.x, p.y, "dynamic")
-    p.body:setFixedRotation(true)
-    p.shape = love.physics.newCircleShape(p.size)
-    p.fixture = love.physics.newFixture(p.body, p.shape, 1)
+    
+    -- Create new body with collision filtering via physics helper
+    p.body, p.shape, p.fixture = physics.createCircleBody(
+        p.x, p.y,
+        p.size,
+        "PLAYER",
+        p  -- Pass player state as the entity reference
+    )
 end
 
 function player.reset()
     local p = player.state
     player.centerInWindow()
     p.health = p.maxHealth
-    p.score = 0
     -- Reset velocity for zero-g
     p.vx = 0
     p.vy = 0

@@ -32,7 +32,8 @@ function asteroid.populate(world, count)
         local driftSpeed = consts.asteroidMinDrift + math.random() * (consts.asteroidMaxDrift - consts.asteroidMinDrift)
         local driftAngle = math.random() * math.pi * 2
 
-        table.insert(asteroid.list, {
+        -- Create the asteroid entity first (so we can pass it to physics)
+        local newAsteroid = {
             x = x,
             y = y,
             -- Drift velocity for zero-g feel
@@ -44,8 +45,21 @@ function asteroid.populate(world, count)
             data = data,
             collisionRadius = collisionRadius,
             health = maxHealth,
-            maxHealth = maxHealth
-        })
+            maxHealth = maxHealth,
+            body = nil,
+            shape = nil,
+            fixture = nil
+        }
+        
+        -- Create physics body with proper collision filtering
+        newAsteroid.body, newAsteroid.shape, newAsteroid.fixture = physics.createCircleBody(
+            x, y,
+            collisionRadius,
+            "ASTEROID",
+            newAsteroid
+        )
+        
+        table.insert(asteroid.list, newAsteroid)
     end
 end
 
@@ -72,6 +86,11 @@ function asteroid.update(dt, world)
                 elseif a.y > world.maxY + margin then
                     a.y = world.minY - margin
                 end
+            end
+            
+            -- Sync physics body position
+            if a.body then
+                a.body:setPosition(a.x, a.y)
             end
         end
     end
@@ -104,6 +123,10 @@ end
 
 function asteroid.clear()
     for i = #asteroid.list, 1, -1 do
+        local a = asteroid.list[i]
+        if a.body then
+            a.body:destroy()
+        end
         table.remove(asteroid.list, i)
     end
 end
