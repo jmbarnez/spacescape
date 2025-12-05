@@ -60,6 +60,12 @@ function enemy.spawn(world, safeRadius)
     local collisionRadius = (ship and ship.boundingRadius) or size
     local consts = physics.constants
     
+    -- Get collision vertices from the ship's hull
+    local collisionVertices = nil
+    if ship and ship.hull and ship.hull.points then
+        collisionVertices = ship_generator.getBaseOutline(ship)
+    end
+    
     -- Create the enemy entity first (so we can pass it to physics)
     local newEnemy = {
         x = x,
@@ -76,9 +82,10 @@ function enemy.spawn(world, safeRadius)
         targetAngle = 0,
         ship = ship,
         collisionRadius = collisionRadius,
+        collisionVertices = collisionVertices,
         body = nil,
-        shape = nil,
-        fixture = nil,
+        shapes = nil,   -- Table of shapes (polygon body may have multiple)
+        fixtures = nil, -- Table of fixtures
         faction = "enemy",
         weapon = weapons.enemyPulseLaser,
         state = "idle",
@@ -90,13 +97,26 @@ function enemy.spawn(world, safeRadius)
         isThrusting = false
     }
     
-    -- Create physics body with proper collision filtering
-    newEnemy.body, newEnemy.shape, newEnemy.fixture = physics.createCircleBody(
-        x, y,
-        collisionRadius,
-        "ENEMY",
-        newEnemy
-    )
+    -- Create physics body with polygon collision from ship hull
+    if collisionVertices and #collisionVertices >= 6 then
+        newEnemy.body, newEnemy.shapes, newEnemy.fixtures = physics.createPolygonBody(
+            x, y,
+            collisionVertices,
+            "ENEMY",
+            newEnemy
+        )
+    else
+        -- Fallback to circle if no valid hull vertices
+        local body, shape, fixture = physics.createCircleBody(
+            x, y,
+            collisionRadius,
+            "ENEMY",
+            newEnemy
+        )
+        newEnemy.body = body
+        newEnemy.shapes = shape and {shape} or nil
+        newEnemy.fixtures = fixture and {fixture} or nil
+    end
     
     table.insert(enemy.list, newEnemy)
 end

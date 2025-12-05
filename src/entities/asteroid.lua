@@ -32,6 +32,12 @@ function asteroid.populate(world, count)
         local driftSpeed = consts.asteroidMinDrift + math.random() * (consts.asteroidMaxDrift - consts.asteroidMinDrift)
         local driftAngle = math.random() * math.pi * 2
 
+        -- Get collision vertices from the asteroid's shape
+        local collisionVertices = nil
+        if data and data.shape and data.shape.flatPoints then
+            collisionVertices = data.shape.flatPoints
+        end
+        
         -- Create the asteroid entity first (so we can pass it to physics)
         local newAsteroid = {
             x = x,
@@ -44,20 +50,34 @@ function asteroid.populate(world, count)
             rotationSpeed = (math.random() - 0.5) * 0.3,  -- Slower rotation
             data = data,
             collisionRadius = collisionRadius,
+            collisionVertices = collisionVertices,
             health = maxHealth,
             maxHealth = maxHealth,
             body = nil,
-            shape = nil,
-            fixture = nil
+            shapes = nil,   -- Table of shapes (polygon body may have multiple)
+            fixtures = nil  -- Table of fixtures
         }
         
-        -- Create physics body with proper collision filtering
-        newAsteroid.body, newAsteroid.shape, newAsteroid.fixture = physics.createCircleBody(
-            x, y,
-            collisionRadius,
-            "ASTEROID",
-            newAsteroid
-        )
+        -- Create physics body with polygon collision from asteroid shape
+        if collisionVertices and #collisionVertices >= 6 then
+            newAsteroid.body, newAsteroid.shapes, newAsteroid.fixtures = physics.createPolygonBody(
+                x, y,
+                collisionVertices,
+                "ASTEROID",
+                newAsteroid
+            )
+        else
+            -- Fallback to circle if no valid shape vertices
+            local body, shape, fixture = physics.createCircleBody(
+                x, y,
+                collisionRadius,
+                "ASTEROID",
+                newAsteroid
+            )
+            newAsteroid.body = body
+            newAsteroid.shapes = shape and {shape} or nil
+            newAsteroid.fixtures = fixture and {fixture} or nil
+        end
         
         table.insert(asteroid.list, newAsteroid)
     end

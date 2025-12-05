@@ -14,7 +14,7 @@
 --
 -- ADDING NEW ENTITY TYPES:
 -- 1. Add category/mask in physics.lua
--- 2. Create entity with physics.createCircleBody()
+-- 2. Create entity with physics.createPolygonBody() or physics.createCircleBody()
 -- 3. Add handler function below
 -- 4. Register handler in COLLISION_HANDLERS table
 --------------------------------------------------------------------------------
@@ -67,31 +67,49 @@ local pendingCollisions = {}
 -- Shared helpers used by multiple collision handlers
 --------------------------------------------------------------------------------
 
---- Calculate the contact point between two circular entities
---- @param x1 number Center X of first entity
---- @param y1 number Center Y of first entity
---- @param x2 number Center X of second entity
---- @param y2 number Center Y of second entity
---- @param radius2 number Radius of second entity (contact point is on its surface)
---- @return number, number Contact point X and Y
-local function getContactPoint(x1, y1, x2, y2, radius2)
+--- Calculate the contact point between two entities
+--- Works for both circular and polygon colliders by using center-to-center direction
+--- @param x1 number Center X of first entity (projectile)
+--- @param y1 number Center Y of first entity (projectile)
+--- @param x2 number Center X of second entity (target)
+--- @param y2 number Center Y of second entity (target)
+--- @param boundingRadius number Approximate bounding radius of target (for visual offset)
+--- @return number, number Contact point X and Y (approximated on target surface)
+local function getContactPoint(x1, y1, x2, y2, boundingRadius)
     local dx = x1 - x2
     local dy = y1 - y2
     local distance = math.sqrt(dx * dx + dy * dy)
     
     if distance > 0 then
+        -- Use the midpoint biased toward the target for polygon shapes
+        -- This gives a reasonable contact point without needing exact polygon intersection
+        local contactDist = math.min(boundingRadius, distance * 0.5)
         local invDist = 1.0 / distance
-        return x2 + dx * invDist * radius2, y2 + dy * invDist * radius2
+        return x2 + dx * invDist * contactDist, y2 + dy * invDist * contactDist
     end
     
     return x1, y1
 end
 
---- Get the collision radius of an entity
---- @param entity table The entity to get radius for
---- @return number The collision radius
-local function getRadius(entity)
-    return entity.collisionRadius or entity.size or 10
+--- Get the bounding radius of an entity (for visual effects positioning)
+--- Works for both circular and polygon colliders
+--- @param entity table The entity to get bounding radius for
+--- @return number The bounding radius
+local function getBoundingRadius(entity)
+    -- For polygon bodies, use stored collision radius or compute from vertices
+    if entity.collisionRadius then
+        return entity.collisionRadius
+    end
+    -- For ships with procedural data
+    if entity.ship and entity.ship.boundingRadius then
+        return entity.ship.boundingRadius
+    end
+    -- For asteroids with procedural data
+    if entity.data and entity.data.shape and entity.data.shape.boundingRadius then
+        return entity.data.shape.boundingRadius
+    end
+    -- Fallback to size
+    return entity.size or 10
 end
 
 --- Spawn floating damage text above an entity
@@ -164,14 +182,18 @@ end
 --- Handle player projectile hitting an enemy
 --- @param projectile table The projectile entity
 --- @param enemy table The enemy entity
-local function handlePlayerProjectileVsEnemy(projectile, enemy)
+--- @param contactX number Contact point X (optional)
+--- @param contactY number Contact point Y (optional)
+local function handlePlayerProjectileVsEnemy(projectile, enemy, contactX, contactY)
     -- Skip if projectile is targeting a different enemy
     if projectile.target and projectile.target ~= enemy then
         return
     end
     
-    local enemyRadius = getRadius(enemy)
-    local contactX, contactY = getContactPoint(projectile.x, projectile.y, enemy.x, enemy.y, enemyRadius)
+    local enemyRadius = getBoundingRadius(enemy)
+    if not contactX or not contactY then
+        contactX, contactY = getContactPoint(projectile.x, projectile.y, enemy.x, enemy.y, enemyRadius)
+    end
     
     -- Roll for hit/miss based on weapon accuracy
     if not rollHitChance(projectile) then
@@ -203,9 +225,13 @@ end
 --- Handle enemy projectile hitting the player
 --- @param projectile table The projectile entity
 --- @param player table The player entity
-local function handleEnemyProjectileVsPlayer(projectile, player)
+--- @param contactX number Contact point X (optional)
+--- @param contactY number Contact point Y (optional)
+local function handleEnemyProjectileVsPlayer(projectile, player, contactX, contactY)
     local playerRadius = player.size or 10
-    local contactX, contactY = getContactPoint(projectile.x, projectile.y, player.x, player.y, playerRadius)
+    if not contactX or not contactY then
+        contactX, contactY = getContactPoint(projectile.x, projectile.y, player.x, player.y, playerRadius)
+    end
     
     -- Roll for hit/miss
     if not rollHitChance(projectile) then
@@ -233,9 +259,13 @@ end
 --- Handle any projectile hitting an asteroid
 --- @param projectile table The projectile entity
 --- @param asteroid table The asteroid entity
-local function handleProjectileVsAsteroid(projectile, asteroid)
-    local asteroidRadius = getRadius(asteroid)
-    local contactX, contactY = getContactPoint(projectile.x, projectile.y, asteroid.x, asteroid.y, asteroidRadius)
+--- @param contactX number Contact point X (optional)
+--- @param contactY number Contact point Y (optional)
+local function handleProjectileVsAsteroid(projectile, asteroid, contactX, contactY)
+    local asteroidRadius = getBoundingRadius(asteroid)
+    if not contactX or not contactY then
+        contactX, contactY = getContactPoint(projectile.x, projectile.y, asteroid.x, asteroid.y, asteroidRadius)
+    end
     
     -- Asteroids always get hit (no miss chance)
     local asteroidColor = (asteroid.data and asteroid.data.color) or currentColors.projectile
@@ -262,7 +292,7 @@ end
 --- @param player table The player entity
 --- @param enemy table The enemy entity
 local function handlePlayerVsEnemy(player, enemy)
-    local enemyRadius = getRadius(enemy)
+    local enemyRadius = getBoundingRadius(enemy)
     
     -- Destroy the enemy on contact
     explosionFx.spawn(enemy.x, enemy.y, currentColors.enemy, enemyRadius * 1.4)
@@ -279,26 +309,31 @@ local function handlePlayerVsEnemy(player, enemy)
     end
 end
 
---- Handle player colliding with an asteroid (push away, no damage)
---- @param player table The player entity
+--- Resolve a generic ship colliding with an asteroid (push ship away, no damage)
+--- @param ship table The ship entity (player or enemy)
 --- @param asteroid table The asteroid entity
-local function handlePlayerVsAsteroid(player, asteroid)
-    local asteroidRadius = getRadius(asteroid)
-    local dx = player.x - asteroid.x
-    local dy = player.y - asteroid.y
+local function resolveShipVsAsteroid(ship, asteroid)
+    if not ship or not asteroid then
+        return
+    end
+
+    local shipRadius = getBoundingRadius(ship)
+    local asteroidRadius = getBoundingRadius(asteroid)
+    local dx = ship.x - asteroid.x
+    local dy = ship.y - asteroid.y
     local distance = math.sqrt(dx * dx + dy * dy)
-    local minDistance = player.size + asteroidRadius
+    local minDistance = shipRadius + asteroidRadius
     
-    -- Push player away from asteroid
+    -- Push ship away from asteroid
     if distance > 0 and distance < minDistance then
         local overlap = minDistance - distance
         local invDist = 1.0 / distance
-        player.x = player.x + dx * invDist * overlap
-        player.y = player.y + dy * invDist * overlap
+        ship.x = ship.x + dx * invDist * overlap
+        ship.y = ship.y + dy * invDist * overlap
         
         -- Sync physics body position
-        if player.body then
-            player.body:setPosition(player.x, player.y)
+        if ship.body then
+            ship.body:setPosition(ship.x, ship.y)
         end
         
         -- Subtle spark effect
@@ -308,6 +343,13 @@ local function handlePlayerVsAsteroid(player, asteroid)
             currentParticles.spark(contactX, contactY, {0.9, 0.85, 0.7}, 4)
         end
     end
+end
+
+--- Handle player colliding with an asteroid (Box2D event wrapper)
+--- @param player table The player entity
+--- @param asteroid table The asteroid entity
+local function handlePlayerVsAsteroid(player, asteroid)
+    resolveShipVsAsteroid(player, asteroid)
 end
 
 --------------------------------------------------------------------------------
@@ -345,14 +387,33 @@ registerHandler("player", "asteroid", handlePlayerVsAsteroid)
 --- @param dataB table UserData from fixture B: { type = "...", entity = ref }
 --- @param contact userdata Box2D contact object
 function collision.onBeginContact(dataA, dataB, contact)
+    local contactX, contactY = nil, nil
+
+    if contact then
+        local x1, y1, x2, y2 = contact:getPositions()
+        if x1 and y1 and x2 and y2 then
+            contactX = (x1 + x2) * 0.5
+            contactY = (y1 + y2) * 0.5
+        elseif x1 and y1 then
+            contactX, contactY = x1, y1
+        elseif x2 and y2 then
+            contactX, contactY = x2, y2
+        end
+    end
+
     -- Queue the collision for processing after physics step
-    table.insert(pendingCollisions, { dataA = dataA, dataB = dataB })
+    table.insert(pendingCollisions, {
+        dataA = dataA,
+        dataB = dataB,
+        contactX = contactX,
+        contactY = contactY
+    })
 end
 
 --- Process a single collision between two entities
 --- @param dataA table UserData from fixture A
 --- @param dataB table UserData from fixture B
-local function processCollision(dataA, dataB)
+local function processCollision(dataA, dataB, contactX, contactY)
     local typeA = dataA.type
     local typeB = dataB.type
     local entityA = dataA.entity
@@ -370,9 +431,9 @@ local function processCollision(dataA, dataB)
     if entry then
         -- Call handler with entities in correct order
         if entry.order == "ab" then
-            entry.handler(entityA, entityB)
+            entry.handler(entityA, entityB, contactX, contactY)
         else
-            entry.handler(entityB, entityA)
+            entry.handler(entityB, entityA, contactX, contactY)
         end
     end
 end
@@ -404,23 +465,41 @@ function collision.update(player, particlesModule, colors, damagePerHit)
     
     -- Process all pending collisions
     for _, pending in ipairs(pendingCollisions) do
-        processCollision(pending.dataA, pending.dataB)
+        processCollision(pending.dataA, pending.dataB, pending.contactX, pending.contactY)
     end
 
     ------------------------------------------------------------------------
-    -- Continuous player vs asteroid resolution
+    -- Continuous ship vs asteroid resolution (player + enemies)
     --
     -- Box2D's beginContact callback only fires once when a contact starts.
     -- Since our movement is mostly kinematic (we manually set positions), we
-    -- also run a simple distance-based check every frame to keep the player
-    -- pushed out of asteroid overlap. This ensures a consistent "bump"
-    -- behaviour even if the contact event is missed or only fires once.
+    -- also run a simple distance-based check every frame to keep ships pushed
+    -- out of asteroid overlap. This ensures a consistent "bump" behaviour
+    -- even if the contact event is missed or only fires once.
     ------------------------------------------------------------------------
-    if player and asteroids and #asteroids > 0 then
-        for i = 1, #asteroids do
-            local a = asteroids[i]
-            if a then
-                handlePlayerVsAsteroid(player, a)
+    if asteroids and #asteroids > 0 then
+        -- Player vs asteroids
+        if player then
+            for i = 1, #asteroids do
+                local a = asteroids[i]
+                if a then
+                    resolveShipVsAsteroid(player, a)
+                end
+            end
+        end
+
+        -- Enemies vs asteroids
+        if enemies and #enemies > 0 then
+            for ei = 1, #enemies do
+                local e = enemies[ei]
+                if e then
+                    for ai = 1, #asteroids do
+                        local a = asteroids[ai]
+                        if a then
+                            resolveShipVsAsteroid(e, a)
+                        end
+                    end
+                end
             end
         end
     end

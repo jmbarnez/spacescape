@@ -61,6 +61,33 @@ local function renderDrone(colors, size)
     )
 end
 
+--- Generate the collision polygon for the player drone
+--- Matches the visual shape from renderDrone()
+--- @param size number The player size
+--- @return table Flat vertex array for collision shape
+local function generateDroneCollisionVertices(size)
+    -- Simplified hull shape matching the visual drone
+    -- Front points along +X (matching renderDrone orientation)
+    local hullLength = size * 2.4
+    local hullHalfWidth = size * 0.35
+    local noseX = hullLength * 0.5
+    local backX = -hullLength * 0.4
+    local wingSpan = size * 0.9
+    local wingBackX = backX * 0.5
+    
+    -- Create a simplified convex hull that encompasses the drone
+    -- Using key points: nose, wing tips, and rear
+    return {
+        noseX, 0,                          -- Nose tip
+        size * 0.2, -hullHalfWidth * 0.7,  -- Upper front
+        wingBackX, -wingSpan,              -- Upper wing tip
+        backX, -hullHalfWidth * 0.25,      -- Upper rear
+        backX, hullHalfWidth * 0.25,       -- Lower rear
+        wingBackX, wingSpan,               -- Lower wing tip
+        size * 0.2, hullHalfWidth * 0.7,   -- Lower front
+    }
+end
+
 player.state = {
     x = 0,
     y = 0,
@@ -81,8 +108,9 @@ player.state = {
     maxHealth = 100,
     isThrusting = false,
     body = nil,
-    shape = nil,
-    fixture = nil,
+    shapes = nil,   -- Table of shapes (polygon body may have multiple)
+    fixtures = nil, -- Table of fixtures
+    collisionVertices = nil, -- Stored collision vertices
     weapon = weapons.pulseLaser
 }
 
@@ -105,14 +133,17 @@ local function createBody()
     if p.body then
         p.body:destroy()
         p.body = nil
-        p.shape = nil
-        p.fixture = nil
+        p.shapes = nil
+        p.fixtures = nil
     end
     
-    -- Create new body with collision filtering via physics helper
-    p.body, p.shape, p.fixture = physics.createCircleBody(
+    -- Generate collision vertices matching the drone shape
+    p.collisionVertices = generateDroneCollisionVertices(p.size)
+    
+    -- Create polygon body with collision filtering
+    p.body, p.shapes, p.fixtures = physics.createPolygonBody(
         p.x, p.y,
-        p.size,
+        p.collisionVertices,
         "PLAYER",
         p  -- Pass player state as the entity reference
     )
