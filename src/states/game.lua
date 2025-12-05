@@ -10,7 +10,6 @@ local projectileModule = require("src.entities.projectile")
 local particlesModule = require("src.entities.particles")
 local starfield = require("src.render.starfield")
 local world = require("src.core.world")
-local skins = require("src.core.skins")
 local camera = require("src.core.camera")
 local physics = require("src.core.physics")
 local spawnSystem = require("src.systems.spawn")
@@ -33,9 +32,22 @@ local enemies = enemyModule.list
 local gameState = "playing" -- "playing", "gameover"
 
 -- Color palette (selected via skins module)
-local colors = nil
+local colors = {
+    ship = {0.2, 0.6, 1.0},
+    projectile = {0.3, 0.7, 1.0},
+    enemy = {1.0, 0.3, 0.3},
+    enemyOutline = {1.0, 0.5, 0.5},
+    health = {0.3, 1.0, 0.3},
+    healthBg = {0.3, 0.3, 0.3},
+    movementIndicator = {0.3, 1.0, 0.3, 0.5},
+    star = {1.0, 1.0, 1.0},
+    targetRing = {1.0, 0.0, 0.0, 0.9},
+    targetRingLocking = {1.0, 1.0, 0.0, 0.9},
+    targetRingLocked = {0.9, 0.1, 0.1, 0.95}
+}
 
 local lockOnShader = nil
+local lockLabelLockedAt = nil
 
 -- Constants
 local SCORE_PER_KILL = 100
@@ -50,9 +62,6 @@ function game.load()
     
     local font = love.graphics.newFont("assets/fonts/Orbitron-Bold.ttf", 16)
     love.graphics.setFont(font)
-
-    local skin = skins.getCurrent()
-    colors = (skin and skin.colors) or colors
 
     physics.init()
     playerModule.reset()
@@ -279,6 +288,14 @@ local function drawTargetIndicator()
 
     local isLocked = (not isLocking) and targetEnemy ~= nil and drawEnemy == targetEnemy
 
+    if isLocked then
+        if not lockLabelLockedAt then
+            lockLabelLockedAt = love.timer.getTime()
+        end
+    else
+        lockLabelLockedAt = nil
+    end
+
     local ringColor
     if isLocking then
         ringColor = colors.targetRingLocking or colors.targetRing
@@ -300,7 +317,16 @@ local function drawTargetIndicator()
         shader:send("time", now)
         shader:send("center", {sx, sy})
         shader:send("radius", screenRadius)
-        shader:send("color", {ringColor[1], ringColor[2], ringColor[3]})
+
+        local sr = ringColor[1]
+        local sg = ringColor[2]
+        local sb = ringColor[3]
+        local mix = 0.7
+        sr = sr * (1 - mix) + 1.0 * mix
+        sg = sg * (1 - mix) + 0.6 * mix
+        sb = sb * (1 - mix) + 0.2 * mix
+
+        shader:send("color", {sr, sg, sb})
         local lockProgress = isLocked and 1 or progress
         shader:send("progress", lockProgress)
 
@@ -338,12 +364,35 @@ local function drawTargetIndicator()
 
     local labelText
     local labelColor
+    local labelAlpha = 1.0
     if isLocking then
         labelText = "LOCKING..."
         labelColor = colors.targetRingLocking or colors.targetRing
+        labelAlpha = labelColor[4] or 1.0
     elseif isLocked then
         labelText = "LOCKED"
-        labelColor = colors.targetRingLocked or colors.targetRing
+        labelColor = {1.0, 1.0, 1.0, 1.0}
+
+        if lockLabelLockedAt then
+            local now = love.timer.getTime()
+            local elapsed = now - lockLabelLockedAt
+            local visibleDuration = 0.6
+            local fadeDuration = 0.4
+            if elapsed >= visibleDuration + fadeDuration then
+                labelText = nil
+            else
+                if elapsed > visibleDuration then
+                    local tFade = (elapsed - visibleDuration) / fadeDuration
+                    if tFade < 0 then tFade = 0 end
+                    if tFade > 1 then tFade = 1 end
+                    labelAlpha = (1.0 - tFade) * 0.7
+                else
+                    labelAlpha = 0.7
+                end
+            end
+        else
+            labelAlpha = 0.7
+        end
     end
 
     if labelText then
@@ -353,7 +402,7 @@ local function drawTargetIndicator()
             local textHeight = font:getHeight()
             local textX = sx - textWidth / 2
             local textY = sy - screenRadius - textHeight - 4
-            love.graphics.setColor(labelColor[1], labelColor[2], labelColor[3], labelColor[4] or 1)
+            love.graphics.setColor(labelColor[1], labelColor[2], labelColor[3], labelAlpha)
             love.graphics.print(labelText, textX, textY)
         end
     end

@@ -3,6 +3,64 @@ local player = {}
 local physics = require("src.core.physics")
 local weapons = require("src.core.weapons")
 
+-- Internal helper to draw the drone given a color palette and a base size
+local function renderDrone(colors, size)
+    local shipColor = colors.ship
+    local outlineColor = colors.shipOutline or {0, 0, 0}
+    local cockpitColor = colors.projectile or shipColor
+    local engineColor = colors.enemy or shipColor
+
+    -- Base dimensions (front points along +X)
+    local hullLength = size * 2.4
+    local hullHalfWidth = size * 0.35
+    local noseX = hullLength * 0.5
+    local backX = -hullLength * 0.4
+
+    -- Main hull (long, narrow triangle)
+    love.graphics.setColor(shipColor)
+    love.graphics.polygon("fill",
+        noseX, 0,
+        backX, -hullHalfWidth,
+        backX, hullHalfWidth
+    )
+
+    -- Wings (slimmer profile)
+    local wingSpan = size * 0.9
+    local wingFrontX = size * 0.2
+    local wingBackX = backX * 0.5
+
+    love.graphics.polygon("fill",
+        wingFrontX, -hullHalfWidth * 0.7,
+        wingBackX, -wingSpan,
+        backX, -hullHalfWidth * 0.25
+    )
+
+    love.graphics.polygon("fill",
+        wingFrontX, hullHalfWidth * 0.7,
+        wingBackX, wingSpan,
+        backX, hullHalfWidth * 0.25
+    )
+
+    -- Cockpit
+    love.graphics.setColor(cockpitColor[1], cockpitColor[2], cockpitColor[3], 0.9)
+    love.graphics.circle("fill", size * 0.25, 0, size * 0.25)
+
+    -- Engine glow at the rear
+    local engineRadius = size * 0.3
+    local engineX = backX - size * 0.15
+    love.graphics.setColor(engineColor[1], engineColor[2], engineColor[3], 0.9)
+    love.graphics.circle("fill", engineX, 0, engineRadius)
+
+    -- Outline
+    love.graphics.setColor(outlineColor)
+    love.graphics.setLineWidth(2)
+    love.graphics.polygon("line",
+        noseX, 0,
+        backX, -hullHalfWidth,
+        backX, hullHalfWidth
+    )
+end
+
 player.state = {
     x = 0,
     y = 0,
@@ -15,7 +73,7 @@ player.state = {
     -- Physics properties
     thrust = physics.constants.shipThrust,
     maxSpeed = physics.constants.shipMaxSpeed,
-    size = 20,
+    size = 11,
     angle = 0,
     targetAngle = 0,
     approachAngle = nil,
@@ -81,17 +139,17 @@ function player.update(dt, world)
     local speed = physics.getSpeed(p.vx, p.vy)
 
     -- Arrival parameters
-    local stopRadius = 10      -- Inside this, we consider we "reached" the point
+    local stopRadius = 5       -- Inside this, we consider we "reached" the point
     local slowRadius = 250     -- Start slowing down when within this distance
 
     p.isThrusting = false
 
     -- If we're very close and moving slowly, snap to the target and stop
     if distance < stopRadius and speed < 5 then
-        p.x = p.targetX
-        p.y = p.targetY
         p.vx = 0
         p.vy = 0
+        p.targetX = p.x
+        p.targetY = p.y
     else
         -- Desired direction toward the target (for movement)
         local dirX, dirY = 0, 0
@@ -205,66 +263,12 @@ function player.draw(colors)
     love.graphics.rotate(p.angle)
 
     -- Main body (solid diamond/rhombus drone shape)
-    local shipColor = colors.ship
-    local outlineColor = colors.shipOutline
-    local projectileColor = colors.projectile or shipColor
-    local accentColor = colors.enemy or shipColor
-
-    local coreRadius = p.size * 0.8
-
-    -- Compact orb core
-    love.graphics.setColor(shipColor)
-    love.graphics.circle("fill", 0, 0, coreRadius)
-
-    -- Inner energy core
-    love.graphics.setColor(projectileColor[1], projectileColor[2], projectileColor[3], 0.75)
-    love.graphics.circle("fill", 0, 0, coreRadius * 0.55)
-
-    -- Side panels (symmetrical)
-    love.graphics.setColor(shipColor[1] * 0.8, shipColor[2] * 0.8, shipColor[3] * 0.8)
-    local armLength = p.size * 0.9
-    local armWidth = p.size * 0.28
-
-    -- Short lateral arms
-    love.graphics.rectangle("fill", -armLength * 0.5, -armWidth * 0.5, armLength, armWidth)
-
-    -- Short dorsal/ventral arms
-    love.graphics.rectangle("fill", -armWidth * 0.5, -armLength * 0.5, armWidth, armLength)
-
-    -- Nacelle pods at cardinal points
-    local podRadius = p.size * 0.2
-    love.graphics.setColor(accentColor[1], accentColor[2], accentColor[3], 0.9)
-    love.graphics.circle("fill", coreRadius * 0.95, 0, podRadius)
-    love.graphics.circle("fill", -coreRadius * 0.95, 0, podRadius * 0.8)
-    love.graphics.circle("fill", 0, -coreRadius * 0.95, podRadius * 0.8)
-    love.graphics.circle("fill", 0, coreRadius * 0.95, podRadius * 0.8)
-
-    -- Additional diagonal sensor pips
-    local ringRadius = coreRadius * 0.8
-    love.graphics.setColor(projectileColor[1], projectileColor[2], projectileColor[3], 0.8)
-    for i = 0, 3 do
-        local angle = math.pi * 0.25 + i * (math.pi * 0.5)
-        local px = math.cos(angle) * ringRadius
-        local py = math.sin(angle) * ringRadius
-        love.graphics.circle("fill", px, py, podRadius * 0.45)
-    end
-
-    -- Central sensor
-    love.graphics.setColor(projectileColor)
-    love.graphics.circle("fill", coreRadius * 0.5, 0, p.size * 0.22)
-    love.graphics.setColor(shipColor[1] * 0.2, shipColor[2] * 0.9, shipColor[3], 0.95)
-    love.graphics.circle("fill", coreRadius * 0.5, 0, p.size * 0.12)
-
-    -- Outline
-    love.graphics.setColor(outlineColor)
-    love.graphics.setLineWidth(2)
-    love.graphics.circle("line", 0, 0, coreRadius)
-    love.graphics.circle("line", coreRadius * 0.95, 0, podRadius)
-    love.graphics.circle("line", -coreRadius * 0.95, 0, podRadius * 0.8)
-    love.graphics.circle("line", 0, -coreRadius * 0.95, podRadius * 0.8)
-    love.graphics.circle("line", 0, coreRadius * 0.95, podRadius * 0.8)
+    renderDrone(colors, p.size)
 
     love.graphics.pop()
 end
+
+-- Expose renderDrone for preview use (e.g., skin selection)
+player.renderDrone = renderDrone
 
 return player

@@ -32,7 +32,7 @@ local function cleanupBulletsForTarget(target)
     end
 end
 
-local function handleBulletEnemyCollisions(player, particlesModule, colors, scorePerKill, damagePerHit)
+local function handleBulletEnemyCollisions(player, particlesModule, colors, damagePerHit)
     for bi = #bullets, 1, -1 do
         local bullet = bullets[bi]
         if bullet.faction ~= "enemy" then
@@ -43,6 +43,13 @@ local function handleBulletEnemyCollisions(player, particlesModule, colors, scor
                     local enemyRadius = enemy.collisionRadius or enemy.size or 0
 
                     if distance < enemyRadius then
+                        local contactX, contactY = bullet.x, bullet.y
+                        if distance > 0 then
+                            local invDist = 1.0 / distance
+                            contactX = enemy.x + (bullet.x - enemy.x) * invDist * enemyRadius
+                            contactY = enemy.y + (bullet.y - enemy.y) * invDist * enemyRadius
+                        end
+
                         local weapon = bullet.weapon or (bullet.owner and bullet.owner.weapon) or {}
                         local traveled = bullet.distanceTraveled or 0
                         local hitChance = projectileModule.calculateHitChance(weapon, traveled)
@@ -56,7 +63,7 @@ local function handleBulletEnemyCollisions(player, particlesModule, colors, scor
                             break
                         end
 
-                        particlesModule.impact(bullet.x, bullet.y, colors.projectile, 6)
+                        particlesModule.impact(contactX, contactY, colors.projectile, 6)
 
                         local damage = bullet.damage or damagePerHit
                         enemy.health = (enemy.health or 0) - damage
@@ -76,7 +83,6 @@ local function handleBulletEnemyCollisions(player, particlesModule, colors, scor
                             end
                             cleanupBulletsForTarget(enemy)
                             table.remove(enemies, ei)
-                            player.score = player.score + scorePerKill
                         end
 
                         break
@@ -120,41 +126,42 @@ end
 local function handleBulletAsteroidCollisions(player, particlesModule, colors, scorePerKill, damagePerHit)
     for bi = #bullets, 1, -1 do
         local bullet = bullets[bi]
-        -- Only allow player (and other non-enemy) projectiles to interact with asteroids
-        if bullet.faction ~= "enemy" then
-            for ai = #asteroids, 1, -1 do
-                local asteroid = asteroids[ai]
+        for ai = #asteroids, 1, -1 do
+            local asteroid = asteroids[ai]
 
-                local distance = checkDistance(bullet.x, bullet.y, asteroid.x, asteroid.y)
-                local asteroidRadius = asteroid.collisionRadius or asteroid.size or 0
+            local distance = checkDistance(bullet.x, bullet.y, asteroid.x, asteroid.y)
+            local asteroidRadius = asteroid.collisionRadius or asteroid.size or 0
 
-                if distance < asteroidRadius then
-                    -- Any physical hit on an asteroid consumes the bullet and damages the rock,
-                    -- regardless of its target / willHit RNG.
-                    local asteroidColor = (asteroid.data and asteroid.data.color) or colors.projectile
-                    particlesModule.impact(bullet.x, bullet.y, asteroidColor, 6)
+            if distance < asteroidRadius then
+                -- Any physical hit on an asteroid consumes the bullet and damages the rock,
+                -- regardless of its owner / willHit RNG.
+                local asteroidColor = (asteroid.data and asteroid.data.color) or colors.projectile
+                particlesModule.impact(bullet.x, bullet.y, asteroidColor, 6)
 
-                    local damage = bullet.damage or damagePerHit
-                    asteroid.health = (asteroid.health or 0) - damage
-                    local amount = math.floor(damage + 0.5)
-                    local textY = asteroid.y - asteroidRadius - 10
-                    floatingText.spawn(tostring(amount), asteroid.x, textY, DAMAGE_COLOR_ENEMY)
+                local damage = bullet.damage or damagePerHit
+                asteroid.health = (asteroid.health or 0) - damage
+                local amount = math.floor(damage + 0.5)
+                local textY = asteroid.y - asteroidRadius - 10
+                floatingText.spawn(tostring(amount), asteroid.x, textY, DAMAGE_COLOR_ENEMY)
 
-                    if bullet.body then
-                        bullet.body:destroy()
-                    end
-                    table.remove(bullets, bi)
+                if bullet.body then
+                    bullet.body:destroy()
+                end
+                table.remove(bullets, bi)
 
-                    if asteroid.health <= 0 then
-                        local deathRadius = asteroid.collisionRadius or asteroid.size or 20
-                        particlesModule.explosion(asteroid.x, asteroid.y, colors.enemy)
-                        cleanupBulletsForTarget(asteroid)
-                        table.remove(asteroids, ai)
+                if asteroid.health <= 0 then
+                    local deathRadius = asteroid.collisionRadius or asteroid.size or 20
+                    particlesModule.explosion(asteroid.x, asteroid.y, asteroidColor)
+                    cleanupBulletsForTarget(asteroid)
+                    table.remove(asteroids, ai)
+
+                    -- Only award score when the player (non-enemy faction) destroys the asteroid.
+                    if bullet.faction ~= "enemy" then
                         player.score = player.score + scorePerKill
                     end
-
-                    break
                 end
+
+                break
             end
         end
     end

@@ -44,16 +44,8 @@ vec4 effect(vec4 vcolor, Image tex, vec2 texcoord, vec2 screencoord)
     float dash = smoothstep(0.50, 0.35, pattern);
     float dashedRing = ringMask(d, outerRadius * 0.9, baseThickness * 0.6) * dash;
 
-    // Crosshair lines around the center
-    vec2 dir = normalize(p + vec2(1e-4));
-    float axisMask = max(abs(dir.x), abs(dir.y));
-    float bracketMask = smoothstep(0.92, 1.0, axisMask);
-
-    float crossFadeOuter = smoothstep(0.0, 0.6, d);
-    float crossFadeInner = 1.0 - smoothstep(0.0, 0.18, d);
-    float crossRegion = crossFadeOuter * (1.0 - crossFadeInner);
-
-    float crosshair = bracketMask * crossRegion;
+    // Suppress central reactor-like symbol; only rings remain
+    float crosshair = 0.0;
 
     // Add a subtle pulsing based on time and progress
     float pulseAnimated = 0.7 + 0.3 * sin(time * 4.0 + t * 3.14159265);
@@ -63,14 +55,13 @@ vec4 effect(vec4 vcolor, Image tex, vec2 texcoord, vec2 screencoord)
 
     float intensity = 0.0;
     intensity += outerRing * (0.7 + 0.6 * t);
-    intensity += innerRing * (0.4 + 0.8 * t);
+    intensity += innerRing * 0.0;
     intensity += dashedRing * (0.8 + 0.4 * t);
-    intensity += crosshair * (0.6 + 0.9 * t);
 
     intensity *= pulse;
 
     // Soften very close to the center for a clean focal point
-    float centerFade = smoothstep(0.0, innerRadius * 0.8, d);
+    float centerFade = smoothstep(0.12, innerRadius * 1.1, d);
     intensity *= centerFade;
 
     // Final color grading

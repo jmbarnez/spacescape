@@ -1,6 +1,7 @@
 local skins = require("src.core.skins")
 local state_machine = require("src.core.state_machine")
 local starfield = require("src.render.starfield")
+local playerModule = require("src.entities.player")
 
 local skin_select = {}
 
@@ -49,16 +50,11 @@ function skin_select.draw()
         local centerX = panelX + panelW * 0.25
         local centerY = itemY + (i - 1) * itemSpacing
 
-        -- Preview orb
-        local coreRadius = 18
-        love.graphics.setColor(c.ship)
-        love.graphics.circle("fill", centerX, centerY, coreRadius)
-
-        love.graphics.setColor(c.projectile or c.ship)
-        love.graphics.circle("fill", centerX, centerY, coreRadius * 0.6)
-
-        love.graphics.setColor(c.enemy or {1, 0.3, 0.3})
-        love.graphics.circle("fill", centerX + coreRadius * 0.7, centerY, coreRadius * 0.3)
+        -- Preview: draw the actual drone design at reduced size
+        love.graphics.push()
+        love.graphics.translate(centerX, centerY)
+        playerModule.renderDrone(c, 16)
+        love.graphics.pop()
 
         -- Name and label
         if isSelected then

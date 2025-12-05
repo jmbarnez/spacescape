@@ -55,7 +55,7 @@ function enemy.spawn(world, safeRadius)
 
     local size = 15 + math.random() * 10
     local ship = ship_generator.generate(size)
-    local maxHealth = (ship and ship.hull and ship.hull.maxHealth) or 1
+    local maxHealth = 12
 
     local collisionRadius = (ship and ship.boundingRadius) or size
 
@@ -89,7 +89,7 @@ function enemy.spawn(world, safeRadius)
         shape = shape,
         fixture = fixture,
         faction = "enemy",
-        weapon = weapons.pulseLaser,
+        weapon = weapons.enemyPulseLaser,
         state = "idle",
         detectionRange = 1000,
         attackRange = 350,
