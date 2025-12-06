@@ -150,7 +150,6 @@ function game.keypressed(key)
 end
 
 function game.resize(w, h)
-    starfield.generate()
 end
 
 --------------------------------------------------------------------------------
@@ -425,11 +424,6 @@ local function drawWorldObjects()
     particlesModule.draw()
     explosionFx.draw()
     floatingText.draw()
-
-    -- Debug: visualize projectile impact contact points
-    if collisionSystem.debugDraw then
-        collisionSystem.debugDraw()
-    end
 end
 
 local function drawOverlay()

@@ -62,9 +62,6 @@ local playerDiedThisFrame = false
 --------------------------------------------------------------------------------
 local pendingCollisions = {}
 
--- Debug impact points (for visualizing projectile contact locations)
-local debugImpacts = {}
-
 --------------------------------------------------------------------------------
 -- UTILITY FUNCTIONS
 -- Shared helpers used by multiple collision handlers
@@ -220,8 +217,6 @@ local function resolveProjectileHit(projectile, target, contactX, contactY, radi
             local ix = contactX or target.x
             local iy = contactY or target.y
             if ix and iy then
-                -- Debug: record impact point for overlay drawing
-                debugImpacts[#debugImpacts + 1] = { x = ix, y = iy }
                 currentParticles.impact(ix, iy, impactColor, count)
             end
         end
@@ -239,13 +234,11 @@ local function resolveProjectileHit(projectile, target, contactX, contactY, radi
         local ix = contactX or target.x
         local iy = contactY or target.y
         if ix and iy then
-            -- Debug: record impact point for overlay drawing
-            debugImpacts[#debugImpacts + 1] = { x = ix, y = iy }
             currentParticles.impact(ix, iy, impactColor, count)
             if config.explosionOnHit then
-                -- Small extra burst to make projectile impacts very obvious
+                -- Small extra burst to make projectile impacts obvious but compact
                 local explCount = math.max(4, math.floor(count * 0.4))
-                currentParticles.explosion(ix, iy, impactColor, explCount, 0.5)
+                currentParticles.explosion(ix, iy, impactColor, explCount, 0.5, 0.6)
             end
         end
     end
@@ -324,13 +317,14 @@ end
 --- @param contactY number Contact point Y (optional)
 local function handleProjectileVsAsteroid(projectile, asteroid, contactX, contactY)
     local asteroidRadius = getBoundingRadius(asteroid)
-    local asteroidColor = (asteroid.data and asteroid.data.color) or (currentColors and currentColors.projectile) or {1, 1, 1}
+    local asteroidColor = (asteroid.data and asteroid.data.color) or (currentColors and currentColors.enemy) or {1, 1, 1}
 
     -- Asteroids always get hit (no miss chance)
     resolveProjectileHit(projectile, asteroid, contactX, contactY, asteroidRadius, {
         canMiss = false,
         damageTextColor = DAMAGE_COLOR_ENEMY,
-        impactColor = asteroidColor,
+        -- Use projectile color for impact particles, asteroid color only for big death explosions
+        impactColor = currentColors and currentColors.projectile or nil,
         impactCount = 24,
         onKill = function(target, radius)
             if currentParticles then
@@ -635,26 +629,6 @@ end
 function collision.clear()
     pendingCollisions = {}
     playerDiedThisFrame = false
-end
-
---- Debug draw helper to visualize projectile impact points.
---- Call from the world render pass (after camera transform).
-function collision.debugDraw()
-    if #debugImpacts == 0 then
-        return
-    end
-
-    -- Bright magenta circles so they are impossible to miss
-    love.graphics.setColor(1.0, 0.1, 1.0, 0.9)
-    love.graphics.setLineWidth(3)
-
-    for _, p in ipairs(debugImpacts) do
-        love.graphics.circle("line", p.x, p.y, 28)
-        love.graphics.circle("fill", p.x, p.y, 6)
-    end
-
-    -- Clear after drawing so each impact shows once
-    debugImpacts = {}
 end
 
 return collision

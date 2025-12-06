@@ -8,7 +8,7 @@ function particles.load()
     -- Kept for API compatibility; nothing to initialize.
 end
 
-function particles.explosion(x, y, color, count, speedMult)
+function particles.explosion(x, y, color, count, speedMult, sizeMult)
     count = count or 10
     speedMult = speedMult or 1.0
     color = color or {1, 0.8, 0.4}
@@ -26,7 +26,7 @@ function particles.explosion(x, y, color, count, speedMult)
             life = life,
             maxLife = life,
             color = {color[1] or 1, color[2] or 1, color[3] or 1},
-            size = math.random() * 6 + 3,
+            size = (math.random() * 6 + 3) * (sizeMult or 1.0),
             drag = 0.98
         })
     end
@@ -49,7 +49,7 @@ function particles.impact(x, y, color, count)
             life = life,
             maxLife = life,
             color = {color[1] or 1, color[2] or 1, color[3] or 1},
-            size = math.random() * 3 + 3,
+            size = math.random() * 2 + 2,
             drag = 0.92
         })
     end
