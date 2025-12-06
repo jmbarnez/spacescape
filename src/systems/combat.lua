@@ -120,17 +120,6 @@ function combat.handleLeftClick(worldX, worldY, selectionRadius)
     end
 end
 
-function combat.shoot(player, targetX, targetY)
-    local selectionRadius = 40
-    local target = findEnemyAtPosition(targetX, targetY, selectionRadius)
-
-    if target then
-        projectileModule.spawn(player, target.x, target.y, target)
-    else
-        projectileModule.spawn(player, targetX, targetY)
-    end
-end
-
 function combat.getTargetEnemy()
     if isEnemyValid(targetEnemy) then
         return targetEnemy

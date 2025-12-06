@@ -27,10 +27,6 @@ function explosion_fx.spawn(x, y, color, radius)
         duration = 0.4
     })
 end
-
-function explosion_fx.update(dt)
-end
-
 function explosion_fx.draw()
     if #explosion_fx.list == 0 then
         return

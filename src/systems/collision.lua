@@ -48,7 +48,6 @@ local MISS_BG_COLOR = {0.3, 0.6, 1.0}        -- Blue background for miss text
 -- RUNTIME STATE
 -- These are set during init() and used by collision handlers
 --------------------------------------------------------------------------------
-local currentPlayer = nil
 local currentParticles = nil
 local currentColors = nil
 local currentDamagePerHit = 20
@@ -505,7 +504,6 @@ end
 --- @return boolean True if player died this frame
 function collision.update(player, particlesModule, colors, damagePerHit)
     -- Store references for use in handlers
-    currentPlayer = player
     currentParticles = particlesModule
     currentColors = colors
     currentDamagePerHit = damagePerHit or 20

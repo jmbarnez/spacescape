@@ -19,16 +19,6 @@ function state_machine.load()
     end
 end
 
-function state_machine.change(name)
-    if current and current == states[name] then
-        return
-    end
-    set_state(name)
-    if current and current.load then
-        current.load()
-    end
-end
-
 function state_machine.update(dt)
     if current and current.update then
         current.update(dt)
