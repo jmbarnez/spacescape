@@ -31,7 +31,7 @@ local enemies = enemyModule.list
 -- Game state
 local gameState = "playing" -- "playing", "gameover"
 
--- Color palette (selected via skins module)
+-- Color palette used for rendering
 local colors = {
     ship = {0.2, 0.6, 1.0},
     projectile = {0.3, 0.7, 1.0},

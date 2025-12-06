@@ -39,8 +39,15 @@ local function isOffscreen(p, world)
         return p.x < world.minX - margin or p.x > world.maxX + margin or
                p.y < world.minY - margin or p.y > world.maxY + margin
     else
-        return p.x < -50 or p.x > love.graphics.getWidth() + 50 or
-               p.y < -50 or p.y > love.graphics.getHeight() + 50
+        local lg = love and love.graphics
+        if lg and lg.getWidth and lg.getHeight then
+            return p.x < -50 or p.x > lg.getWidth() + 50 or
+                   p.y < -50 or p.y > lg.getHeight() + 50
+        else
+            local margin = 10000
+            return p.x < -margin or p.x > margin or
+                   p.y < -margin or p.y > margin
+        end
     end
 end
 
