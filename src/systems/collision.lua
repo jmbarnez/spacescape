@@ -62,13 +62,16 @@ local playerDiedThisFrame = false
 --------------------------------------------------------------------------------
 local pendingCollisions = {}
 
+-- Debug impact points (for visualizing projectile contact locations)
+local debugImpacts = {}
+
 --------------------------------------------------------------------------------
 -- UTILITY FUNCTIONS
 -- Shared helpers used by multiple collision handlers
 --------------------------------------------------------------------------------
 
 --- Calculate the contact point between two entities
---- Works for both circular and polygon colliders by using center-to-center direction
+--- Places the contact on the target's surface along the line toward the projectile.
 --- @param x1 number Center X of first entity (projectile)
 --- @param y1 number Center Y of first entity (projectile)
 --- @param x2 number Center X of second entity (target)
@@ -79,15 +82,15 @@ local function getContactPoint(x1, y1, x2, y2, boundingRadius)
     local dx = x1 - x2
     local dy = y1 - y2
     local distance = math.sqrt(dx * dx + dy * dy)
-    
-    if distance > 0 then
-        -- Use the midpoint biased toward the target for polygon shapes
-        -- This gives a reasonable contact point without needing exact polygon intersection
-        local contactDist = math.min(boundingRadius, distance * 0.5)
+
+    if distance > 0 and boundingRadius and boundingRadius > 0 then
         local invDist = 1.0 / distance
-        return x2 + dx * invDist * contactDist, y2 + dy * invDist * contactDist
+        -- Point on the target's surface, facing the projectile's center
+        return x2 + dx * invDist * boundingRadius,
+               y2 + dy * invDist * boundingRadius
     end
-    
+
+    -- Fallback: just use the projectile position if something is degenerate
     return x1, y1
 end
 
@@ -173,6 +176,93 @@ local function rollHitChance(projectile)
     return math.random() <= hitChance
 end
 
+--- Generic helper for handling a projectile hitting a target
+--- This centralizes miss logic, particles, damage, and death effects.
+--- @param projectile table The projectile entity
+--- @param target table The target entity (enemy, player, asteroid)
+--- @param contactX number|nil Optional contact X from Box2D
+--- @param contactY number|nil Optional contact Y from Box2D
+--- @param radius number|nil Optional precomputed target radius
+--- @param config table Behavior config:
+---   canMiss: boolean (if true, rollHitChance is used)
+---   missOptions: table (options for miss floating text)
+---   damageTextColor: table (RGB for damage text)
+---   impactColor: table (RGB for impact particles)
+---   impactCount: integer (particle count, default 6)
+---   onKill: function(target, radius, damage) called if target dies
+---   explosionOnHit: boolean (if true, spawn a small explosion at impact)
+local function resolveProjectileHit(projectile, target, contactX, contactY, radius, config)
+    if not projectile or not target then
+        return
+    end
+
+    config = config or {}
+    radius = radius or getBoundingRadius(target)
+
+    -- Derive contact point if not provided
+    if (not contactX or not contactY) and projectile.x and projectile.y and target.x and target.y then
+        contactX, contactY = getContactPoint(
+            projectile.x, projectile.y,
+            target.x, target.y,
+            radius
+        )
+    end
+
+    -- Handle miss logic (for shots that can miss)
+    if config.canMiss and not rollHitChance(projectile) then
+        local missOpts = config.missOptions or { bgColor = MISS_BG_COLOR }
+
+        -- Even on a miss, show a small impact so the collision feels real
+        if currentParticles then
+            local impactColor = config.impactColor or (currentColors and currentColors.projectile) or {1, 1, 1}
+            local count = math.max(2, math.floor((config.impactCount or 6) * 0.5))
+
+            local ix = contactX or target.x
+            local iy = contactY or target.y
+            if ix and iy then
+                -- Debug: record impact point for overlay drawing
+                debugImpacts[#debugImpacts + 1] = { x = ix, y = iy }
+                currentParticles.impact(ix, iy, impactColor, count)
+            end
+        end
+
+        spawnDamageText(0, target.x, target.y, radius, nil, missOpts)
+        removeEntity(bullets, projectile)
+        return
+    end
+
+    -- Impact particles (fall back to target center if no explicit contact point)
+    if currentParticles then
+        local impactColor = config.impactColor or (currentColors and currentColors.projectile) or {1, 1, 1}
+        local count = config.impactCount or 6
+
+        local ix = contactX or target.x
+        local iy = contactY or target.y
+        if ix and iy then
+            -- Debug: record impact point for overlay drawing
+            debugImpacts[#debugImpacts + 1] = { x = ix, y = iy }
+            currentParticles.impact(ix, iy, impactColor, count)
+            if config.explosionOnHit then
+                -- Small extra burst to make projectile impacts very obvious
+                local explCount = math.max(4, math.floor(count * 0.4))
+                currentParticles.explosion(ix, iy, impactColor, explCount, 0.5)
+            end
+        end
+    end
+
+    -- Apply damage and floating text
+    local damage = projectile.damage or currentDamagePerHit
+    spawnDamageText(damage, target.x, target.y, radius, config.damageTextColor)
+
+    -- Remove the projectile on any resolved hit
+    removeEntity(bullets, projectile)
+
+    -- Death handling
+    if applyDamage(target, damage) and config.onKill then
+        config.onKill(target, radius, damage)
+    end
+end
+
 --------------------------------------------------------------------------------
 -- COLLISION HANDLERS
 -- Each handler processes a specific pair of entity types
@@ -191,35 +281,19 @@ local function handlePlayerProjectileVsEnemy(projectile, enemy, contactX, contac
     end
     
     local enemyRadius = getBoundingRadius(enemy)
-    if not contactX or not contactY then
-        contactX, contactY = getContactPoint(projectile.x, projectile.y, enemy.x, enemy.y, enemyRadius)
-    end
-    
-    -- Roll for hit/miss based on weapon accuracy
-    if not rollHitChance(projectile) then
-        spawnDamageText(0, enemy.x, enemy.y, enemyRadius, nil, { bgColor = MISS_BG_COLOR })
-        removeEntity(bullets, projectile)
-        return
-    end
-    
-    -- Hit! Spawn impact particles
-    if currentParticles then
-        currentParticles.impact(contactX, contactY, currentColors.projectile, 6)
-    end
-    
-    -- Apply damage and show floating text
-    local damage = projectile.damage or currentDamagePerHit
-    spawnDamageText(damage, enemy.x, enemy.y, enemyRadius, DAMAGE_COLOR_ENEMY)
-    
-    -- Remove the projectile
-    removeEntity(bullets, projectile)
-    
-    -- Check if enemy died
-    if applyDamage(enemy, damage) then
-        explosionFx.spawn(enemy.x, enemy.y, currentColors.enemy, enemyRadius * 1.4)
-        cleanupProjectilesForTarget(enemy)
-        removeEntity(enemies, enemy)
-    end
+
+    resolveProjectileHit(projectile, enemy, contactX, contactY, enemyRadius, {
+        canMiss = true,
+        missOptions = { bgColor = MISS_BG_COLOR },
+        damageTextColor = DAMAGE_COLOR_ENEMY,
+        impactColor = currentColors and currentColors.projectile or nil,
+        impactCount = 20,
+        onKill = function(target, radius)
+            explosionFx.spawn(target.x, target.y, currentColors.enemy, radius * 1.4)
+            cleanupProjectilesForTarget(target)
+            removeEntity(enemies, target)
+        end,
+    })
 end
 
 --- Handle enemy projectile hitting the player
@@ -228,32 +302,19 @@ end
 --- @param contactX number Contact point X (optional)
 --- @param contactY number Contact point Y (optional)
 local function handleEnemyProjectileVsPlayer(projectile, player, contactX, contactY)
-    local playerRadius = player.size or 10
-    if not contactX or not contactY then
-        contactX, contactY = getContactPoint(projectile.x, projectile.y, player.x, player.y, playerRadius)
-    end
-    
-    -- Roll for hit/miss
-    if not rollHitChance(projectile) then
-        spawnDamageText(0, player.x, player.y, playerRadius, nil, { bgColor = MISS_BG_COLOR })
-        removeEntity(bullets, projectile)
-        return
-    end
-    
-    -- Hit! Spawn impact particles
-    if currentParticles then
-        currentParticles.impact(contactX, contactY, currentColors.projectile, 6)
-    end
-    
-    -- Apply damage
-    local damage = projectile.damage or currentDamagePerHit
-    spawnDamageText(damage, player.x, player.y, playerRadius, DAMAGE_COLOR_PLAYER)
-    removeEntity(bullets, projectile)
-    
-    if applyDamage(player, damage) then
-        explosionFx.spawn(player.x, player.y, currentColors.ship, playerRadius * 2.2)
-        playerDiedThisFrame = true
-    end
+    local playerRadius = player.size or getBoundingRadius(player)
+
+    resolveProjectileHit(projectile, player, contactX, contactY, playerRadius, {
+        canMiss = true,
+        missOptions = { bgColor = MISS_BG_COLOR },
+        damageTextColor = DAMAGE_COLOR_PLAYER,
+        impactColor = currentColors and currentColors.projectile or nil,
+        impactCount = 20,
+        onKill = function(target, radius)
+            explosionFx.spawn(target.x, target.y, currentColors.ship, radius * 2.2)
+            playerDiedThisFrame = true
+        end,
+    })
 end
 
 --- Handle any projectile hitting an asteroid
@@ -263,29 +324,22 @@ end
 --- @param contactY number Contact point Y (optional)
 local function handleProjectileVsAsteroid(projectile, asteroid, contactX, contactY)
     local asteroidRadius = getBoundingRadius(asteroid)
-    if not contactX or not contactY then
-        contactX, contactY = getContactPoint(projectile.x, projectile.y, asteroid.x, asteroid.y, asteroidRadius)
-    end
-    
+    local asteroidColor = (asteroid.data and asteroid.data.color) or (currentColors and currentColors.projectile) or {1, 1, 1}
+
     -- Asteroids always get hit (no miss chance)
-    local asteroidColor = (asteroid.data and asteroid.data.color) or currentColors.projectile
-    if currentParticles then
-        currentParticles.impact(contactX, contactY, asteroidColor, 6)
-    end
-    
-    -- Apply damage
-    local damage = projectile.damage or currentDamagePerHit
-    spawnDamageText(damage, asteroid.x, asteroid.y, asteroidRadius, DAMAGE_COLOR_ENEMY)
-    removeEntity(bullets, projectile)
-    
-    -- Check if asteroid was destroyed
-    if applyDamage(asteroid, damage) then
-        if currentParticles then
-            currentParticles.explosion(asteroid.x, asteroid.y, asteroidColor)
-        end
-        cleanupProjectilesForTarget(asteroid)
-        removeEntity(asteroids, asteroid)
-    end
+    resolveProjectileHit(projectile, asteroid, contactX, contactY, asteroidRadius, {
+        canMiss = false,
+        damageTextColor = DAMAGE_COLOR_ENEMY,
+        impactColor = asteroidColor,
+        impactCount = 24,
+        onKill = function(target, radius)
+            if currentParticles then
+                currentParticles.explosion(target.x, target.y, asteroidColor)
+            end
+            cleanupProjectilesForTarget(target)
+            removeEntity(asteroids, target)
+        end,
+    })
 end
 
 --- Handle player colliding with an enemy (ram damage)
@@ -469,6 +523,73 @@ function collision.update(player, particlesModule, colors, damagePerHit)
     end
 
     ------------------------------------------------------------------------
+    -- Fallback projectile collisions (distance-based)
+    --
+    -- In case Box2D contacts are missed (e.g., due to kinematic movement or
+    -- very small/tunneling projectiles), we run a lightweight distance-based
+    -- check to ensure that any projectile visually overlapping a target still
+    -- generates impact FX and damage.
+    ------------------------------------------------------------------------
+    if bullets and #bullets > 0 then
+        local bulletRadius = 4  -- Matches projectile collision radius in physics.createCircleBody
+
+        for bi = #bullets, 1, -1 do
+            local b = bullets[bi]
+            local hit = false
+
+            if b then
+                -- PLAYER projectiles vs ENEMIES
+                if b.faction ~= "enemy" and enemies and #enemies > 0 then
+                    for ei = #enemies, 1, -1 do
+                        local e = enemies[ei]
+                        if e then
+                            local er = getBoundingRadius(e)
+                            local dx = b.x - e.x
+                            local dy = b.y - e.y
+                            if dx * dx + dy * dy <= (er + bulletRadius) * (er + bulletRadius) then
+                                local cx, cy = getContactPoint(b.x, b.y, e.x, e.y, er)
+                                handlePlayerProjectileVsEnemy(b, e, cx, cy)
+                                hit = true
+                                break
+                            end
+                        end
+                    end
+                end
+
+                -- Any projectile vs ASTEROIDS
+                if not hit and asteroids and #asteroids > 0 then
+                    for ai = #asteroids, 1, -1 do
+                        local a = asteroids[ai]
+                        if a then
+                            local ar = getBoundingRadius(a)
+                            local dx = b.x - a.x
+                            local dy = b.y - a.y
+                            if dx * dx + dy * dy <= (ar + bulletRadius) * (ar + bulletRadius) then
+                                local cx, cy = getContactPoint(b.x, b.y, a.x, a.y, ar)
+                                handleProjectileVsAsteroid(b, a, cx, cy)
+                                hit = true
+                                break
+                            end
+                        end
+                    end
+                end
+
+                -- ENEMY projectiles vs PLAYER
+                if not hit and b.faction == "enemy" and player then
+                    local pr = player.size or getBoundingRadius(player)
+                    local dx = b.x - player.x
+                    local dy = b.y - player.y
+                    if dx * dx + dy * dy <= (pr + bulletRadius) * (pr + bulletRadius) then
+                        local cx, cy = getContactPoint(b.x, b.y, player.x, player.y, pr)
+                        handleEnemyProjectileVsPlayer(b, player, cx, cy)
+                        hit = true
+                    end
+                end
+            end
+        end
+    end
+
+    ------------------------------------------------------------------------
     -- Continuous ship vs asteroid resolution (player + enemies)
     --
     -- Box2D's beginContact callback only fires once when a contact starts.
@@ -514,6 +635,26 @@ end
 function collision.clear()
     pendingCollisions = {}
     playerDiedThisFrame = false
+end
+
+--- Debug draw helper to visualize projectile impact points.
+--- Call from the world render pass (after camera transform).
+function collision.debugDraw()
+    if #debugImpacts == 0 then
+        return
+    end
+
+    -- Bright magenta circles so they are impossible to miss
+    love.graphics.setColor(1.0, 0.1, 1.0, 0.9)
+    love.graphics.setLineWidth(3)
+
+    for _, p in ipairs(debugImpacts) do
+        love.graphics.circle("line", p.x, p.y, 28)
+        love.graphics.circle("fill", p.x, p.y, 6)
+    end
+
+    -- Clear after drawing so each impact shows once
+    debugImpacts = {}
 end
 
 return collision

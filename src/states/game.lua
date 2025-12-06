@@ -413,17 +413,23 @@ end
 local function drawWorldObjects()
     drawMovementIndicator()
     asteroidModule.draw()
-    particlesModule.draw()
     projectileModule.draw(colors)
     enemyModule.draw(colors)
-    explosionFx.draw()
     
     if gameState == "playing" then
         engineTrail.draw()
         playerModule.draw(colors)
     end
-    
+
+    -- Draw impact / explosion particles on top so they are clearly visible
+    particlesModule.draw()
+    explosionFx.draw()
     floatingText.draw()
+
+    -- Debug: visualize projectile impact contact points
+    if collisionSystem.debugDraw then
+        collisionSystem.debugDraw()
+    end
 end
 
 local function drawOverlay()

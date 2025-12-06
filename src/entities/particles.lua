@@ -1,24 +1,11 @@
 local particles = {}
 
 particles.list = {}
-particles.shader = nil
-particles.mesh = nil
-particles.maxParticles = 1000
 particles.time = 0
 
+-- No shader-based rendering; we use a simple circle renderer for clarity.
 function particles.load()
-    local ok, shader = pcall(love.graphics.newShader, "assets/shaders/particles.glsl")
-    if ok then
-        particles.shader = shader
-        local format = {
-            {"VertexPosition", "float", 2},
-            {"a_life", "float", 1},
-            {"a_maxLife", "float", 1},
-            {"a_color", "float", 3},
-            {"a_size", "float", 1}
-        }
-        particles.mesh = love.graphics.newMesh(format, particles.maxParticles, "points", "dynamic")
-    end
+    -- Kept for API compatibility; nothing to initialize.
 end
 
 function particles.explosion(x, y, color, count, speedMult)
@@ -46,37 +33,14 @@ function particles.explosion(x, y, color, count, speedMult)
 end
 
 function particles.impact(x, y, color, count)
-	count = count or 6
-	color = color or {1, 1, 1}
-	
-	for i = 1, count do
-		local angle = math.random() * math.pi * 2
-		local speed = math.random() * 200 + 150
-		local life = math.random() * 0.15 + 0.1
-		
-		table.insert(particles.list, {
-			x = x,
-			y = y,
-			vx = math.cos(angle) * speed,
-			vy = math.sin(angle) * speed,
-			life = life,
-			maxLife = life,
-			color = {color[1] or 1, color[2] or 1, color[3] or 1},
-			size = math.random() * 2 + 1,
-			drag = 0.9
-		})
-	end
-end
+    count = count or 16
+    color = color or {1, 1, 1}
 
-function particles.spark(x, y, color, count)
-    count = count or 4
-    color = color or {1, 1, 0.8}
-    
     for i = 1, count do
         local angle = math.random() * math.pi * 2
-        local speed = math.random() * 150 + 100
-        local life = math.random() * 0.2 + 0.1
-        
+        local speed = math.random() * 260 + 220
+        local life = math.random() * 0.25 + 0.2
+
         table.insert(particles.list, {
             x = x,
             y = y,
@@ -85,8 +49,31 @@ function particles.spark(x, y, color, count)
             life = life,
             maxLife = life,
             color = {color[1] or 1, color[2] or 1, color[3] or 1},
-            size = math.random() * 2 + 1,
-            drag = 0.95
+            size = math.random() * 3 + 3,
+            drag = 0.92
+        })
+    end
+end
+
+function particles.spark(x, y, color, count)
+    count = count or 10
+    color = color or {1, 1, 0.8}
+
+    for i = 1, count do
+        local angle = math.random() * math.pi * 2
+        local speed = math.random() * 190 + 140
+        local life = math.random() * 0.25 + 0.15
+
+        table.insert(particles.list, {
+            x = x,
+            y = y,
+            vx = math.cos(angle) * speed,
+            vy = math.sin(angle) * speed,
+            life = life,
+            maxLife = life,
+            color = {color[1] or 1, color[2] or 1, color[3] or 1},
+            size = math.random() * 2.5 + 2,
+            drag = 0.94
         })
     end
 end
@@ -109,19 +96,6 @@ function particles.update(dt)
         end
     end
     
-    if particles.mesh and #particles.list > 0 then
-        local count = math.min(#particles.list, particles.maxParticles)
-        for i = 1, count do
-            local p = particles.list[i]
-            particles.mesh:setVertex(i,
-                p.x, p.y,
-                p.life, p.maxLife,
-                p.color[1], p.color[2], p.color[3],
-                p.size * 0.5
-            )
-        end
-        particles.mesh:setDrawRange(1, count)
-    end
 end
 
 function particles.draw()
@@ -131,19 +105,6 @@ function particles.draw()
     
     local prevShader = love.graphics.getShader()
     local prevBlend, prevAlpha = love.graphics.getBlendMode()
-
-    if particles.shader and particles.mesh then
-        love.graphics.setShader(particles.shader)
-        love.graphics.setBlendMode("add", "alphamultiply")
-
-        particles.shader:send("u_time", particles.time)
-        love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.draw(particles.mesh)
-
-        love.graphics.setBlendMode(prevBlend, prevAlpha)
-        love.graphics.setShader(prevShader)
-        return
-    end
 
     love.graphics.setBlendMode("add", "alphamultiply")
     
