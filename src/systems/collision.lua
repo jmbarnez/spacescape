@@ -25,6 +25,7 @@ local projectileModule = require("src.entities.projectile")
 local asteroidModule = require("src.entities.asteroid")
 local explosionFx = require("src.entities.explosion_fx")
 local floatingText = require("src.entities.floating_text")
+local baseColors = require("src.core.colors")
 
 local collision = {}
 
@@ -36,13 +37,12 @@ local enemies = enemyModule.list
 local bullets = projectileModule.list
 local asteroids = asteroidModule.list
 
---------------------------------------------------------------------------------
--- CONFIGURATION
+--- CONFIGURATION
 -- Colors and settings for visual feedback
 --------------------------------------------------------------------------------
-local DAMAGE_COLOR_ENEMY = {1.0, 0.9, 0.4}   -- Yellow-ish for damage to enemies
-local DAMAGE_COLOR_PLAYER = {1.0, 0.4, 0.4}  -- Red-ish for damage to player
-local MISS_BG_COLOR = {0.3, 0.6, 1.0}        -- Blue background for miss text
+local DAMAGE_COLOR_ENEMY = baseColors.damageEnemy   -- Yellow-ish for damage to enemies
+local DAMAGE_COLOR_PLAYER = baseColors.damagePlayer -- Red-ish for damage to player
+local MISS_BG_COLOR = baseColors.missBg             -- Blue background for miss text
 
 --------------------------------------------------------------------------------
 -- RUNTIME STATE
@@ -210,7 +210,7 @@ local function resolveProjectileHit(projectile, target, contactX, contactY, radi
 
         -- Even on a miss, show a small impact so the collision feels real
         if currentParticles then
-            local impactColor = config.impactColor or (currentColors and currentColors.projectile) or {1, 1, 1}
+            local impactColor = config.impactColor or (currentColors and currentColors.projectile) or baseColors.white
             local count = math.max(2, math.floor((config.impactCount or 6) * 0.5))
 
             local ix = contactX or target.x
@@ -227,7 +227,7 @@ local function resolveProjectileHit(projectile, target, contactX, contactY, radi
 
     -- Impact particles (fall back to target center if no explicit contact point)
     if currentParticles then
-        local impactColor = config.impactColor or (currentColors and currentColors.projectile) or {1, 1, 1}
+        local impactColor = config.impactColor or (currentColors and currentColors.projectile) or baseColors.white
         local count = config.impactCount or 6
 
         local ix = contactX or target.x
@@ -316,7 +316,7 @@ end
 --- @param contactY number Contact point Y (optional)
 local function handleProjectileVsAsteroid(projectile, asteroid, contactX, contactY)
     local asteroidRadius = getBoundingRadius(asteroid)
-    local asteroidColor = (asteroid.data and asteroid.data.color) or (currentColors and currentColors.enemy) or {1, 1, 1}
+    local asteroidColor = (asteroid.data and asteroid.data.color) or (currentColors and currentColors.enemy) or baseColors.enemy
 
     -- Asteroids always get hit (no miss chance)
     resolveProjectileHit(projectile, asteroid, contactX, contactY, asteroidRadius, {
@@ -387,7 +387,7 @@ local function resolveShipVsAsteroid(ship, asteroid)
         local contactX = asteroid.x + dx * invDist * asteroidRadius
         local contactY = asteroid.y + dy * invDist * asteroidRadius
         if currentParticles then
-            currentParticles.spark(contactX, contactY, {0.9, 0.85, 0.7}, 4)
+            currentParticles.spark(contactX, contactY, baseColors.asteroidSpark, 4)
         end
     end
 end

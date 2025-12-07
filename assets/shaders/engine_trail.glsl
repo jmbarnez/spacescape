@@ -23,13 +23,14 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
     v_lifePhase = life01;
     v_seed = a_seed;
 
-    // Fade out with easing
-    v_alpha = pow(1.0 - life01, 1.5);
+    // Slower fade for thicker plume effect
+    v_alpha = pow(1.0 - life01, 0.8);
 
-    // Size varies over lifetime - starts small, grows, then shrinks,
-    // but does not shrink with alpha so it stays visually prominent.
-    float sizeMultiplier = sin(life01 * 3.14159) * 0.5 + 0.5; // 0..1 over life
-    gl_PointSize = a_size * (0.7 + sizeMultiplier * 1.3);
+    // Plume expands significantly over lifetime - starts medium, grows large
+    float expansion = 1.0 + life01 * 2.5;
+    // Add some pulsing variation
+    float pulse = 1.0 + sin(a_seed * 20.0 + u_time * 3.0) * 0.15;
+    gl_PointSize = a_size * expansion * pulse * 1.8;
 
     return transform_projection * vertex_position;
 }
@@ -52,7 +53,7 @@ extern int  u_colorMode;
 extern float u_intensity;
 extern float u_time;
 
-// Noise functions for particle shape variation
+// Noise functions for smoke/plume variation
 float hash(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
@@ -75,7 +76,7 @@ float fbm(vec2 p, float seed) {
     float amplitude = 0.5;
     p += seed * 100.0;
     
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 5; i++) {
         value += amplitude * noise(p);
         p *= 2.0;
         amplitude *= 0.5;
@@ -83,40 +84,56 @@ float fbm(vec2 p, float seed) {
     return value;
 }
 
+// Billowing smoke shape function
+float billow(vec2 p, float seed) {
+    float n = fbm(p * 3.0, seed);
+    return abs(n * 2.0 - 1.0);
+}
+
 vec4 effect(vec4 color, Image texture, vec2 texcoord, vec2 screen_coords) {
     vec2 uv = gl_PointCoord - vec2(0.5);
     float dist = length(uv);
     
-    // Base discard for outer boundary
+    // Larger base radius for thick plume
     if (dist > 0.5) {
         discard;
     }
     
-    // Create irregular particle shape using noise
+    // Create billowing smoke shape
     float angle = atan(uv.y, uv.x);
-    float noiseVal = fbm(vec2(angle * 2.0, v_seed * 10.0), v_seed);
+    float angleNoise = fbm(vec2(angle * 1.5 + u_time * 0.3, v_seed * 5.0), v_seed);
     
-    // Vary the radius based on noise for irregular edges
-    float radiusVariation = 0.35 + noiseVal * 0.15;
+    // Irregular, puffy edges like real smoke
+    float puffiness = 0.4 + angleNoise * 0.1;
     
-    // Add some turbulence that changes over lifetime
-    float turbulence = fbm(uv * 8.0 + v_lifePhase * 2.0, v_seed);
-    radiusVariation += (turbulence - 0.5) * 0.1 * (1.0 - v_lifePhase);
+    // Add large-scale billowing deformation
+    float billowNoise = billow(uv * 2.0 + v_lifePhase * 0.5, v_seed);
+    puffiness += billowNoise * 0.08;
     
-    if (dist > radiusVariation) {
+    // Turbulent wisps that increase with age
+    float turbulence = fbm(uv * 6.0 + u_time * 0.2 + v_lifePhase * 3.0, v_seed + 2.0);
+    puffiness += (turbulence - 0.5) * 0.12 * (0.5 + v_lifePhase * 0.5);
+    
+    // Soft edge - don't hard discard, fade instead for smoky look
+    float edgeDist = dist / puffiness;
+    if (edgeDist > 1.3) {
         discard;
     }
     
-    // Create internal density variation (hot core, wispy edges)
-    float coreDist = dist / radiusVariation;
-    float coreIntensity = 1.0 - pow(coreDist, 0.5);
+    // Volumetric density - denser at center, wispy at edges
+    float density = 1.0 - smoothstep(0.0, 1.0, edgeDist);
+    density = pow(density, 0.6); // Softer falloff for thick smoke
     
-    // Add flickering/turbulent internal structure
-    float internalNoise = fbm(uv * 12.0 + u_time * 0.5, v_seed + 1.0);
-    coreIntensity *= 0.7 + internalNoise * 0.3;
+    // Internal smoke structure - swirling patterns
+    float swirl = fbm(uv * 8.0 + vec2(cos(u_time * 0.4), sin(u_time * 0.3)) * 0.5, v_seed + 1.0);
+    float internalStructure = 0.6 + swirl * 0.4;
     
-    // Soft edge falloff
-    float edgeFalloff = smoothstep(radiusVariation, radiusVariation * 0.3, dist);
+    // Add darker wisps/pockets within the smoke
+    float darkWisps = fbm(uv * 12.0 - u_time * 0.15, v_seed + 3.0);
+    internalStructure *= 0.8 + darkWisps * 0.2;
+    
+    // Combine density with internal variation
+    density *= internalStructure;
     
     // Choose color based on mode
     vec3 trailColor;
@@ -125,24 +142,36 @@ vec4 effect(vec4 color, Image texture, vec2 texcoord, vec2 screen_coords) {
     } else if (u_colorMode == 1) {
         trailColor = mix(u_colorA, u_colorB, v_lifePhase);
     } else if (u_colorMode == 2) {
-        trailColor = mix(u_colorA, vec3(1.0), v_lifePhase);
+        // Hot core to cooler smoke transition
+        float heatFade = pow(1.0 - v_lifePhase, 2.0);
+        trailColor = mix(u_colorA, vec3(0.8, 0.8, 0.9), v_lifePhase * 0.6);
+        trailColor = mix(trailColor, vec3(1.0, 0.95, 0.8), heatFade * density);
     } else {
         trailColor = mix(u_colorA, u_colorB, v_lifePhase);
     }
     
-    // Add hot core color shift (brighter/whiter at center)
-    vec3 hotColor = mix(trailColor, vec3(1.0), 0.3);
-    trailColor = mix(trailColor, hotColor, coreIntensity * (1.0 - v_lifePhase * 0.5));
+    // Hot glowing core for fresh particles
+    float coreHeat = (1.0 - v_lifePhase) * (1.0 - edgeDist);
+    coreHeat = pow(coreHeat, 1.5);
+    vec3 hotCore = vec3(1.0, 0.9, 0.7);
+    trailColor = mix(trailColor, hotCore, coreHeat * 0.5);
+    
+    // Darken edges slightly for depth
+    float edgeDarken = smoothstep(0.3, 1.0, edgeDist) * 0.3;
+    trailColor *= 1.0 - edgeDarken;
     
     trailColor *= u_intensity;
     
-    // Combine all alpha factors and boost visibility
-    float alpha = v_alpha * edgeFalloff * coreIntensity * 1.5;
+    // Thick, opaque smoke alpha
+    float alpha = v_alpha * density;
     
-    // Add slight glow at edges
-    float glow = smoothstep(radiusVariation, radiusVariation * 0.7, dist) * 0.2;
-    alpha += glow * v_alpha * 1.2;
-
+    // Extra soft glow around edges
+    float glow = smoothstep(1.0, 0.5, edgeDist) * 0.15;
+    alpha += glow * v_alpha;
+    
+    // Boost overall opacity for thick plume look
+    alpha *= 1.4;
+    
     alpha = clamp(alpha, 0.0, 1.0);
     
     return vec4(trailColor, alpha);

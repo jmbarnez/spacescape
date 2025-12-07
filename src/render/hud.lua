@@ -15,18 +15,18 @@ function hud.drawHUD(player, colors)
     love.graphics.setColor(colors.health)
     love.graphics.rectangle("fill", barX, barY, healthWidth, barHeight, 5, 5)
 
-    love.graphics.setColor(1, 1, 1, 0.5)
+    love.graphics.setColor(colors.uiPanelBorder)
     love.graphics.setLineWidth(2)
     love.graphics.rectangle("line", barX, barY, barWidth, barHeight, 5, 5)
 
-    love.graphics.setColor(1, 1, 1)
+    love.graphics.setColor(colors.uiText)
     love.graphics.print("HP: " .. player.health .. "/" .. player.maxHealth, barX + 5, barY + 2)
 
     local fps = love.timer.getFPS()
     local fpsText = "FPS: " .. fps
     local font = love.graphics.getFont()
     local fpsWidth = font:getWidth(fpsText)
-    love.graphics.setColor(1, 1, 0, 0.7)
+    love.graphics.setColor(colors.uiFps)
     love.graphics.print(fpsText, love.graphics.getWidth() - fpsWidth - 20, 20)
 
     love.graphics.setColor(1, 1, 1, 0.5)
@@ -43,31 +43,31 @@ function hud.drawHUD(player, colors)
         for i, a in ipairs(abilities) do
             local x = startX + (i - 1) * (size + spacing)
 
-            love.graphics.setColor(0, 0, 0, 0.6)
+            love.graphics.setColor(colors.uiAbilitySlotBg)
             love.graphics.rectangle("fill", x, y, size, size, 4, 4)
 
             if a.active then
-                love.graphics.setColor(0.3, 0.8, 1.0, 1)
+                love.graphics.setColor(colors.uiAbilityActive)
             else
-                love.graphics.setColor(1, 1, 1, 0.5)
+                love.graphics.setColor(colors.uiAbilityInactive)
             end
             love.graphics.setLineWidth(2)
             love.graphics.rectangle("line", x, y, size, size, 4, 4)
 
-            love.graphics.setColor(1, 1, 1)
+            love.graphics.setColor(colors.uiText)
             local label = string.upper(a.key or "?")
             love.graphics.print(label, x + 12, y + 10)
 
             if a.cooldownMax and a.cooldownMax > 0 and a.cooldown > 0 then
                 local ratio = a.cooldown / a.cooldownMax
                 local h = size * ratio
-                love.graphics.setColor(0, 0, 0, 0.6)
+                love.graphics.setColor(colors.uiCooldownBg)
                 love.graphics.rectangle("fill", x, y, size, h)
 
                 local cdText = tostring(math.ceil(a.cooldown))
                 local font = love.graphics.getFont()
                 local w = font:getWidth(cdText)
-                love.graphics.setColor(1, 1, 1)
+                love.graphics.setColor(colors.uiCooldownText)
                 love.graphics.print(cdText, x + size / 2 - w / 2, y + size / 2 - 8)
             end
         end
@@ -75,16 +75,16 @@ function hud.drawHUD(player, colors)
 end
 
 function hud.drawGameOver(player)
-    love.graphics.setColor(0, 0, 0, 0.7)
+    love.graphics.setColor(colors.uiGameOverBg)
     love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
 
-    love.graphics.setColor(1, 0.3, 0.3)
+    love.graphics.setColor(colors.uiGameOverText)
     local font = love.graphics.getFont()
     local text = "GAME OVER"
     local textWidth = font:getWidth(text)
     love.graphics.print(text, love.graphics.getWidth() / 2 - textWidth / 2, love.graphics.getHeight() / 2 - 50)
 
-    love.graphics.setColor(0.7, 0.7, 0.7)
+    love.graphics.setColor(colors.uiGameOverSubText)
     local restartText = "Click to restart"
     local restartWidth = font:getWidth(restartText)
     love.graphics.print(restartText, love.graphics.getWidth() / 2 - restartWidth / 2, love.graphics.getHeight() / 2 + 40)

@@ -1,3 +1,5 @@
+local colors = require("src.core.colors")
+
 local explosion_fx = {}
 
 local camera = require("src.core.camera")
@@ -16,7 +18,7 @@ function explosion_fx.spawn(x, y, color, radius)
     if not x or not y then
         return
     end
-    color = color or {1, 0.8, 0.4}
+    color = color or colors.explosion
     radius = radius or 60
     table.insert(explosion_fx.list, {
         x = x,
@@ -68,7 +70,7 @@ function explosion_fx.draw()
                 shader:send("radius", e.radius * camScale)
                 shader:send("color", e.color)
                 shader:send("progress", t)
-                love.graphics.setColor(1, 1, 1, 1)
+                love.graphics.setColor(colors.white)
                 love.graphics.rectangle("fill", e.x - e.radius, e.y - e.radius, e.radius * 2, e.radius * 2)
             else
                 local alpha = 1.0 - t

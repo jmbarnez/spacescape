@@ -257,11 +257,10 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
 
     // Apply vignette
     float vig = vignette(uv);
-    nebula *= vig;
 
-    // Compute alpha from combined density
+    // Compute alpha from combined density (no vignette darkening)
     float density = max(max(layer1, layer2), max(max(layer3, layer4), max(baseField, tendrils * 0.6)));
-    float alpha = clamp(density * 0.85 * vig, 0.0, 1.0);
+    float alpha = clamp(density * 0.85, 0.0, 1.0);
 
     // Subtle dithering to reduce banding
     float dither = (fract(sin(dot(sc, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.015;

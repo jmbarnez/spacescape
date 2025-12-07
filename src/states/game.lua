@@ -12,6 +12,7 @@ local starfield = require("src.render.starfield")
 local world = require("src.core.world")
 local camera = require("src.core.camera")
 local physics = require("src.core.physics")
+local config = require("src.core.config")
 local spawnSystem = require("src.systems.spawn")
 local combatSystem = require("src.systems.combat")
 local collisionSystem = require("src.systems.collision")
@@ -33,22 +34,10 @@ local enemies = enemyModule.list
 local gameState = "playing" -- "playing", "gameover"
 
 -- Color palette used for rendering
-local colors = {
-    ship = {0.2, 0.6, 1.0},
-    projectile = {0.3, 0.7, 1.0},
-    enemy = {1.0, 0.3, 0.3},
-    enemyOutline = {1.0, 0.5, 0.5},
-    health = {0.3, 1.0, 0.3},
-    healthBg = {0.3, 0.3, 0.3},
-    movementIndicator = {0.3, 1.0, 0.3, 0.5},
-    star = {1.0, 1.0, 1.0},
-    targetRing = {1.0, 0.0, 0.0, 0.9},
-    targetRingLocking = {1.0, 1.0, 0.0, 0.9},
-    targetRingLocked = {0.9, 0.1, 0.1, 0.95}
-}
+local colors = require("src.core.colors")
 
 -- Constants
-local DAMAGE_PER_HIT = 20
+local DAMAGE_PER_HIT = config.combat.damagePerHit
 --------------------------------------------------------------------------------
 -- Initialization
 --------------------------------------------------------------------------------
@@ -143,6 +132,7 @@ function game.keypressed(key)
 end
 
 function game.resize(w, h)
+    starfield.resize()
 end
 
 --------------------------------------------------------------------------------
@@ -174,23 +164,25 @@ end
 
 function game.draw()
     starfield.draw()
-    
-    gameRender.draw(
-		camera,
-		ui,
-		player,
-		playerModule,
-		asteroidModule,
-		projectileModule,
-		enemyModule,
-		engineTrail,
-		particlesModule,
-		explosionFx,
-		floatingText,
-		colors,
-		gameState,
-		combatSystem
-	)
+
+	local renderCtx = {
+		camera = camera,
+		ui = ui,
+		player = player,
+		playerModule = playerModule,
+		asteroidModule = asteroidModule,
+		projectileModule = projectileModule,
+		enemyModule = enemyModule,
+		engineTrail = engineTrail,
+		particlesModule = particlesModule,
+		explosionFx = explosionFx,
+		floatingText = floatingText,
+		colors = colors,
+		gameState = gameState,
+		combatSystem = combatSystem,
+	}
+
+	gameRender.draw(renderCtx)
 end
 
 return game

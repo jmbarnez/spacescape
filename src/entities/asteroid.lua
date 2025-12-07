@@ -1,3 +1,5 @@
+local colors = require("src.core.colors")
+
 local asteroid = {}
 
 asteroid.list = {}
@@ -5,7 +7,10 @@ asteroid.list = {}
 local asteroid_generator = require("src.utils.procedural_asteroid_generator")
 local physics = require("src.core.physics")
 
-local HEALTH_PER_SIZE = 2.0
+local MIN_SIZE = 20
+local MAX_SIZE = 70
+local MIN_HEALTH = 10
+local MAX_HEALTH = 40
 
 function asteroid.populate(world, count)
     asteroid.clear()
@@ -20,12 +25,14 @@ function asteroid.populate(world, count)
     for i = 1, count do
         local x = math.random(world.minX + margin, world.maxX - margin)
         local y = math.random(world.minY + margin, world.maxY - margin)
-        local size = 20 + math.random() * 50
+        local size = MIN_SIZE + math.random() * (MAX_SIZE - MIN_SIZE)
 
         local data = asteroid_generator.generate(size)
         local collisionRadius = (data and data.shape and data.shape.boundingRadius) or size
 
-        local maxHealth = size * HEALTH_PER_SIZE
+        local t = (size - MIN_SIZE) / (MAX_SIZE - MIN_SIZE)
+        t = math.max(0, math.min(1, t))
+        local maxHealth = MIN_HEALTH + t * (MAX_HEALTH - MIN_HEALTH)
         
         -- Zero-g drift velocity (asteroids drift slowly through space)
         local consts = physics.constants
@@ -127,15 +134,19 @@ function asteroid.draw()
         if a.maxHealth and a.health and a.health < a.maxHealth then
             local radius = a.collisionRadius or a.size or 10
             local barWidth = radius * 0.9
-            local barHeight = 3
+            local barHeight = 4
             local barX = a.x - barWidth
-            local barY = a.y - radius - 10
+            local barY = a.y - radius - 18
+            local outlinePad = 1
 
-            love.graphics.setColor(0.2, 0.2, 0.2, 0.9)
+            love.graphics.setColor(0, 0, 0, 1)
+            love.graphics.rectangle("fill", barX - outlinePad, barY - outlinePad, barWidth * 2 + outlinePad * 2, barHeight + outlinePad * 2)
+
+            love.graphics.setColor(colors.asteroidHealthBg)
             love.graphics.rectangle("fill", barX, barY, barWidth * 2, barHeight)
 
             local ratio = math.max(0, math.min(1, a.health / a.maxHealth))
-            love.graphics.setColor(1.0, 1.0, 0.3, 1.0)
+            love.graphics.setColor(colors.asteroidHealth)
             love.graphics.rectangle("fill", barX, barY, barWidth * 2 * ratio, barHeight)
         end
     end

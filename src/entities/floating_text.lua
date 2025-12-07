@@ -1,3 +1,5 @@
+local colors = require("src.core.colors")
+
 local floating_text = {}
 
 floating_text.list = {}
@@ -12,8 +14,8 @@ function floating_text.spawn(text, x, y, color, options)
     local vy = options.vy or -riseSpeed
     local scale = options.scale or 0.8
     local alphaStart = options.alpha or 1
-    local bgColor = options.bgColor or {1, 0, 0}
-    local textColor = options.textColor or {1, 1, 1}
+    local bgColor = options.bgColor or colors.floatingBg
+    local textColor = options.textColor or colors.floatingText
 
     table.insert(floating_text.list, {
         text = tostring(text),
@@ -77,8 +79,8 @@ function floating_text.draw()
         local boxX = f.x - boxW / 2
         local boxY = f.y - boxH / 2
 
-        local bg = f.bgColor or {1, 0, 0}
-        local tc = f.textColor or {1, 1, 1}
+        local bg = f.bgColor or colors.floatingBg
+        local tc = f.textColor or colors.floatingText
 
         -- Background rectangle
         love.graphics.setColor(bg[1], bg[2], bg[3], alpha * 0.9)
@@ -90,7 +92,7 @@ function floating_text.draw()
     end
 
     love.graphics.setFont(prevFont)
-    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.setColor(colors.white)
 end
 
 function floating_text.clear()

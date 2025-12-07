@@ -55,7 +55,7 @@ local function drawMovementIndicator(player, colors)
     if player.vx and player.vy then
         local speed = math.sqrt(player.vx * player.vx + player.vy * player.vy)
         if speed > 5 then
-            love.graphics.setColor(0.5, 0.8, 1.0, 0.4)
+            love.graphics.setColor(colors.velocityVector)
             love.graphics.setLineWidth(2)
             local velScale = 0.5  -- Scale velocity for visualization
             love.graphics.line(
@@ -154,7 +154,7 @@ local function drawTargetIndicator(colors, combatSystem, camera)
         local lockProgress = isLocked and 1 or progress
         shader:send("progress", lockProgress)
 
-        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.setColor(colors.white)
         local size = screenRadius * 1.7
         love.graphics.rectangle("fill", sx - size, sy - size, size * 2, size * 2)
 
@@ -232,7 +232,19 @@ local function drawTargetIndicator(colors, combatSystem, camera)
     end
 end
 
-local function drawWorldObjects(player, playerModule, asteroidModule, projectileModule, enemyModule, engineTrail, particlesModule, explosionFx, floatingText, colors, gameState)
+local function drawWorldObjects(ctx)
+    local player = ctx.player
+    local playerModule = ctx.playerModule
+    local asteroidModule = ctx.asteroidModule
+    local projectileModule = ctx.projectileModule
+    local enemyModule = ctx.enemyModule
+    local engineTrail = ctx.engineTrail
+    local particlesModule = ctx.particlesModule
+    local explosionFx = ctx.explosionFx
+    local floatingText = ctx.floatingText
+    local colors = ctx.colors
+    local gameState = ctx.gameState
+
     drawMovementIndicator(player, colors)
     asteroidModule.draw()
     projectileModule.draw(colors)
@@ -249,7 +261,14 @@ local function drawWorldObjects(player, playerModule, asteroidModule, projectile
     floatingText.draw()
 end
 
-local function drawOverlay(ui, player, colors, gameState, combatSystem, camera)
+local function drawOverlay(ctx)
+    local ui = ctx.ui
+    local player = ctx.player
+    local colors = ctx.colors
+    local gameState = ctx.gameState
+    local combatSystem = ctx.combatSystem
+    local camera = ctx.camera
+
     drawTargetIndicator(colors, combatSystem, camera)
     ui.drawHUD(player, colors)
     
@@ -265,11 +284,12 @@ function game_render.load()
     end
 end
 
-function game_render.draw(camera, ui, player, playerModule, asteroidModule, projectileModule, enemyModule, engineTrail, particlesModule, explosionFx, floatingText, colors, gameState, combatSystem)
+function game_render.draw(ctx)
+    local camera = ctx.camera
     beginWorldTransform(camera)
-    drawWorldObjects(player, playerModule, asteroidModule, projectileModule, enemyModule, engineTrail, particlesModule, explosionFx, floatingText, colors, gameState)
+    drawWorldObjects(ctx)
     endWorldTransform()
-    drawOverlay(ui, player, colors, gameState, combatSystem, camera)
+    drawOverlay(ctx)
 end
 
 return game_render

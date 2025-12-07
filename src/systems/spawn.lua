@@ -1,15 +1,16 @@
 local enemyModule = require("src.entities.enemy")
 local asteroidModule = require("src.entities.asteroid")
 local world = require("src.core.world")
+local config = require("src.core.config")
 
 local spawn = {
     spawnTimer = 0,
-    spawnInterval = 2,
-    initialEnemyCount = 15,
-    initialAsteroidCount = 80,
-    safeEnemyRadius = 2500,
-    maxEnemies = 40,
-    enemiesPerSpawn = 1
+    spawnInterval = config.spawn.spawnInterval,
+    initialEnemyCount = config.spawn.initialEnemyCount,
+    initialAsteroidCount = config.spawn.initialAsteroidCount,
+    safeEnemyRadius = config.spawn.safeEnemyRadius,
+    maxEnemies = config.spawn.maxEnemies,
+    enemiesPerSpawn = config.spawn.enemiesPerSpawn,
 }
 
 local function spawnEnemies(count)
@@ -19,7 +20,7 @@ local function spawnEnemies(count)
 end
 
 local function spawnInitialEnemies()
-	spawnEnemies(spawn.initialEnemyCount)
+    spawnEnemies(spawn.initialEnemyCount)
 end
 
 local function spawnInitialAsteroids()
@@ -27,38 +28,38 @@ local function spawnInitialAsteroids()
 end
 
 function spawn.update(dt)
-	spawn.spawnTimer = spawn.spawnTimer + dt
+    spawn.spawnTimer = spawn.spawnTimer + dt
 
-	local enemies = enemyModule.list
-	local enemyCount = enemies and #enemies or 0
-	local maxEnemies = spawn.maxEnemies or enemyCount
+    local enemies = enemyModule.list
+    local enemyCount = enemies and #enemies or 0
+    local maxEnemies = spawn.maxEnemies or enemyCount
 
-	if enemyCount >= maxEnemies then
-		return
-	end
+    if enemyCount >= maxEnemies then
+        return
+    end
 
-	while spawn.spawnTimer >= spawn.spawnInterval do
-		spawn.spawnTimer = spawn.spawnTimer - spawn.spawnInterval
+    while spawn.spawnTimer >= spawn.spawnInterval do
+        spawn.spawnTimer = spawn.spawnTimer - spawn.spawnInterval
 
-		enemyCount = enemies and #enemies or 0
-		if enemyCount >= maxEnemies then
-			break
-		end
+        enemyCount = enemies and #enemies or 0
+        if enemyCount >= maxEnemies then
+            break
+        end
 
-		local toSpawn = spawn.enemiesPerSpawn or 1
-		for i = 1, toSpawn do
-			enemyCount = enemies and #enemies or 0
-			if enemyCount >= maxEnemies then
-				break
-			end
-			enemyModule.spawn(world, spawn.safeEnemyRadius)
-		end
-	end
+        local toSpawn = spawn.enemiesPerSpawn or 1
+        for i = 1, toSpawn do
+            enemyCount = enemies and #enemies or 0
+            if enemyCount >= maxEnemies then
+                break
+            end
+            enemyModule.spawn(world, spawn.safeEnemyRadius)
+        end
+    end
 end
 
 function spawn.reset()
     spawn.spawnTimer = 0
-    spawn.spawnInterval = 2
+    spawn.spawnInterval = config.spawn.spawnInterval
     spawnInitialEnemies()
     spawnInitialAsteroids()
 end

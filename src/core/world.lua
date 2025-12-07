@@ -1,6 +1,8 @@
+local config = require("src.core.config")
+
 local world = {
-    width = 6000,
-    height = 6000,
+    width = config.world.width,
+    height = config.world.height,
     centerX = 0,
     centerY = 0,
     minX = 0,

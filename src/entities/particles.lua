@@ -1,3 +1,5 @@
+local colors = require("src.core.colors")
+
 local particles = {}
 
 particles.list = {}
@@ -11,7 +13,7 @@ end
 function particles.explosion(x, y, color, count, speedMult, sizeMult)
     count = count or 10
     speedMult = speedMult or 1.0
-    color = color or {1, 0.8, 0.4}
+    color = color or colors.explosion
     
     for i = 1, count do
         local angle = math.random() * math.pi * 2
@@ -34,7 +36,7 @@ end
 
 function particles.impact(x, y, color, count)
     count = count or 16
-    color = color or {1, 1, 1}
+    color = color or colors.particleImpact
 
     for i = 1, count do
         local angle = math.random() * math.pi * 2
@@ -57,7 +59,7 @@ end
 
 function particles.spark(x, y, color, count)
     count = count or 10
-    color = color or {1, 1, 0.8}
+    color = color or colors.particleSpark
 
     for i = 1, count do
         local angle = math.random() * math.pi * 2
@@ -124,7 +126,7 @@ function particles.draw()
         love.graphics.setColor(r, g, b, alpha)
         love.graphics.circle("fill", p.x, p.y, size)
         
-        love.graphics.setColor(1, 1, 1, alpha * 0.8)
+        love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], (colors.white[4] or 1) * (alpha * 0.8))
         love.graphics.circle("fill", p.x, p.y, size * 0.3)
     end
     

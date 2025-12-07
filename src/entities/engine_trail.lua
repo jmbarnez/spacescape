@@ -1,3 +1,5 @@
+local colors = require("src.core.colors")
+
 local engine_trail = {}
 
 engine_trail.points = {}
@@ -127,11 +129,12 @@ function engine_trail.draw()
         engine_trail.shader:send("u_time", engine_trail.time)
         engine_trail.shader:send("u_trailLifetime", engine_trail.trailLifetime)
         engine_trail.shader:send("u_colorMode", 2)
-        engine_trail.shader:send("u_colorA", {0.22, 0.55, 1.0})
-        engine_trail.shader:send("u_colorB", {0.9, 0.95, 1.0})
+        engine_trail.shader:send("u_colorA", colors.engineTrailA)
+        engine_trail.shader:send("u_colorB", colors.engineTrailB)
         engine_trail.shader:send("u_intensity", 3.5)
 
-        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.setColor(colors.white)
+
         love.graphics.draw(engine_trail.mesh)
 
         love.graphics.setBlendMode(prevBlend, prevAlpha)
@@ -145,8 +148,9 @@ function engine_trail.draw()
         local life01 = p.life / p.maxLife
         local size = 3 + (1 - life01) * 6
 
-        local blueStart = {0.22, 0.55, 1.0}
-        local blueEnd   = {0.9, 0.95, 1.0}
+        local blueStart = colors.engineTrailA
+        local blueEnd   = colors.engineTrailB
+
         local t = 1 - life01
 
         local r = blueStart[1] + (blueEnd[1] - blueStart[1]) * t
