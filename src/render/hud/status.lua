@@ -27,7 +27,9 @@ function hud_status.draw(player, colors)
 
     -- Level ring position
     local levelCenterX = baseX + ringRadius
-    local levelCenterY = baseY + ringRadius
+    -- Center ring vertically between the two bars
+    local barsCenterY = baseY + barHeight + barSpacing / 2
+    local levelCenterY = barsCenterY
 
     -- Draw level number
     local levelText = tostring(level)
@@ -83,11 +85,9 @@ function hud_status.draw(player, colors)
 
     love.graphics.setColor(colors.damagePlayer[1], colors.damagePlayer[2], colors.damagePlayer[3], 0.9)
     love.graphics.rectangle("fill", barsX, barsY, barWidth * hullRatio, barHeight, 4, 4)
-
-    -- Hull text
-    local hullText = math.floor(hull) .. "/" .. math.floor(maxHull)
-    love.graphics.setColor(colors.uiText[1], colors.uiText[2], colors.uiText[3], 0.7)
-    love.graphics.print(hullText, barsX + barWidth + 8, barsY - 1)
+    love.graphics.setLineWidth(3)
+    love.graphics.setColor(0, 0, 0, 0.9)
+    love.graphics.rectangle("line", barsX, barsY, barWidth, barHeight, 4, 4)
 
     -- Shield bar
     local shieldBarY = barsY + barHeight + barSpacing
@@ -98,11 +98,9 @@ function hud_status.draw(player, colors)
 
     love.graphics.setColor(colors.projectile[1], colors.projectile[2], colors.projectile[3], 0.8)
     love.graphics.rectangle("fill", barsX, shieldBarY, barWidth * shieldRatio, barHeight, 4, 4)
-
-    -- Shield text
-    local shieldText = math.floor(shield) .. "/" .. math.floor(maxShield)
-    love.graphics.setColor(colors.uiText[1], colors.uiText[2], colors.uiText[3], 0.7)
-    love.graphics.print(shieldText, barsX + barWidth + 8, shieldBarY - 1)
+    love.graphics.setLineWidth(3)
+    love.graphics.setColor(0, 0, 0, 0.9)
+    love.graphics.rectangle("line", barsX, shieldBarY, barWidth, barHeight, 4, 4)
 end
 
 return hud_status

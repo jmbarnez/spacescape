@@ -25,6 +25,7 @@ local projectileModule = require("src.entities.projectile")
 local asteroidModule = require("src.entities.asteroid")
 local explosionFx = require("src.entities.explosion_fx")
 local floatingText = require("src.entities.floating_text")
+local shieldFx = require("src.entities.shield_fx") -- Shield flash visual on impacts
 local baseColors = require("src.core.colors")
 local config = require("src.core.config")
 local playerModule = require("src.entities.player")
@@ -111,6 +112,40 @@ local function getBoundingRadius(entity)
     end
     -- Fallback to size
     return entity.size or 10
+end
+
+--- Spawn a shield flash when a shielded target is struck
+--- @param target table Target entity with shield value
+--- @param attacker table|nil Entity that caused the impact (projectile/ship)
+--- @param contactX number|nil Impact X from Box2D (screen/world)
+--- @param contactY number|nil Impact Y from Box2D (screen/world)
+local function triggerShieldFlash(target, attacker, contactX, contactY)
+    if not target or not target.shield or target.shield <= 0 then
+        return
+    end
+
+    -- Radius slightly larger than body to emphasize the flash.
+    local radius = (getBoundingRadius(target) or target.size or 20) * 1.05
+
+    -- Direction points from target toward impact point (or attacker) for shader warp.
+    local dirX, dirY = 0, 1
+    if contactX and contactY and target.x and target.y then
+        dirX = contactX - target.x
+        dirY = contactY - target.y
+    elseif attacker and attacker.x and attacker.y and target.x and target.y then
+        dirX = attacker.x - target.x
+        dirY = attacker.y - target.y
+    end
+    local mag = math.sqrt(dirX * dirX + dirY * dirY)
+    if mag > 0 then
+        dirX, dirY = dirX / mag, dirY / mag
+    end
+
+    -- Use projectile tint by default; fall back to white.
+    local tint = (currentColors and currentColors.projectile) or baseColors.projectile or baseColors.white
+    if shieldFx and shieldFx.spawn then
+        shieldFx.spawn(target.x, target.y, radius, tint, { dirX, dirY })
+    end
 end
 
 --- Spawn floating damage text above an entity
@@ -204,6 +239,11 @@ local function resolveProjectileHit(projectile, target, contactX, contactY, radi
             target.x, target.y,
             radius
         )
+    end
+
+    -- Visual shield flash for shielded targets (purely cosmetic here).
+    if target.shield and target.shield > 0 then
+        triggerShieldFlash(target, projectile, contactX, contactY)
     end
 
     -- Handle miss logic (for shots that can miss)

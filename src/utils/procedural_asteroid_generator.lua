@@ -52,18 +52,8 @@ function asteroid_generator.generate(size, options)
         table.insert(points, {x, y})
     end
 
-    local craterCount = math.floor(1 + complexity * 3)
+    -- Craters disabled per request: keep table empty so downstream logic stays stable
     local craters = {}
-    for i = 1, craterCount do
-        local r = size * (0.08 + math.random() * 0.1)
-        local cx = (math.random() - 0.5) * size * 0.8
-        local cy = (math.random() - 0.5) * size * 0.8
-        table.insert(craters, {
-            x = cx,
-            y = cy,
-            radius = r
-        })
-    end
 
     local shape = {
         points = points,
@@ -83,7 +73,8 @@ function asteroid_generator.generate(size, options)
         complexity = complexity,
         roughness = roughness,
         shape = shape,
-        color = color
+        color = color,
+        seed = math.random() * 1000
     }
 
     return asteroid
@@ -106,14 +97,7 @@ function asteroid_generator.draw(asteroid)
     love.graphics.setColor(baseR, baseG, baseB, 1)
     love.graphics.polygon("fill", shape.flatPoints)
 
-    if shape.craters then
-        for _, c in ipairs(shape.craters) do
-            love.graphics.setColor(baseR * 0.5, baseG * 0.5, baseB * 0.5, 1)
-            love.graphics.circle("fill", c.x, c.y, c.radius)
-            love.graphics.setColor(baseR * 0.8, baseG * 0.8, baseB * 0.8, 1)
-            love.graphics.circle("line", c.x, c.y, c.radius)
-        end
-    end
+    -- Crater drawing removed: we intentionally leave craters out for a clean surface
 
     love.graphics.setColor(baseR * 0.3, baseG * 0.3, baseB * 0.3, 1)
     love.graphics.setLineWidth(2)
