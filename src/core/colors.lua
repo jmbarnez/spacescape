@@ -35,12 +35,13 @@ local colors = {
     explosion = {1.0, 0.8, 0.4},
     particleImpact = {1.0, 1.0, 1.0},
     particleSpark = {1.0, 1.0, 0.8},
-    engineTrailA = {0.22, 0.55, 1.0},
-    engineTrailB = {0.9, 0.95, 1.0},
+    engineTrailA = {0.10, 0.95, 1.0},
+    engineTrailB = {0.55, 1.0, 1.0},
 
     -- Damage / combat feedback
     damageEnemy = {1.0, 0.9, 0.4},
     damagePlayer = {1.0, 0.4, 0.4},
+    shieldDamage = {0.55, 0.9, 1.0},
     missBg = {0.3, 0.6, 1.0},
     asteroidSpark = {0.9, 0.85, 0.7},
 

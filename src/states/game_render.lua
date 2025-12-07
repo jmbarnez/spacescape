@@ -239,7 +239,6 @@ local function drawWorldObjects(ctx)
     local projectileModule = ctx.projectileModule
     local enemyModule = ctx.enemyModule
     local engineTrail = ctx.engineTrail
-    local shieldFx = ctx.shieldFx
     local particlesModule = ctx.particlesModule
     local explosionFx = ctx.explosionFx
     local floatingText = ctx.floatingText
@@ -253,8 +252,6 @@ local function drawWorldObjects(ctx)
     
     if gameState == "playing" or gameState == "paused" then
         engineTrail.draw()
-        -- Draw shield flashes before particles so impacts feel immediate.
-        shieldFx.draw()
         playerModule.draw(colors)
     end
 
@@ -295,6 +292,7 @@ function game_render.draw(ctx)
     beginWorldTransform(camera)
     drawWorldObjects(ctx)
     endWorldTransform()
+
     drawOverlay(ctx)
 end
 

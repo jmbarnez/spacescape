@@ -23,14 +23,17 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
     v_lifePhase = life01;
     v_seed = a_seed;
 
-    // Slower fade for thicker plume effect
-    v_alpha = pow(1.0 - life01, 0.8);
+    // Slower fade for a denser, more persistent plume
+    v_alpha = pow(1.0 - life01, 0.6);
 
-    // Plume expands significantly over lifetime - starts medium, grows large
-    float expansion = 1.0 + life01 * 2.5;
-    // Add some pulsing variation
-    float pulse = 1.0 + sin(a_seed * 20.0 + u_time * 3.0) * 0.15;
-    gl_PointSize = a_size * expansion * pulse * 1.8;
+    // Plume expands aggressively over lifetime - starts fairly thick, grows larger
+    float expansion = 1.3 + life01 * 3.0;
+
+    // Slightly stronger pulsing to keep the trail alive and energetic
+    float pulse = 1.0 + sin(a_seed * 20.0 + u_time * 3.0) * 0.20;
+
+    // Global scale factor tuned for a visibly thick trail
+    gl_PointSize = a_size * expansion * pulse * 2.1;
 
     return transform_projection * vertex_position;
 }
@@ -94,8 +97,8 @@ vec4 effect(vec4 color, Image texture, vec2 texcoord, vec2 screen_coords) {
     vec2 uv = gl_PointCoord - vec2(0.5);
     float dist = length(uv);
     
-    // Larger base radius for thick plume
-    if (dist > 0.5) {
+    // Larger base radius for a thicker plume sprite
+    if (dist > 0.6) {
         discard;
     }
     
@@ -153,11 +156,11 @@ vec4 effect(vec4 color, Image texture, vec2 texcoord, vec2 screen_coords) {
     // Hot glowing core for fresh particles
     float coreHeat = (1.0 - v_lifePhase) * (1.0 - edgeDist);
     coreHeat = pow(coreHeat, 1.5);
-    vec3 hotCore = vec3(1.0, 0.9, 0.7);
+    vec3 hotCore = vec3(0.75, 1.0, 1.0);
     trailColor = mix(trailColor, hotCore, coreHeat * 0.5);
     
-    // Darken edges slightly for depth
-    float edgeDarken = smoothstep(0.3, 1.0, edgeDist) * 0.3;
+    // Darken edges slightly for depth, but keep them brighter overall
+    float edgeDarken = smoothstep(0.3, 1.0, edgeDist) * 0.2;
     trailColor *= 1.0 - edgeDarken;
     
     trailColor *= u_intensity;
@@ -165,12 +168,12 @@ vec4 effect(vec4 color, Image texture, vec2 texcoord, vec2 screen_coords) {
     // Thick, opaque smoke alpha
     float alpha = v_alpha * density;
     
-    // Extra soft glow around edges
-    float glow = smoothstep(1.0, 0.5, edgeDist) * 0.15;
+    // Extra soft glow around edges for stronger halo
+    float glow = smoothstep(1.0, 0.5, edgeDist) * 0.18;
     alpha += glow * v_alpha;
     
-    // Boost overall opacity for thick plume look
-    alpha *= 1.4;
+    // Boost overall opacity for a thicker, more prominent plume
+    alpha *= 1.7;
     
     alpha = clamp(alpha, 0.0, 1.0);
     

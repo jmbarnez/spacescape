@@ -2,12 +2,46 @@ local colors = require("src.core.colors")
 
 local particles = {}
 
+-- Maximum number of GPU particle sprites we keep in the mesh at once
+local MAX_PARTICLES = 512
+
+-- Particle type identifiers (must match particles.glsl expectations)
+local PARTICLE_TYPE_EXPLOSION = 0
+local PARTICLE_TYPE_IMPACT    = 1
+local PARTICLE_TYPE_SPARK     = 2
+
+-- Base sprite sizes in pixels for each particle category
+local BASE_SIZE_EXPLOSION = 18
+local BASE_SIZE_IMPACT    = 12
+local BASE_SIZE_SPARK     = 7
+
+-- Per-type brightness multipliers sent into the shader
+local INTENSITY_EXPLOSION = 2.3
+local INTENSITY_IMPACT    = 1.6
+local INTENSITY_SPARK     = 1.9
+
 particles.list = {}
 particles.time = 0
+particles.shader = nil
+particles.mesh = nil
+particles.maxParticles = MAX_PARTICLES
 
--- No shader-based rendering; we use a simple circle renderer for clarity.
+-- Shader-based particle renderer for explosions / impacts / sparks
 function particles.load()
-    -- Kept for API compatibility; nothing to initialize.
+    local ok, shader = pcall(love.graphics.newShader, "assets/shaders/particles.glsl")
+    if ok and shader then
+        particles.shader = shader
+
+        local format = {
+            {"VertexPosition", "float", 2},  -- world-space position
+            {"VertexUserData", "float", 4},  -- life phase, base size, type, seed
+        }
+
+        particles.mesh = love.graphics.newMesh(format, particles.maxParticles, "points", "dynamic")
+    else
+        particles.shader = nil
+        particles.mesh = nil
+    end
 end
 
 function particles.explosion(x, y, color, count, speedMult, sizeMult)
@@ -29,13 +63,17 @@ function particles.explosion(x, y, color, count, speedMult, sizeMult)
             maxLife = life,
             color = {color[1] or 1, color[2] or 1, color[3] or 1},
             size = (math.random() * 6 + 3) * (sizeMult or 1.0),
-            drag = 0.98
+            drag = 0.98,
+
+            -- GPU rendering metadata
+            type = PARTICLE_TYPE_EXPLOSION,
+            seed = math.random(),
         })
     end
 end
 
 function particles.impact(x, y, color, count)
-    count = count or 16
+    count = count or 10
     color = color or colors.particleImpact
 
     for i = 1, count do
@@ -51,20 +89,31 @@ function particles.impact(x, y, color, count)
             life = life,
             maxLife = life,
             color = {color[1] or 1, color[2] or 1, color[3] or 1},
-            size = math.random() * 2 + 2,
-            drag = 0.92
+            size = math.random() * 1.2 + 1.0,
+            drag = 0.92,
+
+            -- GPU rendering metadata
+            type = PARTICLE_TYPE_IMPACT,
+            seed = math.random(),
         })
     end
 end
 
 function particles.spark(x, y, color, count)
-    count = count or 10
+    -- Spark particles are meant to look like sharp, fast metal sparks.
+    -- Keep the default count modest; callers can override when they need more.
+    count = count or 8
     color = color or colors.particleSpark
 
     for i = 1, count do
+        -- Random direction around the contact point
         local angle = math.random() * math.pi * 2
-        local speed = math.random() * 190 + 140
-        local life = math.random() * 0.25 + 0.15
+
+        -- High initial speed so sparks streak out quickly
+        local speed = math.random() * 160 + 220 -- ~220 - 380
+
+        -- Very short lifetime so they "flash" and disappear like real sparks
+        local life = math.random() * 0.10 + 0.05 -- ~0.05 - 0.15s
 
         table.insert(particles.list, {
             x = x,
@@ -74,8 +123,16 @@ function particles.spark(x, y, color, count)
             life = life,
             maxLife = life,
             color = {color[1] or 1, color[2] or 1, color[3] or 1},
-            size = math.random() * 2.5 + 2,
-            drag = 0.94
+
+            -- Small radius so they render as tight points rather than big glows
+            size = math.random() * 0.7 + 0.5, -- ~0.5 - 1.2
+
+            -- Light drag so they retain most of their velocity during their short life
+            drag = 0.96,
+
+            -- GPU rendering metadata
+            type = PARTICLE_TYPE_SPARK,
+            seed = math.random(),
         })
     end
 end
@@ -101,35 +158,62 @@ function particles.update(dt)
 end
 
 function particles.draw()
-    if #particles.list == 0 then
+    -- Skip rendering if there are no particles or the GPU path is unavailable
+    if #particles.list == 0 or not particles.shader or not particles.mesh then
         return
     end
-    
+
+    local mesh = particles.mesh
+    local shader = particles.shader
+
+    -- Encode per-particle data into the mesh as point sprites
+    local count = math.min(#particles.list, particles.maxParticles)
+    if count <= 0 then
+        return
+    end
+
+    for i = 1, count do
+        local p = particles.list[i]
+        local maxLife = p.maxLife or 0.001
+        local lifeRatio = math.max(0.0, p.life / maxLife)
+        local lifePhase = 1.0 - lifeRatio
+
+        local pType = p.type or PARTICLE_TYPE_EXPLOSION
+        local baseSize
+        if pType == PARTICLE_TYPE_IMPACT then
+            baseSize = BASE_SIZE_IMPACT
+        elseif pType == PARTICLE_TYPE_SPARK then
+            baseSize = BASE_SIZE_SPARK
+        else
+            baseSize = BASE_SIZE_EXPLOSION
+        end
+
+        local seed = p.seed or 0.0
+
+        -- VertexUserData: life phase, base size, type id, random seed
+        mesh:setVertex(i, p.x, p.y, lifePhase, baseSize, pType, seed)
+    end
+
+    mesh:setDrawRange(1, count)
+
     local prevShader = love.graphics.getShader()
     local prevBlend, prevAlpha = love.graphics.getBlendMode()
 
+    love.graphics.setShader(shader)
     love.graphics.setBlendMode("add", "alphamultiply")
-    
-    for _, p in ipairs(particles.list) do
-        local lifeRatio = math.max(0, p.life / p.maxLife)
-        local size = p.size * (0.5 + lifeRatio * 0.5)
-        local alpha = lifeRatio
-        
-        local r, g, b = p.color[1], p.color[2], p.color[3]
-        
-        love.graphics.setColor(r * 0.3, g * 0.3, b * 0.3, alpha * 0.4)
-        love.graphics.circle("fill", p.x, p.y, size * 2)
-        
-        love.graphics.setColor(r * 0.6, g * 0.6, b * 0.6, alpha * 0.6)
-        love.graphics.circle("fill", p.x, p.y, size * 1.3)
-        
-        love.graphics.setColor(r, g, b, alpha)
-        love.graphics.circle("fill", p.x, p.y, size)
-        
-        love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], (colors.white[4] or 1) * (alpha * 0.8))
-        love.graphics.circle("fill", p.x, p.y, size * 0.3)
-    end
-    
+
+    -- Global uniforms for all particle types
+    shader:send("u_time", particles.time)
+    shader:send("u_colorExplosion", {colors.explosion[1], colors.explosion[2], colors.explosion[3]})
+    shader:send("u_colorImpact", {colors.particleImpact[1], colors.particleImpact[2], colors.particleImpact[3]})
+    shader:send("u_colorSpark", {colors.particleSpark[1], colors.particleSpark[2], colors.particleSpark[3]})
+    shader:send("u_intensityExplosion", INTENSITY_EXPLOSION)
+    shader:send("u_intensityImpact", INTENSITY_IMPACT)
+    shader:send("u_intensitySpark", INTENSITY_SPARK)
+
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.draw(mesh)
+
     love.graphics.setBlendMode(prevBlend, prevAlpha)
     love.graphics.setShader(prevShader)
 end

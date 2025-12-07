@@ -25,7 +25,6 @@ local projectileModule = require("src.entities.projectile")
 local asteroidModule = require("src.entities.asteroid")
 local explosionFx = require("src.entities.explosion_fx")
 local floatingText = require("src.entities.floating_text")
-local shieldFx = require("src.entities.shield_fx") -- Shield flash visual on impacts
 local baseColors = require("src.core.colors")
 local config = require("src.core.config")
 local playerModule = require("src.entities.player")
@@ -112,40 +111,6 @@ local function getBoundingRadius(entity)
     end
     -- Fallback to size
     return entity.size or 10
-end
-
---- Spawn a shield flash when a shielded target is struck
---- @param target table Target entity with shield value
---- @param attacker table|nil Entity that caused the impact (projectile/ship)
---- @param contactX number|nil Impact X from Box2D (screen/world)
---- @param contactY number|nil Impact Y from Box2D (screen/world)
-local function triggerShieldFlash(target, attacker, contactX, contactY)
-    if not target or not target.shield or target.shield <= 0 then
-        return
-    end
-
-    -- Radius slightly larger than body to emphasize the flash.
-    local radius = (getBoundingRadius(target) or target.size or 20) * 1.05
-
-    -- Direction points from target toward impact point (or attacker) for shader warp.
-    local dirX, dirY = 0, 1
-    if contactX and contactY and target.x and target.y then
-        dirX = contactX - target.x
-        dirY = contactY - target.y
-    elseif attacker and attacker.x and attacker.y and target.x and target.y then
-        dirX = attacker.x - target.x
-        dirY = attacker.y - target.y
-    end
-    local mag = math.sqrt(dirX * dirX + dirY * dirY)
-    if mag > 0 then
-        dirX, dirY = dirX / mag, dirY / mag
-    end
-
-    -- Use projectile tint by default; fall back to white.
-    local tint = (currentColors and currentColors.projectile) or baseColors.projectile or baseColors.white
-    if shieldFx and shieldFx.spawn then
-        shieldFx.spawn(target.x, target.y, radius, tint, { dirX, dirY })
-    end
 end
 
 --- Spawn floating damage text above an entity
@@ -271,11 +236,6 @@ local function resolveProjectileHit(projectile, target, contactX, contactY, radi
         )
     end
 
-    -- Visual shield flash for shielded targets (purely cosmetic here).
-    if target.shield and target.shield > 0 then
-        triggerShieldFlash(target, projectile, contactX, contactY)
-    end
-
     -- Handle miss logic (for shots that can miss)
     if config.canMiss and not rollHitChance(projectile) then
         -- Even on a miss, show a small impact so the collision feels real,
@@ -317,9 +277,9 @@ local function resolveProjectileHit(projectile, target, contactX, contactY, radi
 
     local died, shieldDamage, hullDamage = applyDamage(target, damage)
 
-    -- Shield damage (blue-ish, derived from projectile color)
+    -- Shield damage (bright blue)
     if shieldDamage and shieldDamage > 0 then
-        local shieldColor = baseColors.projectile or (currentColors and currentColors.projectile) or baseColors.white
+        local shieldColor = baseColors.shieldDamage or baseColors.projectile or (currentColors and currentColors.projectile) or baseColors.white
         spawnDamageText(shieldDamage, target.x, target.y, radius, shieldColor, nil)
     end
 
@@ -363,7 +323,7 @@ local function handlePlayerProjectileVsEnemy(projectile, enemy, contactX, contac
         -- Use red for hull damage numbers (matches player hull color)
         damageTextColor = DAMAGE_COLOR_PLAYER,
         impactColor = currentColors and currentColors.projectile or nil,
-        impactCount = 20,
+        impactCount = 10,
         onKill = function(target, radius)
             explosionFx.spawn(target.x, target.y, currentColors.enemy, radius * 1.4)
             cleanupProjectilesForTarget(target)
@@ -392,7 +352,7 @@ local function handleEnemyProjectileVsPlayer(projectile, player, contactX, conta
         missOptions = { bgColor = MISS_BG_COLOR },
         damageTextColor = DAMAGE_COLOR_PLAYER,
         impactColor = currentColors and currentColors.projectile or nil,
-        impactCount = 20,
+        impactCount = 10,
         onKill = function(target, radius)
             explosionFx.spawn(target.x, target.y, currentColors.ship, radius * 2.2)
             playerDiedThisFrame = true
@@ -415,7 +375,7 @@ local function handleProjectileVsAsteroid(projectile, asteroid, contactX, contac
         damageTextColor = DAMAGE_COLOR_ENEMY,
         -- Use projectile color for impact particles, asteroid color only for big death explosions
         impactColor = currentColors and currentColors.projectile or nil,
-        impactCount = 24,
+        impactCount = 14,
         onKill = function(target, radius)
             if currentParticles then
                 currentParticles.explosion(target.x, target.y, asteroidColor)
@@ -454,9 +414,9 @@ local function handlePlayerVsEnemy(player, enemy)
     local damage = currentDamagePerHit
     local died, shieldDamage, hullDamage = applyDamage(player, damage)
 
-    -- Shield damage text (blue)
+    -- Shield damage text (bright blue)
     if shieldDamage and shieldDamage > 0 then
-        local shieldColor = baseColors.projectile or (currentColors and currentColors.projectile) or baseColors.white
+        local shieldColor = baseColors.shieldDamage or baseColors.projectile or (currentColors and currentColors.projectile) or baseColors.white
         spawnDamageText(shieldDamage, player.x, player.y, player.size, shieldColor, nil)
     end
 
@@ -502,7 +462,7 @@ local function resolveShipVsAsteroid(ship, asteroid)
         local contactX = asteroid.x + dx * invDist * asteroidRadius
         local contactY = asteroid.y + dy * invDist * asteroidRadius
         if currentParticles then
-            currentParticles.spark(contactX, contactY, baseColors.asteroidSpark, 4)
+            currentParticles.spark(contactX, contactY, baseColors.asteroidSpark, 2)
         end
     end
 end

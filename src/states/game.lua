@@ -20,7 +20,6 @@ local collisionSystem = require("src.systems.collision")
 local inputSystem = require("src.systems.input")
 local abilitiesSystem = require("src.systems.abilities")
 local engineTrail = require("src.entities.engine_trail")
-local shieldFx = require("src.entities.shield_fx")
 local explosionFx = require("src.entities.explosion_fx")
 local floatingText = require("src.entities.floating_text")
 local gameRender = require("src.states.game_render")
@@ -130,7 +129,6 @@ function game.load()
     particlesModule.load()
     engineTrail.load()
     engineTrail.reset()
-    shieldFx.load()
     explosionFx.load()
     floatingText.clear()
     abilitiesSystem.load(player)
@@ -245,7 +243,6 @@ function game.restartGame()
     asteroidModule.clear()
     particlesModule.clear()
     engineTrail.reset()
-    shieldFx.clear()
     explosionFx.clear()
     floatingText.clear()
     collisionSystem.clear()
@@ -271,7 +268,6 @@ function game.draw()
 		projectileModule = projectileModule,
 		enemyModule = enemyModule,
 		engineTrail = engineTrail,
-		shieldFx = shieldFx,
 		particlesModule = particlesModule,
 		explosionFx = explosionFx,
 		floatingText = floatingText,
