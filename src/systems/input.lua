@@ -1,9 +1,10 @@
 local playerModule = require("src.entities.player")
 local combatSystem = require("src.systems.combat")
+local config = require("src.core.config")
 
 local input = {}
 
-local SELECTION_RADIUS = 40
+local SELECTION_RADIUS = config.input.selectionRadius
 
 function input.update(dt, player, world, camera)
     if love.mouse.isDown(2) then
@@ -21,14 +22,14 @@ function input.mousepressed(x, y, button, player, world, camera)
     if button == 2 then
         playerModule.setTarget(worldX, worldY)
     elseif button == 1 then
-        combatSystem.handleLeftClick(worldX, worldY, SELECTION_RADIUS)
+        combatSystem.handleLeftClick(worldX, worldY, config.input.selectionRadius)
     end
 end
 
 function input.wheelmoved(x, y, camera)
     if y ~= 0 then
         -- Positive y = wheel up = zoom in; negative y = zoom out
-        camera.zoom(y * 0.1)
+        camera.zoom(y * config.camera.zoomWheelScale)
     end
 end
 

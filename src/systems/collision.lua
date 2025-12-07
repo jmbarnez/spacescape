@@ -26,6 +26,7 @@ local asteroidModule = require("src.entities.asteroid")
 local explosionFx = require("src.entities.explosion_fx")
 local floatingText = require("src.entities.floating_text")
 local baseColors = require("src.core.colors")
+local config = require("src.core.config")
 
 local collision = {}
 
@@ -50,7 +51,7 @@ local MISS_BG_COLOR = baseColors.missBg             -- Blue background for miss 
 --------------------------------------------------------------------------------
 local currentParticles = nil
 local currentColors = nil
-local currentDamagePerHit = 20
+local currentDamagePerHit = config.combat.damagePerHit
 local playerDiedThisFrame = false
 
 --------------------------------------------------------------------------------
@@ -506,7 +507,7 @@ function collision.update(player, particlesModule, colors, damagePerHit)
     -- Store references for use in handlers
     currentParticles = particlesModule
     currentColors = colors
-    currentDamagePerHit = damagePerHit or 20
+    currentDamagePerHit = damagePerHit or config.combat.damagePerHit
     playerDiedThisFrame = false
     
     -- Process all pending collisions
@@ -523,7 +524,7 @@ function collision.update(player, particlesModule, colors, damagePerHit)
     -- generates impact FX and damage.
     ------------------------------------------------------------------------
     if bullets and #bullets > 0 then
-        local bulletRadius = 4  -- Matches projectile collision radius in physics.createCircleBody
+        local bulletRadius = config.combat.bulletRadius  -- Matches projectile collision radius in physics.createCircleBody
 
         for bi = #bullets, 1, -1 do
             local b = bullets[bi]

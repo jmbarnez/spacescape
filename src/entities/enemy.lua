@@ -6,13 +6,14 @@ local ship_generator = require("src.utils.procedural_ship_generator")
 local physics = require("src.core.physics")
 local weapons = require("src.core.weapons")
 local projectileModule = require("src.entities.projectile")
+local config = require("src.core.config")
 
 function enemy.spawn(world, safeRadius)
     local side = math.random(1, 4)
     local x, y
 
     if world then
-        local margin = 50
+        local margin = config.enemy.spawnMargin
         local centerX = world.centerX or (world.minX + world.maxX) / 2
         local centerY = world.centerY or (world.minY + world.maxY) / 2
         local minRadius = safeRadius or 0
@@ -53,9 +54,9 @@ function enemy.spawn(world, safeRadius)
         end
     end
 
-    local size = 15 + math.random() * 10
+    local size = config.enemy.sizeMin + math.random() * (config.enemy.sizeMax - config.enemy.sizeMin)
     local ship = ship_generator.generate(size)
-    local maxHealth = 12
+    local maxHealth = config.enemy.maxHealth
 
     local collisionRadius = (ship and ship.boundingRadius) or size
     local consts = physics.constants
@@ -71,8 +72,8 @@ function enemy.spawn(world, safeRadius)
         x = x,
         y = y,
         -- Zero-g velocity
-        vx = (math.random() - 0.5) * 20,  -- Small initial drift
-        vy = (math.random() - 0.5) * 20,
+        vx = (math.random() - 0.5) * config.enemy.initialDriftSpeed,  -- Small initial drift
+        vy = (math.random() - 0.5) * config.enemy.initialDriftSpeed,
         size = size,
         thrust = consts.enemyThrust,
         maxSpeed = consts.enemyMaxSpeed,
@@ -89,11 +90,11 @@ function enemy.spawn(world, safeRadius)
         faction = "enemy",
         weapon = weapons.enemyPulseLaser,
         state = "idle",
-        detectionRange = 1000,
-        attackRange = 350,
+        detectionRange = config.enemy.detectionRange,
+        attackRange = config.enemy.attackRange,
         fireTimer = 0,
         wanderAngle = math.random() * math.pi * 2,
-        wanderTimer = math.random() * 2,
+        wanderTimer = config.enemy.wanderIntervalBase + math.random() * config.enemy.wanderIntervalRandom,
         isThrusting = false
     }
     
@@ -131,7 +132,7 @@ function enemy.update(dt, playerState, world)
         local dx = playerState.x - e.x
         local dy = playerState.y - e.y
         local distSq = dx * dx + dy * dy
-        local detectionRange = e.detectionRange or 1000
+        local detectionRange = e.detectionRange or config.enemy.detectionRange
 
         if distSq <= detectionRange * detectionRange and distSq < closestDistSq then
             closestDistSq = distSq
@@ -147,8 +148,8 @@ function enemy.update(dt, playerState, world)
         local distance = math.sqrt(dx * dx + dy * dy)
 
         local weapon = e.weapon or {}
-        local optimalRange = weapon.optimalRange or e.attackRange or 350
-        local detectionRange = e.detectionRange or 1000
+        local optimalRange = weapon.optimalRange or e.attackRange or config.enemy.attackRange
+        local detectionRange = e.detectionRange or config.enemy.detectionRange
         local attackRange = optimalRange
 
         -- Determine AI state
@@ -181,14 +182,14 @@ function enemy.update(dt, playerState, world)
         elseif e.state == "attack" then
             -- Attack: maintain optimal range
             e.targetAngle = math.atan2(dy, dx)
-            if distance > attackRange * 1.1 and distance > 0 then
+            if distance > attackRange * config.enemy.attackTooFarFactor and distance > 0 then
                 -- Too far, thrust towards
                 local angleDiff = math.abs(physics.normalizeAngle(e.targetAngle - e.angle))
                 if angleDiff < math.pi / 2 then
                     e.isThrusting = true
                     thrustAngle = e.angle
                 end
-            elseif distance < attackRange * 0.7 and distance > 0 then
+            elseif distance < attackRange * config.enemy.attackTooCloseFactor and distance > 0 then
                 -- Too close, thrust away (reverse thrust)
                 local awayAngle = math.atan2(-dy, -dx)
                 local angleDiff = math.abs(physics.normalizeAngle(awayAngle - e.angle))
@@ -205,11 +206,11 @@ function enemy.update(dt, playerState, world)
             end
             if e.wanderTimer <= 0 then
                 e.wanderAngle = math.random() * math.pi * 2
-                e.wanderTimer = 3.0 + math.random() * 4.0  -- Longer intervals for space feel
+                e.wanderTimer = config.enemy.wanderIntervalBase + math.random() * config.enemy.wanderIntervalRandom  -- Longer intervals for space feel
             end
             e.targetAngle = e.wanderAngle
             -- Only thrust occasionally when idle (drifting mostly)
-            if e.wanderTimer > 2.5 then
+            if e.wanderTimer > config.enemy.wanderThrustThreshold then
                 local angleDiff = math.abs(physics.normalizeAngle(e.targetAngle - e.angle))
                 if angleDiff < math.pi / 4 then
                     e.isThrusting = true

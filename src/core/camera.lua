@@ -1,11 +1,12 @@
 local world = require("src.core.world")
+local config = require("src.core.config")
 
 local camera = {
     x = 0,
     y = 0,
     scale = 1,
-    minScale = 0.5,
-    maxScale = 2.0
+    minScale = config.camera.minScale,
+    maxScale = config.camera.maxScale
 }
 
 function camera.centerOnPlayer(player)
@@ -39,8 +40,8 @@ function camera.update(dt, player)
 end
 
 function camera.setScale(scale)
-    local minScale = camera.minScale or 0.5
-    local maxScale = camera.maxScale or 2.0
+    local minScale = camera.minScale or config.camera.minScale
+    local maxScale = camera.maxScale or config.camera.maxScale
     local current = camera.scale or 1
     scale = scale or current
     if scale < minScale then

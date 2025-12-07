@@ -1,6 +1,7 @@
 local enemyModule = require("src.entities.enemy")
 local asteroidModule = require("src.entities.asteroid")
 local projectileModule = require("src.entities.projectile")
+local config = require("src.core.config")
 
 local combat = {}
 
@@ -9,10 +10,10 @@ local asteroids = asteroidModule.list
 
 local targetEnemy = nil
 local fireTimer = 0
-local fireInterval = 0.3
+local fireInterval = config.combat.fireInterval
 local lockTarget = nil
 local lockTimer = 0
-local lockDuration = 1.0
+local lockDuration = config.combat.lockDuration
 
 local function isEnemyValid(e)
     if not e then

@@ -2,6 +2,7 @@ local player = {}
 
 local physics = require("src.core.physics")
 local weapons = require("src.core.weapons")
+local config = require("src.core.config")
 
 -- Internal helper to draw the drone given a color palette and a base size
 local function renderDrone(colors, size)
@@ -100,12 +101,12 @@ player.state = {
     -- Physics properties
     thrust = physics.constants.shipThrust,
     maxSpeed = physics.constants.shipMaxSpeed,
-    size = 11,
+    size = config.player.size,
     angle = 0,
     targetAngle = 0,
     approachAngle = nil,
-    health = 100,
-    maxHealth = 100,
+    health = config.player.maxHealth,
+    maxHealth = config.player.maxHealth,
     isThrusting = false,
     body = nil,
     shapes = nil,   -- Table of shapes (polygon body may have multiple)
@@ -174,13 +175,13 @@ function player.update(dt, world)
     local speed = physics.getSpeed(p.vx, p.vy)
 
     -- Arrival parameters
-    local stopRadius = 5       -- Inside this, we consider we "reached" the point
-    local slowRadius = 250     -- Start slowing down when within this distance
+    local stopRadius = config.player.stopRadius       -- Inside this, we consider we "reached" the point
+    local slowRadius = config.player.slowRadius     -- Start slowing down when within this distance
 
     p.isThrusting = false
 
     -- If we're very close and moving slowly, snap to the target and stop
-    if distance < stopRadius and speed < 5 then
+    if distance < stopRadius and speed < config.player.arrivalSpeedThreshold then
         p.vx = 0
         p.vy = 0
         p.targetX = p.x
@@ -244,23 +245,23 @@ function player.update(dt, world)
         local margin = p.size
         if p.x < world.minX + margin then
             p.x = world.minX + margin
-            p.vx = math.abs(p.vx) * 0.5  -- Bounce with energy loss
+            p.vx = math.abs(p.vx) * config.player.bounceFactor  -- Bounce with energy loss
         elseif p.x > world.maxX - margin then
             p.x = world.maxX - margin
-            p.vx = -math.abs(p.vx) * 0.5
+            p.vx = -math.abs(p.vx) * config.player.bounceFactor
         end
         if p.y < world.minY + margin then
             p.y = world.minY + margin
-            p.vy = math.abs(p.vy) * 0.5
+            p.vy = math.abs(p.vy) * config.player.bounceFactor
         elseif p.y > world.maxY - margin then
             p.y = world.maxY - margin
-            p.vy = -math.abs(p.vy) * 0.5
+            p.vy = -math.abs(p.vy) * config.player.bounceFactor
         end
     else
         local w, h = love.graphics.getWidth(), love.graphics.getHeight()
         if p.x < p.size then
             p.x = p.size
-            p.vx = math.abs(p.vx) * 0.5
+            p.vx = math.abs(p.vx) * config.player.bounceFactor
         elseif p.x > w - p.size then
             p.x = w - p.size
             p.vx = -math.abs(p.vx) * 0.5

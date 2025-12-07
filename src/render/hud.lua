@@ -3,28 +3,75 @@ local hud = {}
 local abilitiesSystem = require("src.systems.abilities")
 
 function hud.drawHUD(player, colors)
-    local barWidth = 200
-    local barHeight = 20
-    local barX = 20
-    local barY = 20
 
-    love.graphics.setColor(colors.healthBg)
-    love.graphics.rectangle("fill", barX, barY, barWidth, barHeight, 5, 5)
+    local panelX = 24
+    local panelY = 20
+    local panelWidth = 280
+    local panelHeight = 120
 
-    local healthWidth = (player.health / player.maxHealth) * barWidth
-    love.graphics.setColor(colors.health)
-    love.graphics.rectangle("fill", barX, barY, healthWidth, barHeight, 5, 5)
+    local level = player.level or 1
+    local hull = player.hull or player.health or 0
+    local maxHull = player.maxHull or player.maxHealth or hull
+    local shield = player.shield or 0
+    local maxShield = player.maxShield or shield
+
+    if maxHull <= 0 then
+        maxHull = 1
+    end
+    if maxShield <= 0 then
+        maxShield = 1
+    end
+
+    love.graphics.setColor(0, 0, 0, 0.45)
+    love.graphics.rectangle("fill", panelX + 3, panelY + 5, panelWidth, panelHeight, 12, 12)
+
+    love.graphics.setColor(colors.uiAbilitySlotBg)
+    love.graphics.rectangle("fill", panelX, panelY, panelWidth, panelHeight, 12, 12)
 
     love.graphics.setColor(colors.uiPanelBorder)
-    love.graphics.setLineWidth(2)
-    love.graphics.rectangle("line", barX, barY, barWidth, barHeight, 5, 5)
+    love.graphics.setLineWidth(1.5)
+    love.graphics.rectangle("line", panelX + 0.5, panelY + 0.5, panelWidth - 1, panelHeight - 1, 12, 12)
+
+    local rightPadding = 18
+    local rightX = panelX + panelWidth - rightPadding
+    local contentLeftX = panelX + panelWidth * 0.45
+
+    local font = love.graphics.getFont()
+    local levelValue = string.format("%02d", level)
+    local levelWidth = font:getWidth(levelValue)
+    local levelY = panelY + 18
 
     love.graphics.setColor(colors.uiText)
-    love.graphics.print("HP: " .. player.health .. "/" .. player.maxHealth, barX + 5, barY + 2)
+    love.graphics.print(levelValue, rightX - levelWidth, levelY)
+
+    local dividerY = levelY + font:getHeight() + 6
+    love.graphics.setColor(colors.uiPanelBorder[1], colors.uiPanelBorder[2], colors.uiPanelBorder[3], 0.8)
+    love.graphics.setLineWidth(1)
+    love.graphics.line(contentLeftX, dividerY, rightX, dividerY)
+
+    local barWidth = rightX - contentLeftX
+    local barHeight = 14
+    local hullY = dividerY + 12
+    local shieldY = hullY + barHeight + 12
+
+    love.graphics.setColor(colors.healthBg[1], colors.healthBg[2], colors.healthBg[3], 0.65)
+    love.graphics.rectangle("fill", contentLeftX, hullY, barWidth, barHeight, 8, 8)
+    local hullRatio = math.max(0, math.min(1, hull / maxHull))
+    love.graphics.setColor(colors.health)
+    love.graphics.rectangle("fill", contentLeftX, hullY, barWidth * hullRatio, barHeight, 8, 8)
+    love.graphics.setColor(colors.uiPanelBorder[1], colors.uiPanelBorder[2], colors.uiPanelBorder[3], 0.9)
+    love.graphics.rectangle("line", contentLeftX, hullY, barWidth, barHeight, 8, 8)
+
+    love.graphics.setColor(colors.healthBg[1], colors.healthBg[2], colors.healthBg[3], 0.55)
+    love.graphics.rectangle("fill", contentLeftX, shieldY, barWidth, barHeight, 8, 8)
+    local shieldRatio = math.max(0, math.min(1, shield / maxShield))
+    love.graphics.setColor(colors.projectile[1], colors.projectile[2], colors.projectile[3], 0.9)
+    love.graphics.rectangle("fill", contentLeftX, shieldY, barWidth * shieldRatio, barHeight, 8, 8)
+    love.graphics.setColor(colors.uiPanelBorder[1], colors.uiPanelBorder[2], colors.uiPanelBorder[3], 0.9)
+    love.graphics.rectangle("line", contentLeftX, shieldY, barWidth, barHeight, 8, 8)
 
     local fps = love.timer.getFPS()
     local fpsText = "FPS: " .. fps
-    local font = love.graphics.getFont()
     local fpsWidth = font:getWidth(fpsText)
     love.graphics.setColor(colors.uiFps)
     love.graphics.print(fpsText, love.graphics.getWidth() - fpsWidth - 20, 20)
@@ -65,8 +112,8 @@ function hud.drawHUD(player, colors)
                 love.graphics.rectangle("fill", x, y, size, h)
 
                 local cdText = tostring(math.ceil(a.cooldown))
-                local font = love.graphics.getFont()
-                local w = font:getWidth(cdText)
+                local cdFont = love.graphics.getFont()
+                local w = cdFont:getWidth(cdText)
                 love.graphics.setColor(colors.uiCooldownText)
                 love.graphics.print(cdText, x + size / 2 - w / 2, y + size / 2 - 8)
             end

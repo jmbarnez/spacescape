@@ -2,6 +2,8 @@ local physics = {}
 
 physics.world = nil
 
+local config = require("src.core.config")
+
 --------------------------------------------------------------------------------
 -- COLLISION CATEGORIES (Bitmask values for Box2D filtering)
 -- Each category is a power of 2 so they can be combined with bitwise OR
@@ -86,24 +88,24 @@ end
 -- Zero-G space physics constants
 physics.constants = {
     -- Ship movement
-    shipThrust = 120,           -- Acceleration when thrusting (pixels/s²)
-    shipMaxSpeed = 200,         -- Maximum ship velocity
-    shipRotationSpeed = 3.0,    -- Radians per second for rotation
+    shipThrust = config.physics.shipThrust,           -- Acceleration when thrusting (pixels/s²)
+    shipMaxSpeed = config.physics.shipMaxSpeed,       -- Maximum ship velocity
+    shipRotationSpeed = config.physics.shipRotationSpeed,    -- Radians per second for rotation
     
     -- Enemy movement
-    enemyThrust = 80,           -- Enemy acceleration
-    enemyMaxSpeed = 150,        -- Enemy max velocity
+    enemyThrust = config.physics.enemyThrust,         -- Enemy acceleration
+    enemyMaxSpeed = config.physics.enemyMaxSpeed,     -- Enemy max velocity
     
     -- Asteroid drift
-    asteroidMaxDrift = 15,      -- Max asteroid drift speed
-    asteroidMinDrift = 2,       -- Min asteroid drift speed
+    asteroidMaxDrift = config.physics.asteroidMaxDrift,      -- Max asteroid drift speed
+    asteroidMinDrift = config.physics.asteroidMinDrift,      -- Min asteroid drift speed
     
     -- Projectile speeds (slower for space feel)
-    projectileSpeed = 350,      -- Base projectile speed
+    projectileSpeed = config.physics.projectileSpeed,      -- Base projectile speed
     
     -- Damping (very low for space - simulates minor thruster corrections)
-    linearDamping = 0.1,        -- Near-zero drag in space
-    angularDamping = 0.5,       -- Slight rotational stabilization
+    linearDamping = config.physics.linearDamping,        -- Near-zero drag in space
+    angularDamping = config.physics.angularDamping,       -- Slight rotational stabilization
 }
 
 --------------------------------------------------------------------------------
