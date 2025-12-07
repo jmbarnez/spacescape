@@ -94,13 +94,21 @@ function asteroid_generator.draw(asteroid)
         baseR, baseG, baseB = 0.45, 0.38, 0.32
     end
 
-    love.graphics.setColor(baseR, baseG, baseB, 1)
+    local fillR = math.min(1, baseR * 1.15)
+    local fillG = math.min(1, baseG * 1.15)
+    local fillB = math.min(1, baseB * 1.15)
+
+    love.graphics.setColor(fillR, fillG, fillB, 1)
     love.graphics.polygon("fill", shape.flatPoints)
 
     -- Crater drawing removed: we intentionally leave craters out for a clean surface
 
-    love.graphics.setColor(baseR * 0.3, baseG * 0.3, baseB * 0.3, 1)
-    love.graphics.setLineWidth(2)
+    local outlineR = baseR * 0.22
+    local outlineG = baseG * 0.22
+    local outlineB = baseB * 0.22
+
+    love.graphics.setColor(outlineR, outlineG, outlineB, 1)
+    love.graphics.setLineWidth(2.5)
     love.graphics.polygon("line", shape.flatPoints)
 end
 

@@ -153,11 +153,20 @@ end
 --- @param x number X position
 --- @param y number Y position
 --- @param radius number Entity radius (text appears above)
---- @param color table RGB color for the text background
---- @param options table Optional settings (bgColor, etc.)
+--- @param color table RGB color for the text (hull/shield)
+--- @param options table Optional settings (duration, etc.)
 local function spawnDamageText(amount, x, y, radius, color, options)
     local textY = y - radius - 10
-    floatingText.spawn(tostring(math.floor(amount + 0.5)), x, textY, color, options)
+
+    -- Configure floating text to use colored text only (no background box)
+    options = options or {}
+    if color then
+        options.textColor = color
+    end
+    -- Transparent background so only glyphs are visible
+    options.bgColor = options.bgColor or { 0, 0, 0, 0 }
+
+    floatingText.spawn(tostring(math.floor(amount + 0.5)), x, textY, nil, options)
 end
 
 --- Remove an entity from a list and destroy its physics body
@@ -193,25 +202,31 @@ end
 --- Apply damage to an entity and check for death
 --- @param entity table The entity to damage
 --- @param damage number Amount of damage
---- @return boolean True if entity died
+--- @return boolean True if entity died, shieldDamage, hullDamage
 local function applyDamage(entity, damage)
     if not entity or not damage or damage <= 0 then
-        return false
+        return false, 0, 0
     end
+
+    local shieldDamage = 0
+    local hullDamage = 0
 
     local shield = entity.shield or 0
     if shield > 0 then
         if damage <= shield then
             entity.shield = shield - damage
-            return false
+            shieldDamage = damage
+            return false, shieldDamage, hullDamage
         else
-            damage = damage - shield
             entity.shield = 0
+            shieldDamage = shield
+            damage = damage - shield
         end
     end
 
     entity.health = (entity.health or 0) - damage
-    return entity.health <= 0
+    hullDamage = damage
+    return entity.health <= 0, shieldDamage, hullDamage
 end
 
 --- Roll hit chance based on weapon stats and distance traveled
@@ -263,9 +278,8 @@ local function resolveProjectileHit(projectile, target, contactX, contactY, radi
 
     -- Handle miss logic (for shots that can miss)
     if config.canMiss and not rollHitChance(projectile) then
-        local missOpts = config.missOptions or { bgColor = MISS_BG_COLOR }
-
-        -- Even on a miss, show a small impact so the collision feels real
+        -- Even on a miss, show a small impact so the collision feels real,
+        -- but do not spawn any floating text for misses.
         if currentParticles then
             local impactColor = config.impactColor or (currentColors and currentColors.projectile) or baseColors.white
             local count = math.max(2, math.floor((config.impactCount or 6) * 0.5))
@@ -277,7 +291,6 @@ local function resolveProjectileHit(projectile, target, contactX, contactY, radi
             end
         end
 
-        spawnDamageText(0, target.x, target.y, radius, nil, missOpts)
         removeEntity(bullets, projectile)
         return
     end
@@ -299,15 +312,28 @@ local function resolveProjectileHit(projectile, target, contactX, contactY, radi
         end
     end
 
-    -- Apply damage and floating text
+    -- Apply damage and spawn floating numbers for shield vs hull
     local damage = projectile.damage or currentDamagePerHit
-    spawnDamageText(damage, target.x, target.y, radius, config.damageTextColor, nil)
+
+    local died, shieldDamage, hullDamage = applyDamage(target, damage)
+
+    -- Shield damage (blue-ish, derived from projectile color)
+    if shieldDamage and shieldDamage > 0 then
+        local shieldColor = baseColors.projectile or (currentColors and currentColors.projectile) or baseColors.white
+        spawnDamageText(shieldDamage, target.x, target.y, radius, shieldColor, nil)
+    end
+
+    -- Hull damage (use configured damage text color)
+    if hullDamage and hullDamage > 0 then
+        local hullColor = config.damageTextColor or DAMAGE_COLOR_ENEMY
+        spawnDamageText(hullDamage, target.x, target.y, radius, hullColor, nil)
+    end
 
     -- Remove the projectile on any resolved hit
     removeEntity(bullets, projectile)
 
     -- Death handling
-    if applyDamage(target, damage) and config.onKill then
+    if died and config.onKill then
         config.onKill(target, radius, damage)
     end
 end
@@ -334,7 +360,8 @@ local function handlePlayerProjectileVsEnemy(projectile, enemy, contactX, contac
     resolveProjectileHit(projectile, enemy, contactX, contactY, enemyRadius, {
         canMiss = true,
         missOptions = { bgColor = MISS_BG_COLOR },
-        damageTextColor = DAMAGE_COLOR_ENEMY,
+        -- Use red for hull damage numbers (matches player hull color)
+        damageTextColor = DAMAGE_COLOR_PLAYER,
         impactColor = currentColors and currentColors.projectile or nil,
         impactCount = 20,
         onKill = function(target, radius)
@@ -423,11 +450,22 @@ local function handlePlayerVsEnemy(player, enemy)
         end
     end
     
-    -- Damage the player
+    -- Damage the player; shields absorb before hull
     local damage = currentDamagePerHit
-    spawnDamageText(damage, player.x, player.y, player.size, DAMAGE_COLOR_PLAYER, nil)
+    local died, shieldDamage, hullDamage = applyDamage(player, damage)
+
+    -- Shield damage text (blue)
+    if shieldDamage and shieldDamage > 0 then
+        local shieldColor = baseColors.projectile or (currentColors and currentColors.projectile) or baseColors.white
+        spawnDamageText(shieldDamage, player.x, player.y, player.size, shieldColor, nil)
+    end
+
+    -- Hull damage text (red for player)
+    if hullDamage and hullDamage > 0 then
+        spawnDamageText(hullDamage, player.x, player.y, player.size, DAMAGE_COLOR_PLAYER, nil)
+    end
     
-    if applyDamage(player, damage) then
+    if died then
         explosionFx.spawn(player.x, player.y, currentColors.ship, player.size * 2.2)
         playerDiedThisFrame = true
     end

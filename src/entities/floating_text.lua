@@ -80,28 +80,16 @@ function floating_text.draw()
         local progress = math.min(math.max(f.t / f.life, 0), 1)
         local alpha = (1 - progress) * f.alphaStart
         
+        -- Measure text at desired scale so we can center it around (x, y)
         local text = f.text
-        local w = font:getWidth(text)
-        local h = font:getHeight()
         local scale = f.scale
+        local w = font:getWidth(text) * scale
+        local h = font:getHeight() * scale
 
-        local padX = 2 * scale
-        local padY = 1 * scale
-        local boxW = w * scale + padX * 2
-        local boxH = h * scale + padY * 2
-        local boxX = f.x - boxW / 2
-        local boxY = f.y - boxH / 2
-
-        local bg = f.bgColor
+        -- Colored text only (no background box behind it)
         local tc = f.textColor
-
-        -- Background rectangle
-        love.graphics.setColor(bg[1], bg[2], bg[3], alpha * 0.9)
-        love.graphics.rectangle("fill", boxX, boxY, boxW, boxH, 3, 3)
-
-        -- Text
         love.graphics.setColor(tc[1], tc[2], tc[3], alpha)
-        love.graphics.print(text, f.x - (w * scale) / 2, f.y - (h * scale) / 2, 0, scale, scale)
+        love.graphics.print(text, f.x - w / 2, f.y - h / 2, 0, scale, scale)
     end
 
     love.graphics.setFont(prevFont)
