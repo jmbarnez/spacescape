@@ -32,19 +32,41 @@ function hud.drawHUD(player, colors)
     love.graphics.setLineWidth(1.5)
     love.graphics.rectangle("line", panelX + 0.5, panelY + 0.5, panelWidth - 1, panelHeight - 1, 12, 12)
 
-    local rightPadding = 18
-    local rightX = panelX + panelWidth - rightPadding
-    local contentLeftX = panelX + panelWidth * 0.45
-
     local font = love.graphics.getFont()
+
+    local ringCenterX = panelX + 60
+    local ringCenterY = panelY + panelHeight / 2
+    local outerRadius = 26
+    local innerRadius = 20
+
+    love.graphics.setColor(colors.healthBg[1], colors.healthBg[2], colors.healthBg[3], 0.8)
+    love.graphics.circle("fill", ringCenterX, ringCenterY, outerRadius)
+
+    love.graphics.setColor(colors.uiPanelBorder[1], colors.uiPanelBorder[2], colors.uiPanelBorder[3], 0.9)
+    love.graphics.setLineWidth(2)
+    love.graphics.circle("line", ringCenterX, ringCenterY, outerRadius)
+
+    love.graphics.setColor(colors.projectile[1], colors.projectile[2], colors.projectile[3], 0.9)
+    love.graphics.setLineWidth(1.5)
+    love.graphics.circle("line", ringCenterX, ringCenterY, innerRadius)
+
     local levelValue = string.format("%02d", level)
     local levelWidth = font:getWidth(levelValue)
-    local levelY = panelY + 18
+    local levelHeight = font:getHeight()
 
+    love.graphics.push()
+    love.graphics.translate(ringCenterX, ringCenterY)
+    local levelScale = 1.6
+    love.graphics.scale(levelScale, levelScale)
     love.graphics.setColor(colors.uiText)
-    love.graphics.print(levelValue, rightX - levelWidth, levelY)
+    love.graphics.print(levelValue, -levelWidth / 2, -levelHeight / 2)
+    love.graphics.pop()
 
-    local dividerY = levelY + font:getHeight() + 6
+    local rightPadding = 18
+    local rightX = panelX + panelWidth - rightPadding
+    local contentLeftX = ringCenterX + outerRadius + 24
+
+    local dividerY = panelY + 30
     love.graphics.setColor(colors.uiPanelBorder[1], colors.uiPanelBorder[2], colors.uiPanelBorder[3], 0.8)
     love.graphics.setLineWidth(1)
     love.graphics.line(contentLeftX, dividerY, rightX, dividerY)
@@ -57,10 +79,8 @@ function hud.drawHUD(player, colors)
     love.graphics.setColor(colors.healthBg[1], colors.healthBg[2], colors.healthBg[3], 0.65)
     love.graphics.rectangle("fill", contentLeftX, hullY, barWidth, barHeight, 8, 8)
     local hullRatio = math.max(0, math.min(1, hull / maxHull))
-    love.graphics.setColor(colors.health)
+    love.graphics.setColor(colors.damagePlayer)
     love.graphics.rectangle("fill", contentLeftX, hullY, barWidth * hullRatio, barHeight, 8, 8)
-    love.graphics.setColor(colors.uiPanelBorder[1], colors.uiPanelBorder[2], colors.uiPanelBorder[3], 0.9)
-    love.graphics.rectangle("line", contentLeftX, hullY, barWidth, barHeight, 8, 8)
 
     love.graphics.setColor(colors.healthBg[1], colors.healthBg[2], colors.healthBg[3], 0.55)
     love.graphics.rectangle("fill", contentLeftX, shieldY, barWidth, barHeight, 8, 8)

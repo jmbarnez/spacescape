@@ -20,6 +20,7 @@ local config = {
     player = {
         size = 11,
         maxHealth = 100,
+        maxShield = 30,
         stopRadius = 5,
         slowRadius = 250,
         arrivalSpeedThreshold = 5,

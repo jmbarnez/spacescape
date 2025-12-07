@@ -107,6 +107,8 @@ player.state = {
     approachAngle = nil,
     health = config.player.maxHealth,
     maxHealth = config.player.maxHealth,
+    shield = config.player.maxShield or 0,
+    maxShield = config.player.maxShield or 0,
     isThrusting = false,
     body = nil,
     shapes = nil,   -- Table of shapes (polygon body may have multiple)
@@ -154,6 +156,7 @@ function player.reset()
     local p = player.state
     player.centerInWindow()
     p.health = p.maxHealth
+    p.shield = p.maxShield
     -- Reset velocity for zero-g
     p.vx = 0
     p.vy = 0
