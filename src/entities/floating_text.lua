@@ -5,6 +5,10 @@ local floating_text = {}
 floating_text.list = {}
 floating_text.font = nil
 
+--------------------------------------------------------------------------------
+-- Spawning
+--------------------------------------------------------------------------------
+
 function floating_text.spawn(text, x, y, color, options)
     options = options or {}
 
@@ -17,10 +21,14 @@ function floating_text.spawn(text, x, y, color, options)
     local bgColor = options.bgColor or colors.floatingBg
     local textColor = options.textColor or colors.floatingText
 
+    -- Add random offset to prevent text stacking
+    local offsetX = (math.random() - 0.5) * 80
+    local offsetY = (math.random() - 0.5) * 60
+
     table.insert(floating_text.list, {
         text = tostring(text),
-        x = x,
-        y = y,
+        x = x + offsetX,
+        y = y + offsetY,
         vx = vx,
         vy = vy,
         t = 0,
@@ -31,6 +39,10 @@ function floating_text.spawn(text, x, y, color, options)
         textColor = textColor
     })
 end
+
+--------------------------------------------------------------------------------
+-- Update
+--------------------------------------------------------------------------------
 
 function floating_text.update(dt)
     for i = #floating_text.list, 1, -1 do
@@ -45,6 +57,10 @@ function floating_text.update(dt)
         end
     end
 end
+
+--------------------------------------------------------------------------------
+-- Drawing
+--------------------------------------------------------------------------------
 
 function floating_text.draw()
     if #floating_text.list == 0 then
@@ -61,26 +77,23 @@ function floating_text.draw()
     local font = floating_text.font
 
     for _, f in ipairs(floating_text.list) do
-        local progress = f.life > 0 and (f.t / f.life) or 1
-        if progress < 0 then progress = 0 end
-        if progress > 1 then progress = 1 end
-
-        local alpha = (1 - progress) * (f.alphaStart or 1)
+        local progress = math.min(math.max(f.t / f.life, 0), 1)
+        local alpha = (1 - progress) * f.alphaStart
+        
         local text = f.text
         local w = font:getWidth(text)
         local h = font:getHeight()
+        local scale = f.scale
 
-        local scale = f.scale or 1
         local padX = 2 * scale
         local padY = 1 * scale
-
         local boxW = w * scale + padX * 2
         local boxH = h * scale + padY * 2
         local boxX = f.x - boxW / 2
         local boxY = f.y - boxH / 2
 
-        local bg = f.bgColor or colors.floatingBg
-        local tc = f.textColor or colors.floatingText
+        local bg = f.bgColor
+        local tc = f.textColor
 
         -- Background rectangle
         love.graphics.setColor(bg[1], bg[2], bg[3], alpha * 0.9)
@@ -95,10 +108,12 @@ function floating_text.draw()
     love.graphics.setColor(colors.white)
 end
 
+--------------------------------------------------------------------------------
+-- Cleanup
+--------------------------------------------------------------------------------
+
 function floating_text.clear()
-    for i = #floating_text.list, 1, -1 do
-        table.remove(floating_text.list, i)
-    end
+    floating_text.list = {}
 end
 
 return floating_text

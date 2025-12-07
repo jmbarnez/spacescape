@@ -250,7 +250,7 @@ local function drawWorldObjects(ctx)
     projectileModule.draw(colors)
     enemyModule.draw(colors)
     
-    if gameState == "playing" then
+    if gameState == "playing" or gameState == "paused" then
         engineTrail.draw()
         playerModule.draw(colors)
     end
@@ -268,12 +268,15 @@ local function drawOverlay(ctx)
     local gameState = ctx.gameState
     local combatSystem = ctx.combatSystem
     local camera = ctx.camera
+    local pauseMenu = ctx.pauseMenu
 
     drawTargetIndicator(colors, combatSystem, camera)
     ui.drawHUD(player, colors)
     
     if gameState == "gameover" then
         ui.drawGameOver(player)
+    elseif gameState == "paused" then
+        ui.drawPause(player, colors, pauseMenu)
     end
 end
 

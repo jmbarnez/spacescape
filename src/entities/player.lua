@@ -109,6 +109,10 @@ player.state = {
     maxHealth = config.player.maxHealth,
     shield = config.player.maxShield or 0,
     maxShield = config.player.maxShield or 0,
+    level = 1,
+    xp = 0,
+    xpToNext = config.player.xpBase,
+    xpRatio = 0,
     isThrusting = false,
     body = nil,
     shapes = nil,   -- Table of shapes (polygon body may have multiple)
@@ -116,6 +120,59 @@ player.state = {
     collisionVertices = nil, -- Stored collision vertices
     weapon = weapons.pulseLaser
 }
+
+local function recalcXpProgress(p)
+    local base = config.player.xpBase or 100
+    local growth = config.player.xpGrowth or 0
+    local level = p.level or 1
+    local xp = p.xp or 0
+
+    local xpToNext = base + growth * (level - 1)
+    if xpToNext <= 0 then
+        xpToNext = 1
+    end
+
+    p.xpToNext = xpToNext
+    p.xpRatio = math.max(0, math.min(1, xp / xpToNext))
+end
+
+function player.addExperience(amount)
+    local p = player.state
+    if not amount or amount <= 0 then
+        return false
+    end
+
+    p.xp = (p.xp or 0) + amount
+    local leveledUp = false
+
+    while true do
+        local base = config.player.xpBase or 100
+        local growth = config.player.xpGrowth or 0
+        local level = p.level or 1
+        local xpToNext = base + growth * (level - 1)
+        if xpToNext <= 0 then
+            xpToNext = 1
+        end
+
+        if p.xp >= xpToNext then
+            p.xp = p.xp - xpToNext
+            p.level = level + 1
+            leveledUp = true
+        else
+            break
+        end
+    end
+
+    recalcXpProgress(p)
+    return leveledUp
+end
+
+function player.resetExperience()
+    local p = player.state
+    p.level = 1
+    p.xp = 0
+    recalcXpProgress(p)
+end
 
 function player.centerInWindow()
     local p = player.state
@@ -155,6 +212,7 @@ end
 function player.reset()
     local p = player.state
     player.centerInWindow()
+    player.resetExperience()
     p.health = p.maxHealth
     p.shield = p.maxShield
     -- Reset velocity for zero-g

@@ -27,6 +27,7 @@ local explosionFx = require("src.entities.explosion_fx")
 local floatingText = require("src.entities.floating_text")
 local baseColors = require("src.core.colors")
 local config = require("src.core.config")
+local playerModule = require("src.entities.player")
 
 local collision = {}
 
@@ -245,7 +246,7 @@ local function resolveProjectileHit(projectile, target, contactX, contactY, radi
 
     -- Apply damage and floating text
     local damage = projectile.damage or currentDamagePerHit
-    spawnDamageText(damage, target.x, target.y, radius, config.damageTextColor)
+    spawnDamageText(damage, target.x, target.y, radius, config.damageTextColor, nil)
 
     -- Remove the projectile on any resolved hit
     removeEntity(bullets, projectile)
@@ -285,6 +286,13 @@ local function handlePlayerProjectileVsEnemy(projectile, enemy, contactX, contac
             explosionFx.spawn(target.x, target.y, currentColors.enemy, radius * 1.4)
             cleanupProjectilesForTarget(target)
             removeEntity(enemies, target)
+            local owner = projectile.owner
+            if owner and owner.faction ~= "enemy" and playerModule.addExperience then
+                local xp = config.player.xpPerEnemy or 0
+                if xp > 0 then
+                    playerModule.addExperience(xp)
+                end
+            end
         end,
     })
 end
@@ -332,6 +340,13 @@ local function handleProjectileVsAsteroid(projectile, asteroid, contactX, contac
             end
             cleanupProjectilesForTarget(target)
             removeEntity(asteroids, target)
+            local owner = projectile.owner
+            if owner and owner.faction ~= "enemy" and playerModule.addExperience then
+                local xp = config.player.xpPerAsteroid or 0
+                if xp > 0 then
+                    playerModule.addExperience(xp)
+                end
+            end
         end,
     })
 end
@@ -346,10 +361,16 @@ local function handlePlayerVsEnemy(player, enemy)
     explosionFx.spawn(enemy.x, enemy.y, currentColors.enemy, enemyRadius * 1.4)
     cleanupProjectilesForTarget(enemy)
     removeEntity(enemies, enemy)
+    if playerModule.addExperience then
+        local xp = config.player.xpPerEnemy or 0
+        if xp > 0 then
+            playerModule.addExperience(xp)
+        end
+    end
     
     -- Damage the player
     local damage = currentDamagePerHit
-    spawnDamageText(damage, player.x, player.y, player.size, DAMAGE_COLOR_PLAYER)
+    spawnDamageText(damage, player.x, player.y, player.size, DAMAGE_COLOR_PLAYER, nil)
     
     if applyDamage(player, damage) then
         explosionFx.spawn(player.x, player.y, currentColors.ship, player.size * 2.2)

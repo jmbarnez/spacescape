@@ -13,6 +13,7 @@ local world = require("src.core.world")
 local camera = require("src.core.camera")
 local physics = require("src.core.physics")
 local config = require("src.core.config")
+local systems = require("src.core.systems")
 local spawnSystem = require("src.systems.spawn")
 local combatSystem = require("src.systems.combat")
 local collisionSystem = require("src.systems.collision")
@@ -33,11 +34,79 @@ local enemies = enemyModule.list
 -- Game state
 local gameState = "playing" -- "playing", "gameover"
 
+local pauseMenu = {
+	items = {
+		{ id = "resume", label = "Resume" },
+		{ id = "restart", label = "Restart" },
+		{ id = "quit", label = "Quit to Desktop" },
+	},
+}
+
 -- Color palette used for rendering
 local colors = require("src.core.colors")
 
 -- Constants
 local DAMAGE_PER_HIT = config.combat.damagePerHit
+
+local function registerUpdateSystems()
+	systems.clear()
+
+	systems.registerUpdate("input", function(dt, ctx)
+		ctx.inputSystem.update(dt, ctx.player, ctx.world, ctx.camera)
+	end, 10)
+
+	systems.registerUpdate("physics", function(dt, ctx)
+		physics.update(dt)
+	end, 20)
+
+	systems.registerUpdate("player", function(dt, ctx)
+		playerModule.update(dt, ctx.world)
+	end, 30)
+
+	systems.registerUpdate("engineTrail", function(dt, ctx)
+		engineTrail.update(dt, ctx.player)
+	end, 40)
+
+	systems.registerUpdate("camera", function(dt, ctx)
+		camera.update(dt, ctx.player)
+	end, 50)
+
+	systems.registerUpdate("starfield", function(dt, ctx)
+		starfield.update(dt, ctx.camera.x, ctx.camera.y)
+	end, 60)
+
+	systems.registerUpdate("asteroids", function(dt, ctx)
+		asteroidModule.update(dt, ctx.world)
+	end, 70)
+
+	systems.registerUpdate("projectiles", function(dt, ctx)
+		projectileModule.update(dt, ctx.world)
+	end, 80)
+
+	systems.registerUpdate("enemies", function(dt, ctx)
+		enemyModule.update(dt, ctx.player, ctx.world)
+	end, 90)
+
+	systems.registerUpdate("particles", function(dt, ctx)
+		particlesModule.update(dt)
+	end, 100)
+
+	systems.registerUpdate("floatingText", function(dt, ctx)
+		floatingText.update(dt)
+	end, 110)
+
+	systems.registerUpdate("abilities", function(dt, ctx)
+		abilitiesSystem.update(dt, ctx.player, ctx.world, ctx.camera)
+	end, 120)
+
+	systems.registerUpdate("spawn", function(dt, ctx)
+		spawnSystem.update(dt)
+	end, 130)
+
+	systems.registerUpdate("combat", function(dt, ctx)
+		combatSystem.updateAutoShoot(dt, ctx.player)
+	end, 140)
+end
 --------------------------------------------------------------------------------
 -- Initialization
 --------------------------------------------------------------------------------
@@ -64,6 +133,7 @@ function game.load()
     floatingText.clear()
     abilitiesSystem.load(player)
     gameRender.load()
+    registerUpdateSystems()
 end
 
 --------------------------------------------------------------------------------
@@ -71,26 +141,19 @@ end
 --------------------------------------------------------------------------------
 
 function game.update(dt)
-    if gameState == "gameover" then
-        return
-    end
-    
-    inputSystem.update(dt, player, world, camera)
+	if gameState ~= "playing" then
+		return
+	end
 
-    physics.update(dt)
-    playerModule.update(dt, world)
-    engineTrail.update(dt, player)
-    camera.update(dt, player)
-    starfield.update(dt, camera.x, camera.y)
-    asteroidModule.update(dt, world)
-    projectileModule.update(dt, world)
-    enemyModule.update(dt, player, world)
-    particlesModule.update(dt)
-    floatingText.update(dt)
-    abilitiesSystem.update(dt, player, world, camera)
-    spawnSystem.update(dt)
-    combatSystem.updateAutoShoot(dt, player)
-    game.checkCollisions()
+	local updateCtx = {
+		player = player,
+		world = world,
+		camera = camera,
+		inputSystem = inputSystem,
+	}
+
+	systems.runUpdate(dt, updateCtx)
+	game.checkCollisions()
 end
 
 function game.checkCollisions()
@@ -105,30 +168,60 @@ end
 --------------------------------------------------------------------------------
 
 function game.mousepressed(x, y, button)
-    if gameState == "gameover" then
-        if button == 1 then
-            game.restartGame()
-        end
-        return
-    end
-    
-    inputSystem.mousepressed(x, y, button, player, world, camera)
+	if gameState == "gameover" then
+		if button == 1 then
+			game.restartGame()
+		end
+		return
+	end
+
+	if gameState == "paused" then
+		if button == 1 then
+			local index, item = ui.hitTestPauseMenu(pauseMenu, x, y)
+			if item then
+				pauseMenu.selected = index
+				if item.id == "resume" then
+					gameState = "playing"
+				elseif item.id == "restart" then
+					game.restartGame()
+				elseif item.id == "quit" then
+					love.event.quit()
+				end
+			end
+		end
+		return
+	end
+
+	if gameState ~= "playing" then
+		return
+	end
+
+	inputSystem.mousepressed(x, y, button, player, world, camera)
 end
 
 function game.wheelmoved(x, y)
-    if gameState == "gameover" then
-        return
-    end
+	if gameState ~= "playing" then
+		return
+	end
 
-    inputSystem.wheelmoved(x, y, camera)
+	inputSystem.wheelmoved(x, y, camera)
 end
 
 function game.keypressed(key)
-    if gameState ~= "playing" then
-        return
-    end
+	if key == "escape" then
+		if gameState == "playing" then
+			gameState = "paused"
+		elseif gameState == "paused" then
+			gameState = "playing"
+		end
+		return
+	end
 
-    abilitiesSystem.keypressed(key, player, world, camera)
+	if gameState ~= "playing" then
+		return
+	end
+
+	abilitiesSystem.keypressed(key, player, world, camera)
 end
 
 function game.resize(w, h)
@@ -180,6 +273,7 @@ function game.draw()
 		colors = colors,
 		gameState = gameState,
 		combatSystem = combatSystem,
+		pauseMenu = pauseMenu,
 	}
 
 	gameRender.draw(renderCtx)
