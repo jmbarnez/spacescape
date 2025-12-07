@@ -3,6 +3,7 @@ local colors = require("src.core.colors")
 local asteroid = {}
 
 asteroid.list = {}
+asteroid.shader = nil
 
 local asteroid_generator = require("src.utils.procedural_asteroid_generator")
 local physics = require("src.core.physics")
@@ -11,6 +12,16 @@ local MIN_SIZE = 20
 local MAX_SIZE = 70
 local MIN_HEALTH = 10
 local MAX_HEALTH = 40
+
+local function clamp01(x)
+    if x < 0 then return 0 end
+    if x > 1 then return 1 end
+    return x
+end
+
+function asteroid.load()
+    asteroid.shader = nil
+end
 
 function asteroid.populate(world, count)
     asteroid.clear()
@@ -125,7 +136,9 @@ function asteroid.update(dt, world)
     end
 end
 
-function asteroid.draw()
+-- Draw asteroids with shader; camera supplies screen-to-world info so noise stays static
+-- @param camera table optional camera {x, y, scale}
+function asteroid.draw(camera)
     for _, a in ipairs(asteroid.list) do
         love.graphics.push()
         love.graphics.translate(a.x, a.y)

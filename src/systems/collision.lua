@@ -195,6 +195,21 @@ end
 --- @param damage number Amount of damage
 --- @return boolean True if entity died
 local function applyDamage(entity, damage)
+    if not entity or not damage or damage <= 0 then
+        return false
+    end
+
+    local shield = entity.shield or 0
+    if shield > 0 then
+        if damage <= shield then
+            entity.shield = shield - damage
+            return false
+        else
+            damage = damage - shield
+            entity.shield = 0
+        end
+    end
+
     entity.health = (entity.health or 0) - damage
     return entity.health <= 0
 end
