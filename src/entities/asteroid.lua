@@ -3,7 +3,6 @@ local colors = require("src.core.colors")
 local asteroid = {}
 
 asteroid.list = {}
-asteroid.shader = nil
 
 local asteroid_generator = require("src.utils.procedural_asteroid_generator")
 local physics = require("src.core.physics")
@@ -12,21 +11,6 @@ local MIN_SIZE = 20
 local MAX_SIZE = 70
 local MIN_HEALTH = 10
 local MAX_HEALTH = 40
-
-local function clamp01(x)
-    if x < 0 then return 0 end
-    if x > 1 then return 1 end
-    return x
-end
-
-function asteroid.load()
-    local ok, shader = pcall(love.graphics.newShader, "assets/shaders/asteroid.glsl")
-    if ok then
-        asteroid.shader = shader
-    else
-        asteroid.shader = nil
-    end
-end
 
 function asteroid.populate(world, count)
     asteroid.clear()
@@ -141,60 +125,14 @@ function asteroid.update(dt, world)
     end
 end
 
--- Draw asteroids with shader; camera supplies screen-to-world info so noise stays static
--- @param camera table optional camera {x, y, scale}
-function asteroid.draw(camera)
-    -- Default camera if not provided to avoid nil math
-    -- Match beginWorldTransform's floor to avoid subpixel drift in shader UVs
-    local camX = math.floor((camera and camera.x) or 0)
-    local camY = math.floor((camera and camera.y) or 0)
-    local camScale = (camera and camera.scale) or 1
-    local halfW = math.floor(love.graphics.getWidth() * 0.5)
-    local halfH = math.floor(love.graphics.getHeight() * 0.5)
-
-    local prevShader = love.graphics.getShader()
-    local shader = asteroid.shader
-    if shader then
-        shader:send("u_time", love.timer.getTime())
-    end
-
+function asteroid.draw()
     for _, a in ipairs(asteroid.list) do
         love.graphics.push()
         love.graphics.translate(a.x, a.y)
         love.graphics.rotate(a.angle)
 
-        if shader and a.data then
-            local c = a.data.color or {0.45, 0.38, 0.32}
-            local baseR, baseG, baseB = c[1], c[2], c[3]
-            local edge = {
-                clamp01(baseR + 0.14),
-                clamp01(baseG + 0.1),
-                clamp01(baseB + 0.06)
-            }
-            local crater = {
-                clamp01(baseR * 0.55),
-                clamp01(baseG * 0.55),
-                clamp01(baseB * 0.55)
-            }
-
-            shader:send("u_baseColor", {baseR, baseG, baseB})
-            shader:send("u_edgeColor", edge)
-            shader:send("u_craterColor", crater)
-            shader:send("u_seed", (a.data.seed or 0))
-            shader:send("u_origin", {a.x, a.y})
-            shader:send("u_camera", {camX, camY})
-            shader:send("u_screenCenter", {halfW, halfH})
-            shader:send("u_scale", camScale)
-            shader:send("u_angle", a.angle or 0)
-            love.graphics.setShader(shader)
-        end
-
         asteroid_generator.draw(a.data)
         love.graphics.pop()
-
-        if shader then
-            love.graphics.setShader(prevShader)
-        end
 
         if a.maxHealth and a.health and a.health < a.maxHealth then
             local radius = a.collisionRadius or a.size or 10
