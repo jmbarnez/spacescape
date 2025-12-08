@@ -11,14 +11,14 @@ local PARTICLE_TYPE_IMPACT    = 1
 local PARTICLE_TYPE_SPARK     = 2
 
 -- Base sprite sizes in pixels for each particle category
-local BASE_SIZE_EXPLOSION = 18
-local BASE_SIZE_IMPACT    = 12
-local BASE_SIZE_SPARK     = 7
+local BASE_SIZE_EXPLOSION = 72
+local BASE_SIZE_IMPACT    = 48
+local BASE_SIZE_SPARK     = 24
 
 -- Per-type brightness multipliers sent into the shader
-local INTENSITY_EXPLOSION = 2.3
-local INTENSITY_IMPACT    = 1.6
-local INTENSITY_SPARK     = 1.9
+local INTENSITY_EXPLOSION = 7.0
+local INTENSITY_IMPACT    = 5.5
+local INTENSITY_SPARK     = 6.0
 
 particles.list = {}
 particles.time = 0
@@ -45,14 +45,14 @@ function particles.load()
 end
 
 function particles.explosion(x, y, color, count, speedMult, sizeMult)
-    count = count or 10
+    count = count or 36
     speedMult = speedMult or 1.0
     color = color or colors.explosion
     
     for i = 1, count do
         local angle = math.random() * math.pi * 2
-        local speed = (math.random() * 200 + 50) * speedMult
-        local life = math.random() * 0.5 + 0.3
+        local speed = (math.random() * 220 + 80) * speedMult
+        local life = math.random() * 0.5 + 0.4
         
         table.insert(particles.list, {
             x = x,
@@ -73,13 +73,13 @@ function particles.explosion(x, y, color, count, speedMult, sizeMult)
 end
 
 function particles.impact(x, y, color, count)
-    count = count or 10
+    count = count or 24
     color = color or colors.particleImpact
 
     for i = 1, count do
         local angle = math.random() * math.pi * 2
-        local speed = math.random() * 260 + 220
-        local life = math.random() * 0.25 + 0.2
+        local speed = math.random() * 280 + 240
+        local life = math.random() * 0.3 + 0.25
 
         table.insert(particles.list, {
             x = x,
@@ -102,7 +102,7 @@ end
 function particles.spark(x, y, color, count)
     -- Spark particles are meant to look like sharp, fast metal sparks.
     -- Keep the default count modest; callers can override when they need more.
-    count = count or 8
+    count = count or 20
     color = color or colors.particleSpark
 
     for i = 1, count do
@@ -110,10 +110,10 @@ function particles.spark(x, y, color, count)
         local angle = math.random() * math.pi * 2
 
         -- High initial speed so sparks streak out quickly
-        local speed = math.random() * 160 + 220 -- ~220 - 380
+        local speed = math.random() * 220 + 260 -- ~260 - 480
 
         -- Very short lifetime so they "flash" and disappear like real sparks
-        local life = math.random() * 0.10 + 0.05 -- ~0.05 - 0.15s
+        local life = math.random() * 0.12 + 0.06 -- ~0.06 - 0.18s
 
         table.insert(particles.list, {
             x = x,
@@ -157,7 +157,10 @@ function particles.update(dt)
     
 end
 
-function particles.draw()
+function particles.draw(cameraScale)
+    -- Default camera scale (1.0 = no extra scaling)
+    cameraScale = cameraScale or 1.0
+
     -- Skip rendering if there are no particles or the GPU path is unavailable
     if #particles.list == 0 or not particles.shader or not particles.mesh then
         return
@@ -187,6 +190,9 @@ function particles.draw()
         else
             baseSize = BASE_SIZE_EXPLOSION
         end
+
+        -- Scale sprite size by camera zoom so particles stay visually strong
+        baseSize = baseSize * cameraScale
 
         local seed = p.seed or 0.0
 

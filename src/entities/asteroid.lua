@@ -57,6 +57,20 @@ function asteroid.populate(world, count)
         end
         
         -- Create the asteroid entity first (so we can pass it to physics)
+        -- NOTE: We also assign a simple textual composition here so that
+        --       the HUD target panel can display what this asteroid is
+        --       "made of" when locked/selected. This is purely flavor for
+        --       now but can later drive mining yields or resistances.
+        local compositions = {
+            "Carbonaceous (C-type)",
+            "Silicate-rich (S-type)",
+            "Metal-rich (M-type)",
+            "Ice-bearing",        -- volatiles / icy inclusions
+            "Nickel-Iron core",
+            "Crystalline veins",
+        }
+
+        local composition = compositions[math.random(1, #compositions)]
         local newAsteroid = {
             x = x,
             y = y,
@@ -71,6 +85,8 @@ function asteroid.populate(world, count)
             collisionVertices = collisionVertices,
             health = maxHealth,
             maxHealth = maxHealth,
+            -- Mining / flavor stats
+            composition = composition,
             body = nil,
             shapes = nil,   -- Table of shapes (polygon body may have multiple)
             fixtures = nil  -- Table of fixtures

@@ -17,8 +17,8 @@ function hud_status.draw(player, colors)
     if maxShield <= 0 then maxShield = 1 end
 
     -- Layout constants
-    local baseX = 24
-    local baseY = 24
+    local baseX = 40
+    local baseY = 48
     local barWidth = 200
     local barHeight = 10
     local barSpacing = 6
@@ -30,6 +30,25 @@ function hud_status.draw(player, colors)
     -- Center ring vertically between the two bars
     local barsCenterY = baseY + barHeight + barSpacing / 2
     local levelCenterY = barsCenterY
+
+    local contentLeft = baseX
+    local contentRight = levelCenterX + ringRadius + 16 + barWidth
+    local contentTop = levelCenterY - ringRadius
+    local contentBottom = levelCenterY + ringRadius
+    local panelPaddingX = 12
+    local panelPaddingY = 12
+    local panelX = contentLeft - panelPaddingX
+    local panelY = contentTop - panelPaddingY
+    local panelWidth = (contentRight - contentLeft) + panelPaddingX * 2
+    local panelHeight = (contentBottom - contentTop) + panelPaddingY * 2
+
+    love.graphics.setColor(0, 0, 0, 0.7)
+    love.graphics.rectangle("fill", panelX, panelY, panelWidth, panelHeight, 8, 8)
+
+    local borderColor = colors.uiPanelBorder or {1, 1, 1, 0.6}
+    love.graphics.setColor(borderColor[1], borderColor[2], borderColor[3], borderColor[4] or 0.6)
+    love.graphics.setLineWidth(2)
+    love.graphics.rectangle("line", panelX, panelY, panelWidth, panelHeight, 8, 8)
 
     -- Draw level number
     local levelText = tostring(level)

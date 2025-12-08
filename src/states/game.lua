@@ -8,6 +8,7 @@ local asteroidModule = require("src.entities.asteroid")
 local ui = require("src.render.hud")
 local projectileModule = require("src.entities.projectile")
 local particlesModule = require("src.entities.particles")
+local projectileShards = require("src.entities.projectile_shards")
 local starfield = require("src.render.starfield")
 local world = require("src.core.world")
 local camera = require("src.core.camera")
@@ -82,6 +83,10 @@ local function registerUpdateSystems()
 	systems.registerUpdate("projectiles", function(dt, ctx)
 		projectileModule.update(dt, ctx.world)
 	end, 80)
+
+	systems.registerUpdate("projectileShards", function(dt, ctx)
+		projectileShards.update(dt)
+	end, 85)
 
 	systems.registerUpdate("enemies", function(dt, ctx)
 		enemyModule.update(dt, ctx.player, ctx.world)
@@ -239,6 +244,7 @@ function game.restartGame()
     camera.centerOnPlayer(player)
     
     projectileModule.clear()
+    projectileShards.clear()
     enemyModule.clear()
     asteroidModule.clear()
     particlesModule.clear()
@@ -266,6 +272,7 @@ function game.draw()
 		playerModule = playerModule,
 		asteroidModule = asteroidModule,
 		projectileModule = projectileModule,
+		projectileShards = projectileShards,
 		enemyModule = enemyModule,
 		engineTrail = engineTrail,
 		particlesModule = particlesModule,

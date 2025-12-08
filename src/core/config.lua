@@ -43,6 +43,10 @@ local config = {
         wanderIntervalBase = 3.0,
         wanderIntervalRandom = 4.0,
         wanderThrustThreshold = 2.5,
+        -- Maximum radius (in world units) that an enemy is allowed to idle-wander
+        -- away from its spawn point. This does not affect chase/attack behavior;
+        -- it only keeps "idle" enemies loosely leashed to their home area.
+        wanderRadius = 600,
     },
     input = {
         selectionRadius = 40,

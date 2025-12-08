@@ -28,6 +28,7 @@ local floatingText = require("src.entities.floating_text")
 local baseColors = require("src.core.colors")
 local config = require("src.core.config")
 local playerModule = require("src.entities.player")
+local projectileShards = require("src.entities.projectile_shards")
 
 local collision = {}
 
@@ -143,6 +144,7 @@ local function removeEntity(list, entity)
             if entity.body then
                 entity.body:destroy()
             end
+            entity._removed = true
             table.remove(list, i)
             return true
         end
@@ -159,6 +161,7 @@ local function cleanupProjectilesForTarget(target)
             if bullet.body then
                 bullet.body:destroy()
             end
+            bullet._removed = true
             table.remove(bullets, i)
         end
     end
@@ -204,6 +207,43 @@ local function rollHitChance(projectile)
     return math.random() <= hitChance
 end
 
+local function spawnProjectileShards(projectile, target, contactX, contactY, radius, countScale)
+    if not projectileShards then
+        return
+    end
+
+    local px = projectile.x or (projectile.body and projectile.body:getX())
+    local py = projectile.y or (projectile.body and projectile.body:getY())
+    local tx = target and target.x or contactX or px
+    local ty = target and target.y or contactY or py
+    local ix = contactX or tx or px
+    local iy = contactY or ty or py
+
+    if not ix or not iy or not px or not py then
+        return
+    end
+
+    local dirX = px - tx
+    local dirY = py - ty
+    if dirX == 0 and dirY == 0 then
+        dirX, dirY = math.cos(projectile.angle or 0), math.sin(projectile.angle or 0)
+    end
+
+    local baseSpeed = projectile.speed or (physics.constants and physics.constants.projectileSpeed) or 350
+    local baseCount = 10
+    if countScale and countScale > 0 then
+        baseCount = math.max(4, math.floor(baseCount * countScale))
+    end
+
+    local projectileConfig = projectile.projectileConfig or (projectile.weapon and projectile.weapon.projectile)
+    local projectileColor = (projectileConfig and projectileConfig.color)
+        or (currentColors and currentColors.projectile)
+        or baseColors.projectile
+        or baseColors.white
+
+    projectileShards.spawn(ix, iy, dirX, dirY, baseSpeed, baseCount, projectileColor)
+end
+
 --- Generic helper for handling a projectile hitting a target
 --- This centralizes miss logic, particles, damage, and death effects.
 --- @param projectile table The projectile entity
@@ -238,39 +278,12 @@ local function resolveProjectileHit(projectile, target, contactX, contactY, radi
 
     -- Handle miss logic (for shots that can miss)
     if config.canMiss and not rollHitChance(projectile) then
-        -- Even on a miss, show a small impact so the collision feels real,
-        -- but do not spawn any floating text for misses.
-        if currentParticles then
-            local impactColor = config.impactColor or (currentColors and currentColors.projectile) or baseColors.white
-            local count = math.max(2, math.floor((config.impactCount or 6) * 0.5))
-
-            local ix = contactX or target.x
-            local iy = contactY or target.y
-            if ix and iy then
-                currentParticles.impact(ix, iy, impactColor, count)
-            end
-        end
-
+        spawnProjectileShards(projectile, target, contactX, contactY, radius, 0.6)
         removeEntity(bullets, projectile)
         return
     end
 
-    -- Impact particles (fall back to target center if no explicit contact point)
-    if currentParticles then
-        local impactColor = config.impactColor or (currentColors and currentColors.projectile) or baseColors.white
-        local count = config.impactCount or 6
-
-        local ix = contactX or target.x
-        local iy = contactY or target.y
-        if ix and iy then
-            currentParticles.impact(ix, iy, impactColor, count)
-            if config.explosionOnHit then
-                -- Small extra burst to make projectile impacts obvious but compact
-                local explCount = math.max(4, math.floor(count * 0.4))
-                currentParticles.explosion(ix, iy, impactColor, explCount, 0.5, 0.6)
-            end
-        end
-    end
+    spawnProjectileShards(projectile, target, contactX, contactY, radius, 1.0)
 
     -- Apply damage and spawn floating numbers for shield vs hull
     local damage = projectile.damage or currentDamagePerHit
@@ -536,15 +549,14 @@ end
 --- @param dataA table UserData from fixture A
 --- @param dataB table UserData from fixture B
 local function processCollision(dataA, dataB, contactX, contactY)
-    local typeA = dataA.type
-    local typeB = dataB.type
     local entityA = dataA.entity
     local entityB = dataB.entity
-    
-    -- Skip if either entity is already dead/removed
-    if not entityA or not entityB then
+    if not entityA or not entityB or entityA._removed or entityB._removed then
         return
     end
+    
+    local typeA = dataA.type
+    local typeB = dataB.type
     
     -- Look up the handler
     local key = typeA .. ":" .. typeB
@@ -597,7 +609,7 @@ function collision.update(player, particlesModule, colors, damagePerHit)
     -- check to ensure that any projectile visually overlapping a target still
     -- generates impact FX and damage.
     ------------------------------------------------------------------------
-    if bullets and #bullets > 0 then
+    if false and bullets and #bullets > 0 then
         local bulletRadius = config.combat.bulletRadius  -- Matches projectile collision radius in physics.createCircleBody
 
         for bi = #bullets, 1, -1 do

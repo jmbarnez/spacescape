@@ -14,6 +14,7 @@ physics.categories = {
     ASTEROID         = 0x0004,  -- 4:   Asteroids
     PLAYER_PROJECTILE = 0x0008, -- 8:   Projectiles fired by player
     ENEMY_PROJECTILE  = 0x0010, -- 16:  Projectiles fired by enemies
+    DEBRIS           = 0x0020,  -- 32:  Non-colliding projectile shards / debris
 }
 
 -- Define what each category can collide with (mask)
@@ -33,6 +34,9 @@ physics.masks = {
     
     -- Enemy projectiles collide with: player, asteroids
     ENEMY_PROJECTILE = 0x0001 + 0x0004,
+
+    -- Debris: no collisions (visual-only physics bodies)
+    DEBRIS = 0x0000,
 }
 
 physics.fixtureTypes = {
@@ -41,6 +45,7 @@ physics.fixtureTypes = {
     ASTEROID = "asteroid",
     PLAYER_PROJECTILE = "playerprojectile",
     ENEMY_PROJECTILE = "enemyprojectile",
+    DEBRIS = "debris",
 }
 
 --------------------------------------------------------------------------------

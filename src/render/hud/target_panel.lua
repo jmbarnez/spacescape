@@ -1,0 +1,121 @@
+local target_panel = {}
+
+local combatSystem = require("src.systems.combat")
+
+-- Draws a target information panel at the top center of the screen.
+-- This panel shows information about the currently locked/targeted entity.
+-- For asteroids, this includes their composition.
+function target_panel.draw(colors)
+    -- Query combat system for the current visual target (enemy or asteroid)
+    local target, isLocked, isLocking, progress = combatSystem.getCurrentHudTarget()
+
+    -- If there is no active target at all, do not draw the panel
+    if not target then
+        return
+    end
+
+    -- Resolve screen size for positioning
+    local screenW = love.graphics.getWidth()
+    local screenH = love.graphics.getHeight()
+
+    -- Panel layout constants (tweak as desired)
+    local panelWidth = 360
+    local panelHeight = 64
+    local panelX = (screenW - panelWidth) / 2
+    local panelY = 18
+
+    -- Background
+    love.graphics.setColor(0, 0, 0, 0.7)
+    love.graphics.rectangle("fill", panelX, panelY, panelWidth, panelHeight, 8, 8)
+
+    -- Border
+    local borderColor = colors.uiPanelBorder or {1, 1, 1, 0.6}
+    love.graphics.setColor(borderColor[1], borderColor[2], borderColor[3], borderColor[4] or 0.6)
+    love.graphics.setLineWidth(2)
+    love.graphics.rectangle("line", panelX, panelY, panelWidth, panelHeight, 8, 8)
+
+    -- Choose label / type based on entity
+    local primaryLabel = "TARGET"
+    local typeLabel = "Unknown"
+
+    -- Distinguish enemies vs asteroids using simple heuristics
+    if target.faction == "enemy" then
+        typeLabel = "Enemy Ship"
+    elseif target.collisionRadius and not target.ship then
+        -- Asteroids have collisionRadius and no ship field in this project
+        typeLabel = "Asteroid"
+    end
+
+    -- Name / description line
+    local nameParts = {}
+
+    if target.level then
+        table.insert(nameParts, string.format("Lv.%d", target.level))
+    end
+
+    -- Basic size info for flavor (use radius or size)
+    local radius = target.collisionRadius or target.size or 0
+    if radius > 0 then
+        table.insert(nameParts, string.format("R%.0f", radius))
+    end
+
+    -- Append asteroid composition if available
+    local compositionText = nil
+    if typeLabel == "Asteroid" and target.composition then
+        compositionText = target.composition
+    end
+
+    local font = love.graphics.getFont()
+    local lineY = panelY + 10
+
+    -- Draw primary label (left side)
+    love.graphics.setColor(colors.uiText[1], colors.uiText[2], colors.uiText[3], 0.9)
+    love.graphics.print(primaryLabel, panelX + 12, lineY)
+
+    -- Draw type and basic stats (center)
+    local typeText = typeLabel
+    if #nameParts > 0 then
+        typeText = typeText .. "  " .. table.concat(nameParts, "  ")
+    end
+
+    local typeWidth = font:getWidth(typeText)
+    local typeX = panelX + panelWidth / 2 - typeWidth / 2
+    love.graphics.print(typeText, typeX, lineY)
+
+    -- Second line: composition or hint text
+    local secondY = lineY + font:getHeight() + 4
+    local secondaryText = nil
+
+    if compositionText then
+        secondaryText = "Composition: " .. compositionText
+    elseif typeLabel == "Enemy Ship" then
+        secondaryText = "Hostile vessel locked"
+    else
+        secondaryText = nil
+    end
+
+    if secondaryText then
+        local secWidth = font:getWidth(secondaryText)
+        local secX = panelX + panelWidth / 2 - secWidth / 2
+        love.graphics.setColor(colors.uiText[1], colors.uiText[2], colors.uiText[3], 0.8)
+        love.graphics.print(secondaryText, secX, secondY)
+    end
+
+    -- Right side: lock status indicator (text only, ring is in world-space already)
+    local statusText = nil
+
+    if isLocking then
+        statusText = string.format("LOCKING %.0f%%", (progress or 0) * 100)
+    elseif isLocked then
+        statusText = "LOCKED"
+    end
+
+    if statusText then
+        local statusWidth = font:getWidth(statusText)
+        local statusX = panelX + panelWidth - statusWidth - 12
+        love.graphics.setColor(colors.targetRingLocked or colors.targetRing or {1, 0, 0, 0.9})
+        love.graphics.print(statusText, statusX, lineY)
+    end
+end
+
+return target_panel

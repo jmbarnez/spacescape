@@ -37,6 +37,8 @@ local colors = {
     particleSpark = {1.0, 1.0, 0.8},
     engineTrailA = {0.10, 0.95, 1.0},
     engineTrailB = {0.55, 1.0, 1.0},
+    -- Cyan outline color used when hovering entities with the mouse cursor
+    hoverOutline = {0.3, 0.95, 1.0, 0.95},
 
     -- Damage / combat feedback
     damageEnemy = {1.0, 0.9, 0.4},

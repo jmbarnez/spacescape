@@ -3,6 +3,10 @@ local game_render = {}
 local lockOnShader = nil
 local lockLabelLockedAt = nil
 
+-- Config import used for hover selection radius, matching input selection
+-- behavior so that hovering "feels" similar to clicking.
+local config = require("src.core.config")
+
 local function beginWorldTransform(camera)
     love.graphics.push()
     local width = love.graphics.getWidth()
@@ -65,6 +69,77 @@ local function drawMovementIndicator(player, colors)
             )
         end
     end
+end
+
+-- Finds the best candidate entity (enemy or asteroid) currently under the
+-- mouse cursor, using a radius-based hit test similar to the click selection
+-- logic in systems/combat.lua. This keeps the hover behavior intuitive:
+-- if it would be easy to click something, it is also easy to hover it.
+local function findHoveredEntity(ctx)
+    local enemyModule = ctx.enemyModule
+    local asteroidModule = ctx.asteroidModule
+    local camera = ctx.camera
+
+    if not enemyModule or not asteroidModule or not camera then
+        return nil
+    end
+
+    -- Read mouse position in screen-space and convert to world-space so we
+    -- can compare directly against entity positions.
+    local sx, sy = love.mouse.getPosition()
+    local worldX, worldY = camera.screenToWorld(sx, sy)
+
+    -- Padding radius (in world units) applied on top of each entity's
+    -- collision radius/size. This matches the click selection radius so
+    -- hovering and clicking are consistent.
+    local paddingRadius = (config.input and config.input.selectionRadius) or 0
+
+    local closestEntity = nil
+    local closestDistSq = nil
+
+    local function considerEntity(e)
+        if not e or not e.x or not e.y then
+            return
+        end
+
+        local dx = e.x - worldX
+        local dy = e.y - worldY
+        local distSq = dx * dx + dy * dy
+
+        -- Approximate the entity's physical size. Prefer any explicit
+        -- bounding radius (for ships), then collision radius, then size.
+        local entityRadius = 0
+        if e.ship and e.ship.boundingRadius then
+            entityRadius = e.ship.boundingRadius
+        else
+            entityRadius = e.collisionRadius or e.size or 0
+        end
+
+        local hitRadius = entityRadius + paddingRadius
+        if hitRadius <= 0 then
+            hitRadius = paddingRadius
+        end
+
+        if hitRadius > 0 then
+            local hitRadiusSq = hitRadius * hitRadius
+            if distSq <= hitRadiusSq and (not closestDistSq or distSq < closestDistSq) then
+                closestDistSq = distSq
+                closestEntity = e
+            end
+        end
+    end
+
+    -- Check all active enemies
+    for _, e in ipairs(enemyModule.list or {}) do
+        considerEntity(e)
+    end
+
+    -- Check all active asteroids
+    for _, a in ipairs(asteroidModule.list or {}) do
+        considerEntity(a)
+    end
+
+    return closestEntity
 end
 
 local function drawTargetIndicator(colors, combatSystem, camera)
@@ -237,17 +312,28 @@ local function drawWorldObjects(ctx)
     local playerModule = ctx.playerModule
     local asteroidModule = ctx.asteroidModule
     local projectileModule = ctx.projectileModule
+    local projectileShards = ctx.projectileShards
     local enemyModule = ctx.enemyModule
     local engineTrail = ctx.engineTrail
     local particlesModule = ctx.particlesModule
     local explosionFx = ctx.explosionFx
     local floatingText = ctx.floatingText
     local colors = ctx.colors
+    local camera = ctx.camera
     local gameState = ctx.gameState
+
+    -- Determine which entity (if any) is currently hovered by the mouse
+    -- cursor. We only compute this while the game is active; during menus or
+    -- game over the hover outline is suppressed.
+    local hoveredEntity = nil
+    if gameState == "playing" or gameState == "paused" then
+        hoveredEntity = findHoveredEntity(ctx)
+    end
 
     drawMovementIndicator(player, colors)
     asteroidModule.draw(camera)
     projectileModule.draw(colors)
+    projectileShards.draw()
     enemyModule.draw(colors)
     
     if gameState == "playing" or gameState == "paused" then
@@ -255,8 +341,30 @@ local function drawWorldObjects(ctx)
         playerModule.draw(colors)
     end
 
+    -- Draw a cyan outline around the hovered entity so that the player gets
+    -- immediate visual feedback about what their mouse is currently over.
+    -- This outline is rendered after ships/asteroids but before particles
+    -- and explosions so that combat effects can still sit on top.
+    if hoveredEntity then
+        local radius = 0
+        if hoveredEntity.ship and hoveredEntity.ship.boundingRadius then
+            radius = hoveredEntity.ship.boundingRadius
+        else
+            radius = hoveredEntity.collisionRadius or hoveredEntity.size or 0
+        end
+
+        if radius and radius > 0 then
+            local outlineColor = colors.hoverOutline or {0.3, 0.95, 1.0, 0.95}
+            love.graphics.setColor(outlineColor[1], outlineColor[2], outlineColor[3], outlineColor[4] or 0.95)
+            love.graphics.setLineWidth(2)
+            -- Slight padding so the outline sits just outside the visual body
+            love.graphics.circle("line", hoveredEntity.x, hoveredEntity.y, radius + 6)
+        end
+    end
+
     -- Draw impact / explosion particles on top so they are clearly visible
-    particlesModule.draw()
+    local cameraScale = (camera and camera.scale) or 1.0
+    particlesModule.draw(cameraScale)
     explosionFx.draw()
     floatingText.draw()
 end

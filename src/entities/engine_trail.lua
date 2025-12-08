@@ -2,26 +2,47 @@ local colors = require("src.core.colors")
 
 local engine_trail = {}
 
+-- ###########################################################################
 -- Engine trail visual tuning constants
-local TRAIL_RADIUS_MIN = 5      -- smallest radius at end of life (for reference)
-local TRAIL_RADIUS_MAX = 15      -- largest radius when freshly spawned (for reference)
+-- These are the primary knobs to tweak the look / feel of the exhaust.
+-- ###########################################################################
 
--- How many trail points to spawn per emission step while thrusting
+-- Radius range used to derive the base sprite size for the shader.
+-- Slightly larger again so each particle has more visual "body" on screen.
+local TRAIL_RADIUS_MIN = 4      -- smallest visual radius near the end of life
+local TRAIL_RADIUS_MAX = 10     -- largest visual radius when freshly spawned
+
+-- How many trail points to spawn per emission step while thrusting.
+-- Lowered a bit so the trail feels less like a solid fog and more like
+-- distinct chunky particles.
 local TRAIL_SPAWN_PER_STEP = 4
 
--- Base visual size used by the shader (in pixels); tuned from the radius range
-local TRAIL_BASE_SIZE = (TRAIL_RADIUS_MIN + TRAIL_RADIUS_MAX) * 2.2
+-- Base visual size used by the shader (in pixels); tuned from the radius range.
+-- Slightly bigger to give each particle more thickness without needing as
+-- many overlapping neighbors.
+local TRAIL_BASE_SIZE = (TRAIL_RADIUS_MIN + TRAIL_RADIUS_MAX) * 2.4
 
--- Overall brightness multiplier for the shader trail
+-- Overall brightness multiplier for the shader trail.
+-- The shader also applies its own glow/halo, so this should stay moderate.
 local TRAIL_INTENSITY = 4.5
 
 engine_trail.points = {}
 engine_trail.shader = nil
 engine_trail.mesh = nil
+
+-- How frequently we emit a batch of points while thrusting.
+-- Slightly slower so the trail is less dense overall.
 engine_trail.spawnInterval = 0.012
+
 engine_trail.timeSinceLast = 0
-engine_trail.maxPoints = 450
-engine_trail.trailLifetime = 0.8
+
+-- Safety cap on the number of live trail points in the mesh.
+engine_trail.maxPoints = 700
+
+-- Lifetime (seconds) of each spawned trail point.
+-- Slightly shorter so the plume does not stretch too far behind the ship.
+engine_trail.trailLifetime = 0.7
+
 engine_trail.time = 0
 
 function engine_trail.load()
@@ -57,18 +78,25 @@ function engine_trail.update(dt, player)
 
     if player.isThrusting and engine_trail.timeSinceLast >= engine_trail.spawnInterval then
         engine_trail.timeSinceLast = 0
+        -- Offset the spawn position slightly behind the ship based on its size.
         local offset = player.size * 0.9
         local baseDirX = math.cos(player.angle + math.pi)
         local baseDirY = math.sin(player.angle + math.pi)
         local rightX = -baseDirY
         local rightY = baseDirX
 
-        local baseSpeed = 130
-        local speedJitter = 70
-        local dirJitter = 0.8
+        -- Per-particle initial velocity controls how fast the plume drifts away
+        -- from the ship. We still allow a cone, but tighten it and reduce
+        -- variation so the plume is less smoky and more directional.
+        local baseSpeed = 140         -- forward/back drift speed for the exhaust
+        local speedJitter = 55        -- random variation around baseSpeed
+        local dirJitter = 0.6         -- angular spread; smaller = tighter cone
 
         for n = 1, TRAIL_SPAWN_PER_STEP do
+            -- Lateral offset spreads points across the ship width to avoid a
+            -- perfectly razor-thin line, but still keep it fairly tight.
             local lateral = (math.random() - 0.5) * player.size * 0.9
+
             local ox = baseDirX * offset + rightX * lateral
             local oy = baseDirY * offset + rightY * lateral
 
@@ -84,7 +112,9 @@ function engine_trail.update(dt, player)
                 maxLife = engine_trail.trailLifetime,
                 noiseOffset = math.random() * math.pi * 2,
                 spawnTime = engine_trail.time,
-                size = TRAIL_BASE_SIZE,
+                -- Per-particle size variation so the plume feels like a cloud of
+                -- distinct cyan particles instead of uniformly sized sprites.
+                size = TRAIL_BASE_SIZE * (0.8 + math.random() * 0.5),
                 seed = math.random()
             })
         end
@@ -94,8 +124,11 @@ function engine_trail.update(dt, player)
         end
     end
 
-    local drag = 0.86
-    local turbulenceStrength = 42
+    -- Motion tuning: drag pulls velocities down over time, turbulence adds
+    -- some curl so particles feel alive, but is toned down so the trail is
+    -- less "pluemy" and more of a controlled spray.
+    local drag = 0.90
+    local turbulenceStrength = 30
 
     for i = #engine_trail.points, 1, -1 do
         local p = engine_trail.points[i]
@@ -105,7 +138,9 @@ function engine_trail.update(dt, player)
             table.remove(engine_trail.points, i)
         else
 
-            local t = engine_trail.time * 1.5 + p.noiseOffset
+            -- Time-based noise phase for gentle wobble / curl in the exhaust.
+            local t = engine_trail.time * 1.1 + p.noiseOffset
+
             local nx = math.cos(t)
             local ny = math.sin(t * 1.1)
 

@@ -71,6 +71,9 @@ function enemy.spawn(world, safeRadius)
     local newEnemy = {
         x = x,
         y = y,
+        -- Remember spawn position so we can leash idle wandering around this point
+        spawnX = x,
+        spawnY = y,
         -- Zero-g velocity
         vx = (math.random() - 0.5) * config.enemy.initialDriftSpeed,  -- Small initial drift
         vy = (math.random() - 0.5) * config.enemy.initialDriftSpeed,
@@ -95,6 +98,8 @@ function enemy.spawn(world, safeRadius)
         fireTimer = 0,
         wanderAngle = math.random() * math.pi * 2,
         wanderTimer = config.enemy.wanderIntervalBase + math.random() * config.enemy.wanderIntervalRandom,
+        -- Per-enemy leash radius for idle wandering (can be tweaked per instance later)
+        wanderRadius = config.enemy.wanderRadius,
         isThrusting = false
     }
     
@@ -199,22 +204,54 @@ function enemy.update(dt, playerState, world)
                 end
             end
         elseif e.state == "idle" then
-            -- Idle: gentle wandering with occasional thrust
+            -- Idle: gentle wandering with occasional thrust, but stay within a leash radius
+            -- around the spawn point so enemies do not drift endlessly across the map.
+
+            -- Determine this enemy's home position and maximum idle radius
+            local homeX = e.spawnX or e.x
+            local homeY = e.spawnY or e.y
+            local maxRadius = (e.wanderRadius or config.enemy.wanderRadius or e.detectionRange or config.enemy.detectionRange)
+            local dxHome = e.x - homeX
+            local dyHome = e.y - homeY
+            local distHomeSq = dxHome * dxHome + dyHome * dyHome
+            local maxRadiusSq = maxRadius * maxRadius
+
+            -- Update wander timer / angle
             e.wanderTimer = (e.wanderTimer or 0) - dt
             if not e.wanderAngle then
                 e.wanderAngle = math.random() * math.pi * 2
             end
-            if e.wanderTimer <= 0 then
-                e.wanderAngle = math.random() * math.pi * 2
-                e.wanderTimer = config.enemy.wanderIntervalBase + math.random() * config.enemy.wanderIntervalRandom  -- Longer intervals for space feel
-            end
-            e.targetAngle = e.wanderAngle
-            -- Only thrust occasionally when idle (drifting mostly)
-            if e.wanderTimer > config.enemy.wanderThrustThreshold then
+
+            if distHomeSq > maxRadiusSq then
+                -- Outside allowed idle radius: steer gently back toward home
+                e.targetAngle = math.atan2(homeY - e.y, homeX - e.x)
                 local angleDiff = math.abs(physics.normalizeAngle(e.targetAngle - e.angle))
-                if angleDiff < math.pi / 4 then
+                if angleDiff < math.pi / 2 then
                     e.isThrusting = true
                     thrustAngle = e.angle
+                end
+
+                -- Slightly delay the next random wander direction so the enemy
+                -- has time to drift back toward its home area first.
+                if e.wanderTimer < 0 then
+                    e.wanderTimer = config.enemy.wanderIntervalBase * 0.5
+                end
+            else
+                -- Inside leash radius: regular idle wandering
+                if e.wanderTimer <= 0 then
+                    e.wanderAngle = math.random() * math.pi * 2
+                    e.wanderTimer = config.enemy.wanderIntervalBase + math.random() * config.enemy.wanderIntervalRandom
+                end
+
+                e.targetAngle = e.wanderAngle
+
+                -- Only thrust occasionally when idle (drifting mostly)
+                if e.wanderTimer > config.enemy.wanderThrustThreshold then
+                    local angleDiff = math.abs(physics.normalizeAngle(e.targetAngle - e.angle))
+                    if angleDiff < math.pi / 4 then
+                        e.isThrusting = true
+                        thrustAngle = e.angle
+                    end
                 end
             end
         end

@@ -23,17 +23,20 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
     v_lifePhase = life01;
     v_seed = a_seed;
 
-    // Slower fade for a denser, more persistent plume
-    v_alpha = pow(1.0 - life01, 0.6);
+    // Fade over life; still bright when fresh, then quickly softens as
+    // particles drift away and dissipate.
+    v_alpha = pow(1.0 - life01, 1.1);
 
-    // Plume expands aggressively over lifetime - starts fairly thick, grows larger
-    float expansion = 1.3 + life01 * 3.0;
+    // Slight expansion over lifetime; particles stay fairly compact so they
+    // read as distinct points rather than a solid blade.
+    float expansion = mix(1.0, 1.6, life01);
 
-    // Slightly stronger pulsing to keep the trail alive and energetic
-    float pulse = 1.0 + sin(a_seed * 20.0 + u_time * 3.0) * 0.20;
+    // Gentle pulsing to keep the particles feeling alive without wobbling too much
+    float pulse = 1.0 + sin(a_seed * 18.0 + u_time * 4.0) * 0.12;
 
-    // Global scale factor tuned for a visibly thick trail
-    gl_PointSize = a_size * expansion * pulse * 2.1;
+    // Global scale factor tuned for thicker, chunkier particles while still
+    // keeping them visually separate.
+    gl_PointSize = a_size * expansion * pulse * 1.8;
 
     return transform_projection * vertex_position;
 }
@@ -94,89 +97,98 @@ float billow(vec2 p, float seed) {
 }
 
 vec4 effect(vec4 color, Image texture, vec2 texcoord, vec2 screen_coords) {
+    // Centered UV inside point-sprite space: gl_PointCoord is [0, 1] each axis
     vec2 uv = gl_PointCoord - vec2(0.5);
     float dist = length(uv);
-    
-    // Larger base radius for a thicker plume sprite
-    if (dist > 0.6) {
+
+    // Soft cut-off radius; slightly larger so each particle has a meatier core
+    // and halo without needing huge point sizes.
+    float maxRadius = 0.7;
+    if (dist > maxRadius) {
         discard;
     }
-    
-    // Create billowing smoke shape
-    float angle = atan(uv.y, uv.x);
-    float angleNoise = fbm(vec2(angle * 1.5 + u_time * 0.3, v_seed * 5.0), v_seed);
-    
-    // Irregular, puffy edges like real smoke
-    float puffiness = 0.4 + angleNoise * 0.1;
-    
-    // Add large-scale billowing deformation
-    float billowNoise = billow(uv * 2.0 + v_lifePhase * 0.5, v_seed);
-    puffiness += billowNoise * 0.08;
-    
-    // Turbulent wisps that increase with age
-    float turbulence = fbm(uv * 6.0 + u_time * 0.2 + v_lifePhase * 3.0, v_seed + 2.0);
-    puffiness += (turbulence - 0.5) * 0.12 * (0.5 + v_lifePhase * 0.5);
-    
-    // Soft edge - don't hard discard, fade instead for smoky look
-    float edgeDist = dist / puffiness;
-    if (edgeDist > 1.3) {
-        discard;
-    }
-    
-    // Volumetric density - denser at center, wispy at edges
-    float density = 1.0 - smoothstep(0.0, 1.0, edgeDist);
-    density = pow(density, 0.6); // Softer falloff for thick smoke
-    
-    // Internal smoke structure - swirling patterns
-    float swirl = fbm(uv * 8.0 + vec2(cos(u_time * 0.4), sin(u_time * 0.3)) * 0.5, v_seed + 1.0);
-    float internalStructure = 0.6 + swirl * 0.4;
-    
-    // Add darker wisps/pockets within the smoke
-    float darkWisps = fbm(uv * 12.0 - u_time * 0.15, v_seed + 3.0);
-    internalStructure *= 0.8 + darkWisps * 0.2;
-    
-    // Combine density with internal variation
-    density *= internalStructure;
-    
-    // Choose color based on mode
+
+    float life = v_lifePhase;
+
+    // ------------------------------------------------------------
+    // Radial structure: bright core + soft halo + slightly stretched body
+    // ------------------------------------------------------------
+
+    // Inner core radius controls how tight the central glow is.
+    // Fixed radius keeps each particle visually similar as it moves and fades.
+    float coreRadius = maxRadius * 0.3;
+    float glowRadius = maxRadius;
+
+    // Very bright center
+    float core = 1.0 - smoothstep(0.0, coreRadius, dist);
+
+    // Softer surrounding glow that keeps the disc visible even when thin
+    float glow = 1.0 - smoothstep(coreRadius, glowRadius, dist);
+
+    // A subtle directional stretch to suggest forward motion
+    float stretch = mix(1.35, 1.0, life);
+    vec2 stretchedUV = vec2(uv.x * stretch, uv.y);
+    float stretchedDist = length(stretchedUV);
+    float trail = 1.0 - smoothstep(coreRadius * 0.8, glowRadius, stretchedDist);
+
+    // ------------------------------------------------------------
+    // Stylized turbulence: gentle energy ripples instead of heavy smoke
+    // ------------------------------------------------------------
+
+    float swirl = fbm(uv * 6.0 + vec2(u_time * 0.9, v_seed * 3.5), v_seed + 1.0);
+    float swirl2 = fbm(uv * 3.0 + vec2(-u_time * 0.5, v_seed * 6.0), v_seed + 4.0);
+    float swirlCombined = mix(swirl, swirl2, 0.5);
+
+    float density = core * 1.0 + glow * 0.6 + trail * 0.3;
+    // Slightly narrower modulation range keeps the particles from looking
+    // too smoky while still giving some internal variation.
+    density *= mix(0.9, 1.2, swirlCombined);
+    density *= (1.0 - life * 0.6);
+    density = clamp(density, 0.0, 1.0);
+
+    // ------------------------------------------------------------
+    // Color styling
+    // ------------------------------------------------------------
+
     vec3 trailColor;
     if (u_colorMode == 0) {
         trailColor = u_colorA;
     } else if (u_colorMode == 1) {
-        trailColor = mix(u_colorA, u_colorB, v_lifePhase);
+        trailColor = mix(u_colorA, u_colorB, life);
     } else if (u_colorMode == 2) {
-        // Hot core to cooler smoke transition
-        float heatFade = pow(1.0 - v_lifePhase, 2.0);
-        trailColor = mix(u_colorA, vec3(0.8, 0.8, 0.9), v_lifePhase * 0.6);
-        trailColor = mix(trailColor, vec3(1.0, 0.95, 0.8), heatFade * density);
+        // Neon exhaust: bright cyan/white core with cooler outer halo
+        float hueShift = clamp(life * 0.55 + swirlCombined * 0.25, 0.0, 1.0);
+        vec3 mixed = mix(u_colorA, u_colorB, hueShift);
+
+        // Fresh particles burn hotter; older ones cool off into softer smoke
+        float coreHeat = pow(core, 1.4) * (1.0 - life * 0.7);
+        vec3 hotCore = vec3(0.9, 1.0, 1.0);
+        trailColor = mix(mixed, hotCore, coreHeat);
+
+        // Slightly tinted outer halo that gives the trail a soft edge
+        float outerGlow = smoothstep(coreRadius * 1.4, glowRadius, dist);
+        vec3 outerTint = vec3(0.6, 0.9, 1.0);
+        trailColor = mix(trailColor, outerTint, outerGlow * 0.35);
     } else {
-        trailColor = mix(u_colorA, u_colorB, v_lifePhase);
+        trailColor = mix(u_colorA, u_colorB, life);
     }
-    
-    // Hot glowing core for fresh particles
-    float coreHeat = (1.0 - v_lifePhase) * (1.0 - edgeDist);
-    coreHeat = pow(coreHeat, 1.5);
-    vec3 hotCore = vec3(0.75, 1.0, 1.0);
-    trailColor = mix(trailColor, hotCore, coreHeat * 0.5);
-    
-    // Darken edges slightly for depth, but keep them brighter overall
-    float edgeDarken = smoothstep(0.3, 1.0, edgeDist) * 0.2;
-    trailColor *= 1.0 - edgeDarken;
-    
+
     trailColor *= u_intensity;
-    
-    // Thick, opaque smoke alpha
+
+    // ------------------------------------------------------------
+    // Alpha / glow
+    // ------------------------------------------------------------
+
+    // Base opacity from lifetime and radial density
     float alpha = v_alpha * density;
-    
-    // Extra soft glow around edges for stronger halo
-    float glow = smoothstep(1.0, 0.5, edgeDist) * 0.18;
-    alpha += glow * v_alpha;
-    
-    // Boost overall opacity for a thicker, more prominent plume
-    alpha *= 1.7;
-    
+
+    // Extra halo that keeps a visible outline even as the core fades
+    float halo = smoothstep(glowRadius, coreRadius * 0.6, dist);
+    halo *= 0.25 * (1.0 - life * 0.4);
+    alpha += halo * v_alpha;
+
     alpha = clamp(alpha, 0.0, 1.0);
-    
+
     return vec4(trailColor, alpha);
 }
 
