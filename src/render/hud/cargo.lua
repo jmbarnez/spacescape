@@ -14,13 +14,13 @@ local windowState = {
 }
 
 -- Layout constants
-local SLOT_SIZE = 72
+local SLOT_SIZE = 90
 local SLOT_PADDING = 8
 local COLS = 3
 local ROWS = 2
-local PANEL_PADDING = 16
-local TOP_BAR_HEIGHT = 32
-local BOTTOM_BAR_HEIGHT = 28
+local PANEL_PADDING = 20
+local TOP_BAR_HEIGHT = 40
+local BOTTOM_BAR_HEIGHT = 36
 local CLOSE_BUTTON_SIZE = 24
 
 -- Calculate panel dimensions
