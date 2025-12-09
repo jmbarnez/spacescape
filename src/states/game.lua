@@ -35,12 +35,13 @@ local enemies = enemyModule.list
 
 -- Game state
 local gameState = "playing" -- "playing", "gameover"
+local cargoOpen = false
 
 local pauseMenu = {
 	items = {
-		{ id = "resume", label = "Resume" },
+		{ id = "resume",  label = "Resume" },
 		{ id = "restart", label = "Restart" },
-		{ id = "quit", label = "Quit to Desktop" },
+		{ id = "quit",    label = "Quit to Desktop" },
 	},
 }
 
@@ -125,29 +126,29 @@ end
 --------------------------------------------------------------------------------
 
 function game.load()
-    love.window.setTitle("Spacescape")
-    math.randomseed(os.time())
-    
-    local font = love.graphics.newFont("assets/fonts/Orbitron-Bold.ttf", 16)
-    love.graphics.setFont(font)
+	love.window.setTitle("Spacescape")
+	math.randomseed(os.time())
 
-    physics.init()
-    collisionSystem.init()  -- Register collision callbacks with physics
-    playerModule.reset()
-    world.initFromPlayer(player)
-    camera.centerOnPlayer(player)
-    starfield.generate()
-    spawnSystem.reset()
-    combatSystem.reset()
-    particlesModule.load()
-    engineTrail.load()
-    engineTrail.reset()
-    explosionFx.load()
-    floatingText.clear()
-    abilitiesSystem.load(player)
-    asteroidModule.load()
-    gameRender.load()
-    registerUpdateSystems()
+	local font = love.graphics.newFont("assets/fonts/Orbitron-Bold.ttf", 16)
+	love.graphics.setFont(font)
+
+	physics.init()
+	collisionSystem.init() -- Register collision callbacks with physics
+	playerModule.reset()
+	world.initFromPlayer(player)
+	camera.centerOnPlayer(player)
+	starfield.generate()
+	spawnSystem.reset()
+	combatSystem.reset()
+	particlesModule.load()
+	engineTrail.load()
+	engineTrail.reset()
+	explosionFx.load()
+	floatingText.clear()
+	abilitiesSystem.load(player)
+	asteroidModule.load()
+	gameRender.load()
+	registerUpdateSystems()
 end
 
 --------------------------------------------------------------------------------
@@ -171,10 +172,10 @@ function game.update(dt)
 end
 
 function game.checkCollisions()
-    local playerDied = collisionSystem.update(player, particlesModule, colors, DAMAGE_PER_HIT)
-    if playerDied then
-        gameState = "gameover"
-    end
+	local playerDied = collisionSystem.update(player, particlesModule, colors, DAMAGE_PER_HIT)
+	if playerDied then
+		gameState = "gameover"
+	end
 end
 
 --------------------------------------------------------------------------------
@@ -210,7 +211,30 @@ function game.mousepressed(x, y, button)
 		return
 	end
 
+	-- Handle cargo window interactions first
+	if cargoOpen then
+		local result = ui.cargoMousepressed(x, y, button)
+		if result == "close" then
+			cargoOpen = false
+			return
+		elseif result then
+			return -- Consumed by cargo window (e.g., dragging)
+		end
+	end
+
 	inputSystem.mousepressed(x, y, button, player, world, camera)
+end
+
+function game.mousereleased(x, y, button)
+	if cargoOpen then
+		ui.cargoMousereleased(x, y, button)
+	end
+end
+
+function game.mousemoved(x, y, dx, dy)
+	if cargoOpen then
+		ui.cargoMousemoved(x, y)
+	end
 end
 
 function game.wheelmoved(x, y)
@@ -225,8 +249,17 @@ function game.keypressed(key)
 	if key == "escape" then
 		if gameState == "playing" then
 			gameState = "paused"
+			cargoOpen = false -- Close cargo when pausing
 		elseif gameState == "paused" then
 			gameState = "playing"
+		end
+		return
+	end
+
+	if key == "tab" and gameState == "playing" then
+		cargoOpen = not cargoOpen
+		if not cargoOpen then
+			ui.resetCargo() -- Reset position when closing with Tab
 		end
 		return
 	end
@@ -239,7 +272,7 @@ function game.keypressed(key)
 end
 
 function game.resize(w, h)
-    starfield.resize()
+	starfield.resize()
 end
 
 --------------------------------------------------------------------------------
@@ -247,32 +280,32 @@ end
 --------------------------------------------------------------------------------
 
 function game.restartGame()
-    playerModule.reset()
-    world.initFromPlayer(player)
-    camera.centerOnPlayer(player)
-    
-    projectileModule.clear()
-    projectileShards.clear()
-    enemyModule.clear()
-    asteroidModule.clear()
-    particlesModule.clear()
-    itemModule.clear()
-    engineTrail.reset()
-    explosionFx.clear()
-    floatingText.clear()
-    collisionSystem.clear()
-    
-    spawnSystem.reset()
-    combatSystem.reset()
-    abilitiesSystem.reset(player)
-    gameState = "playing"
+	playerModule.reset()
+	world.initFromPlayer(player)
+	camera.centerOnPlayer(player)
+
+	projectileModule.clear()
+	projectileShards.clear()
+	enemyModule.clear()
+	asteroidModule.clear()
+	particlesModule.clear()
+	itemModule.clear()
+	engineTrail.reset()
+	explosionFx.clear()
+	floatingText.clear()
+	collisionSystem.clear()
+
+	spawnSystem.reset()
+	combatSystem.reset()
+	abilitiesSystem.reset(player)
+	gameState = "playing"
 end
 
 --- Rendering
 --------------------------------------------------------------------------------
 
 function game.draw()
-    starfield.draw()
+	starfield.draw()
 
 	local renderCtx = {
 		camera = camera,
@@ -292,6 +325,7 @@ function game.draw()
 		gameState = gameState,
 		combatSystem = combatSystem,
 		pauseMenu = pauseMenu,
+		cargoOpen = cargoOpen,
 	}
 
 	gameRender.draw(renderCtx)

@@ -3,6 +3,7 @@ local hud = {}
 local hud_ingame = require("src.render.hud.ingame")
 local hud_pause = require("src.render.hud.pause")
 local hud_gameover = require("src.render.hud.gameover")
+local hud_cargo = require("src.render.hud.cargo")
 
 function hud.drawHUD(player, colors)
     hud_ingame.draw(player, colors)
@@ -18,6 +19,27 @@ end
 
 function hud.hitTestPauseMenu(menu, mx, my)
     return hud_pause.hitTestPauseMenu(menu, mx, my)
+end
+
+function hud.drawCargo(player, colors)
+    hud_cargo.draw(player, colors)
+end
+
+-- Cargo window mouse handlers
+function hud.cargoMousepressed(x, y, button)
+    return hud_cargo.mousepressed(x, y, button)
+end
+
+function hud.cargoMousereleased(x, y, button)
+    return hud_cargo.mousereleased(x, y, button)
+end
+
+function hud.cargoMousemoved(x, y)
+    return hud_cargo.mousemoved(x, y)
+end
+
+function hud.resetCargo()
+    return hud_cargo.reset()
 end
 
 return hud

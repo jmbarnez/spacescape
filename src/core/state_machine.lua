@@ -68,13 +68,21 @@ end
 function state_machine.mousepressed(x, y, button)
     return state_machine.call("mousepressed", x, y, button)
 end
- 
+
 function state_machine.wheelmoved(x, y)
     return state_machine.call("wheelmoved", x, y)
 end
 
 function state_machine.resize(w, h)
     return state_machine.call("resize", w, h)
+end
+
+function state_machine.mousereleased(x, y, button)
+    return state_machine.call("mousereleased", x, y, button)
+end
+
+function state_machine.mousemoved(x, y, dx, dy)
+    return state_machine.call("mousemoved", x, y, dx, dy)
 end
 
 return state_machine

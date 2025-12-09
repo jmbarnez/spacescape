@@ -26,13 +26,13 @@ local function drawMovementIndicator(player, colors)
     local dx = player.targetX - player.x
     local dy = player.targetY - player.y
     local distance = math.sqrt(dx * dx + dy * dy)
-    
+
     if distance < 30 then
         return
     end
-    
+
     local markerSize = 10
-    
+
     -- Draw target crosshair
     love.graphics.setColor(colors.movementIndicator)
     love.graphics.setLineWidth(2)
@@ -44,7 +44,7 @@ local function drawMovementIndicator(player, colors)
         player.targetX, player.targetY - markerSize,
         player.targetX, player.targetY + markerSize
     )
-    
+
     -- Draw path line (shows intended direction, not actual trajectory)
     love.graphics.setColor(
         colors.movementIndicator[1],
@@ -54,14 +54,14 @@ local function drawMovementIndicator(player, colors)
     )
     love.graphics.setLineWidth(1)
     love.graphics.line(player.x, player.y, player.targetX, player.targetY)
-    
+
     -- Draw velocity vector (shows actual momentum)
     if player.vx and player.vy then
         local speed = math.sqrt(player.vx * player.vx + player.vy * player.vy)
         if speed > 5 then
             love.graphics.setColor(colors.velocityVector)
             love.graphics.setLineWidth(2)
-            local velScale = 0.5  -- Scale velocity for visualization
+            local velScale = 0.5 -- Scale velocity for visualization
             love.graphics.line(
                 player.x, player.y,
                 player.x + player.vx * velScale,
@@ -214,7 +214,7 @@ local function drawTargetIndicator(colors, combatSystem, camera)
 
         local now = love.timer.getTime()
         shader:send("time", now)
-        shader:send("center", {sx, sy})
+        shader:send("center", { sx, sy })
         shader:send("radius", screenRadius)
 
         local sr = ringColor[1]
@@ -225,7 +225,7 @@ local function drawTargetIndicator(colors, combatSystem, camera)
         sg = sg * (1 - mix) + 0.6 * mix
         sb = sb * (1 - mix) + 0.2 * mix
 
-        shader:send("color", {sr, sg, sb})
+        shader:send("color", { sr, sg, sb })
         local lockProgress = isLocked and 1 or progress
         shader:send("progress", lockProgress)
 
@@ -272,7 +272,7 @@ local function drawTargetIndicator(colors, combatSystem, camera)
             labelAlpha = labelColor[4] or 1.0
         elseif isLocked then
             labelText = "LOCKED"
-            labelColor = {1.0, 1.0, 1.0, 1.0}
+            labelColor = { 1.0, 1.0, 1.0, 1.0 }
 
             if lockLabelLockedAt then
                 local now = love.timer.getTime()
@@ -342,7 +342,7 @@ local function drawWorldObjects(ctx)
     projectileModule.draw(colors)
     projectileShards.draw()
     enemyModule.draw(colors)
-    
+
     if gameState == "playing" or gameState == "paused" then
         engineTrail.draw()
         playerModule.draw(colors)
@@ -353,7 +353,7 @@ local function drawWorldObjects(ctx)
     -- This outline is rendered after ships/asteroids but before particles
     -- and explosions so that combat effects can still sit on top.
     if hoveredEntity then
-        local outlineColor = colors.hoverOutline or {0.3, 0.95, 1.0, 0.95}
+        local outlineColor = colors.hoverOutline or { 0.3, 0.95, 1.0, 0.95 }
         love.graphics.setColor(outlineColor[1], outlineColor[2], outlineColor[3], outlineColor[4] or 0.95)
         love.graphics.setLineWidth(2)
 
@@ -411,10 +411,16 @@ local function drawOverlay(ctx)
     local combatSystem = ctx.combatSystem
     local camera = ctx.camera
     local pauseMenu = ctx.pauseMenu
+    local cargoOpen = ctx.cargoOpen
 
     drawTargetIndicator(colors, combatSystem, camera)
     ui.drawHUD(player, colors)
-    
+
+    -- Cargo window overlay (shown when Tab is pressed)
+    if cargoOpen and gameState == "playing" then
+        ui.drawCargo(player, colors)
+    end
+
     if gameState == "gameover" then
         ui.drawGameOver(player)
     elseif gameState == "paused" then

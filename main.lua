@@ -27,3 +27,11 @@ end
 function love.resize(w, h)
 	state_machine.call("resize", w, h)
 end
+
+function love.mousereleased(x, y, button)
+	state_machine.call("mousereleased", x, y, button)
+end
+
+function love.mousemoved(x, y, dx, dy)
+	state_machine.call("mousemoved", x, y, dx, dy)
+end
