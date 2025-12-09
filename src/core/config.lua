@@ -18,7 +18,7 @@ local config = {
         bulletRadius = 4,
     },
     player = {
-        size = 11,
+        size = 16,
         maxHealth = 100,
         maxShield = 30,
         stopRadius = 5,

@@ -1,5 +1,9 @@
 local ship_generator = {}
 
+-- Shared generic ship helpers so procedural ships follow the same
+-- data/geometry conventions as authored blueprints in src.data.ships.*.
+local core_ship = require("src.core.ship")
+
 -- Ship component types
 local HULL_TYPES = {"diamond", "hexagon", "arrow", "wedge", "crescent"}
 local WING_STYLES = {"swept", "angular", "curved", "delta", "split"}
@@ -290,16 +294,9 @@ local function clamp01(v)
 end
 
 local function flattenPoints(points)
-    local flat = {}
-    if not points then
-        return flat
-    end
-    for i = 1, #points do
-        local p = points[i]
-        flat[#flat + 1] = p[1]
-        flat[#flat + 1] = p[2]
-    end
-    return flat
+    -- Delegate to the shared helper in core.ship so procedural and
+    -- authored ships use the exact same vertex layout conventions.
+    return core_ship.flattenPoints(points)
 end
 
 local function choosePalette(preferredName)
@@ -362,67 +359,9 @@ local function generateGreebles(size, complexity)
 end
 
 local function computeBoundingRadius(ship)
-    local radius = ship.size or 0
-
-    if ship.hull and ship.hull.points then
-        for _, p in ipairs(ship.hull.points) do
-            local x, y = p[1], p[2]
-            local d = math.sqrt(x * x + y * y)
-            if d > radius then
-                radius = d
-            end
-        end
-    end
-
-    if ship.wings then
-        for _, wing in ipairs(ship.wings) do
-            if wing.points then
-                for _, p in ipairs(wing.points) do
-                    local x, y = p[1], p[2]
-                    local d = math.sqrt(x * x + y * y)
-                    if d > radius then
-                        radius = d
-                    end
-                end
-            end
-        end
-    end
-
-    if ship.engines then
-        for _, engine in ipairs(ship.engines) do
-            local ex = engine.x or 0
-            local ey = engine.y or 0
-            local r = (engine.radius or (ship.size or 0)) * 1.5
-            local d = math.sqrt(ex * ex + ey * ey) + r
-            if d > radius then
-                radius = d
-            end
-        end
-    end
-
-    if ship.greebles then
-        for _, g in ipairs(ship.greebles) do
-            if g.type == "panel" then
-                local cx, cy = g.x or 0, g.y or 0
-                local halfLen = (g.length or 0) * 0.5
-                local halfWid = (g.width or 0) * 0.5
-                local cornerRadius = math.sqrt(halfLen * halfLen + halfWid * halfWid)
-                local d = math.sqrt(cx * cx + cy * cy) + cornerRadius
-                if d > radius then
-                    radius = d
-                end
-            elseif g.type == "light" then
-                local cx, cy = g.x or 0, g.y or 0
-                local r = g.radius or ((ship.size or 0) * 0.06)
-                local d = math.sqrt(cx * cx + cy * cy) + r
-                if d > radius then
-                    radius = d
-                end
-            end
-        end
-    end
-
-    return radius
+    -- Reuse the shared radius computation from core.ship so that both
+    -- procedural and authored ships report size consistently.
+    return core_ship.computeBoundingRadius(ship)
 end
 
 function ship_generator.generate(size, options)

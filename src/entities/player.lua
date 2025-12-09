@@ -3,90 +3,34 @@ local player = {}
 local physics = require("src.core.physics")
 local weapons = require("src.core.weapons")
 local config = require("src.core.config")
+local core_ship = require("src.core.ship")
+local ship_renderer = require("src.render.ship_renderer")
+local player_drone = require("src.data.ships.player_drone")
 
--- Internal helper to draw the drone given a color palette and a base size
 local function renderDrone(colors, size)
-    local shipColor = colors.ship
-    local outlineColor = colors.shipOutline or {0, 0, 0}
-    local cockpitColor = colors.projectile or shipColor
-    local engineColor = colors.enemy or shipColor
-
-    -- Base dimensions (front points along +X)
-    local hullLength = size * 2.4
-    local hullHalfWidth = size * 0.35
-    local noseX = hullLength * 0.5
-    local backX = -hullLength * 0.4
-
-    -- Main hull (long, narrow triangle)
-    love.graphics.setColor(shipColor)
-    love.graphics.polygon("fill",
-        noseX, 0,
-        backX, -hullHalfWidth,
-        backX, hullHalfWidth
-    )
-
-    -- Wings (slimmer profile)
-    local wingSpan = size * 0.9
-    local wingFrontX = size * 0.2
-    local wingBackX = backX * 0.5
-
-    love.graphics.polygon("fill",
-        wingFrontX, -hullHalfWidth * 0.7,
-        wingBackX, -wingSpan,
-        backX, -hullHalfWidth * 0.25
-    )
-
-    love.graphics.polygon("fill",
-        wingFrontX, hullHalfWidth * 0.7,
-        wingBackX, wingSpan,
-        backX, hullHalfWidth * 0.25
-    )
-
-    -- Cockpit
-    love.graphics.setColor(cockpitColor[1], cockpitColor[2], cockpitColor[3], 0.9)
-    love.graphics.circle("fill", size * 0.25, 0, size * 0.25)
-
-    -- Engine glow at the rear
-    local engineRadius = size * 0.3
-    local engineX = backX - size * 0.15
-    love.graphics.setColor(engineColor[1], engineColor[2], engineColor[3], 0.9)
-    love.graphics.circle("fill", engineX, 0, engineRadius)
-
-    -- Outline
-    love.graphics.setColor(outlineColor)
-    love.graphics.setLineWidth(2)
-    love.graphics.polygon("line",
-        noseX, 0,
-        backX, -hullHalfWidth,
-        backX, hullHalfWidth
-    )
+    -- Build a concrete world-space layout for the current player blueprint
+    -- and delegate all actual drawing to the shared ship renderer so that
+    -- player ships use the same flexible template-driven pipeline as other
+    -- ships.
+    local layout = core_ship.buildInstanceFromBlueprint(player_drone, size)
+    ship_renderer.drawPlayer(layout, colors)
 end
 
 --- Generate the collision polygon for the player drone
---- Matches the visual shape from renderDrone()
+--- Matches the visual shape from renderDrone(), using the same shared
+--- core.ship layout so physics and visuals stay perfectly aligned.
 --- @param size number The player size
 --- @return table Flat vertex array for collision shape
 local function generateDroneCollisionVertices(size)
-    -- Simplified hull shape matching the visual drone
-    -- Front points along +X (matching renderDrone orientation)
-    local hullLength = size * 2.4
-    local hullHalfWidth = size * 0.35
-    local noseX = hullLength * 0.5
-    local backX = -hullLength * 0.4
-    local wingSpan = size * 0.9
-    local wingBackX = backX * 0.5
-    
-    -- Create a simplified convex hull that encompasses the drone
-    -- Using key points: nose, wing tips, and rear
-    return {
-        noseX, 0,                          -- Nose tip
-        size * 0.2, -hullHalfWidth * 0.7,  -- Upper front
-        wingBackX, -wingSpan,              -- Upper wing tip
-        backX, -hullHalfWidth * 0.25,      -- Upper rear
-        backX, hullHalfWidth * 0.25,       -- Lower rear
-        wingBackX, wingSpan,               -- Lower wing tip
-        size * 0.2, hullHalfWidth * 0.7,   -- Lower front
-    }
+    -- Build the same world-space layout used by rendering. If a dedicated
+    -- collision hull is provided in the blueprint, core.ship will project
+    -- that to world space; otherwise it falls back to the main hull.
+    local layout = core_ship.buildInstanceFromBlueprint(player_drone, size)
+    if not layout or not layout.collisionVertices or #layout.collisionVertices < 6 then
+        return {}
+    end
+
+    return layout.collisionVertices
 end
 
 player.state = {
