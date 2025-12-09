@@ -33,6 +33,39 @@ local function generateDroneCollisionVertices(size)
     return layout.collisionVertices
 end
 
+-- Build and cache the concrete ship layout owned by the player.
+-- This keeps ship-specific geometry (hull, wings, collision vertices, radius)
+-- on the ship object itself, while the player state handles input, movement
+-- and progression (health, xp, abilities).
+local function buildShipLayoutForState(p)
+    -- Use the configured player size as the base scale for the ship layout.
+    local size = p.size or config.player.size
+
+    -- Build a concrete ship instance from the authored player_drone blueprint.
+    local layout = core_ship.buildInstanceFromBlueprint(player_drone, size)
+    p.ship = layout
+
+    -- Cache collision vertices and a representative collision radius so that
+    -- physics and gameplay systems do not need to know about the blueprint.
+    if layout and layout.collisionVertices and #layout.collisionVertices >= 6 then
+        p.collisionVertices = layout.collisionVertices
+    else
+        -- Fallback: regenerate from the blueprint helper if something is
+        -- missing on the layout (keeps physics and visuals in sync).
+        p.collisionVertices = generateDroneCollisionVertices(size)
+    end
+
+    -- Prefer the ship's own bounding radius; otherwise, compute one from the
+    -- flat vertex array or fall back to the configured player size.
+    if layout and layout.boundingRadius then
+        p.collisionRadius = layout.boundingRadius
+    elseif p.collisionVertices and #p.collisionVertices >= 6 then
+        p.collisionRadius = physics.computeBoundingRadius(p.collisionVertices)
+    else
+        p.collisionRadius = p.size or config.player.size
+    end
+end
+
 player.state = {
     x = 0,
     y = 0,
@@ -42,10 +75,10 @@ player.state = {
     -- Target position (where player clicked)
     targetX = 0,
     targetY = 0,
-    -- Physics properties
+    -- Physics properties (movement for the player "pilot" driving a ship)
     thrust = physics.constants.shipThrust,
     maxSpeed = physics.constants.shipMaxSpeed,
-    size = config.player.size,
+    size = config.player.size,   -- Base visual / spawn size used when building the ship
     angle = 0,
     targetAngle = 0,
     approachAngle = nil,
@@ -53,15 +86,20 @@ player.state = {
     maxHealth = config.player.maxHealth,
     shield = config.player.maxShield or 0,
     maxShield = config.player.maxShield or 0,
+    -- Ship ownership: blueprint describes the chassis, ship is the concrete
+    -- scaled layout instance used for rendering and collisions.
+    ship = nil,                 -- core.ship layout instance (built from player_drone)
     level = 1,
-    xp = 0,
+    xp = 0,              -- XP toward the *current* level (drives the XP ring)
     xpToNext = config.player.xpBase,
     xpRatio = 0,
+    totalXp = 0,         -- Lifetime XP for this run; always increases
     isThrusting = false,
     body = nil,
-    shapes = nil,   -- Table of shapes (polygon body may have multiple)
-    fixtures = nil, -- Table of fixtures
-    collisionVertices = nil, -- Stored collision vertices
+    shapes = nil,           -- Table of shapes (polygon body may have multiple)
+    fixtures = nil,         -- Table of fixtures
+    collisionVertices = nil, -- Stored collision vertices (flat array) for physics
+    collisionRadius = nil,   -- Cached radius derived from ship / collision vertices
     weapon = weapons.pulseLaser
 }
 
@@ -86,9 +124,16 @@ function player.addExperience(amount)
         return false
     end
 
+    -- Lifetime XP: always increase, never reduced by level-ups. This is where
+    -- you can later hook in stats, unlocks, etc.
+    p.totalXp = (p.totalXp or 0) + amount
+
+    -- Per-level XP: only used for the current level's progress ring.
     p.xp = (p.xp or 0) + amount
     local leveledUp = false
 
+    -- Process level-ups; any overflow XP will be discarded so the ring resets to empty.
+    -- This matches the UX request: fill the ring to 100%, then drop to 0 on level-up.
     while true do
         local base = config.player.xpBase or 100
         local growth = config.player.xpGrowth or 0
@@ -99,7 +144,9 @@ function player.addExperience(amount)
         end
 
         if p.xp >= xpToNext then
-            p.xp = p.xp - xpToNext
+            -- Level up and intentionally **do not** carry leftover XP.
+            -- Discarding the remainder ensures the XP ring fully empties after leveling.
+            p.xp = 0
             p.level = level + 1
             leveledUp = true
         else
@@ -107,6 +154,7 @@ function player.addExperience(amount)
         end
     end
 
+    -- Recalculate ratio after leveling and possible XP reset.
     recalcXpProgress(p)
     return leveledUp
 end
@@ -115,6 +163,7 @@ function player.resetExperience()
     local p = player.state
     p.level = 1
     p.xp = 0
+    p.totalXp = 0
     recalcXpProgress(p)
 end
 
@@ -133,24 +182,44 @@ end
 local function createBody()
     local p = player.state
     
-    -- Clean up existing body if present
+    -- Clean up existing body if present so we never leak Box2D objects.
     if p.body then
         p.body:destroy()
         p.body = nil
         p.shapes = nil
         p.fixtures = nil
     end
-    
-    -- Generate collision vertices matching the drone shape
-    p.collisionVertices = generateDroneCollisionVertices(p.size)
-    
-    -- Create polygon body with collision filtering
-    p.body, p.shapes, p.fixtures = physics.createPolygonBody(
-        p.x, p.y,
-        p.collisionVertices,
-        "PLAYER",
-        p  -- Pass player state as the entity reference
-    )
+
+    -- Ensure the player owns a concrete ship layout and collision data before
+    -- creating the physics body. This keeps all geometry on the ship object.
+    buildShipLayoutForState(p)
+
+    local verts = p.collisionVertices
+
+    -- Prefer a polygon body that matches the ship silhouette.
+    if verts and #verts >= 6 then
+        p.body, p.shapes, p.fixtures = physics.createPolygonBody(
+            p.x, p.y,
+            verts,
+            "PLAYER",
+            p,  -- Pass player state as the entity reference
+            {}  -- No special options; empty table keeps lints happy
+        )
+    else
+        -- Fallback: create a simple circle body using the cached collision
+        -- radius (or player size) so gameplay still works even if data fails.
+        local radius = p.collisionRadius or p.size or config.player.size
+        local body, shape, fixture = physics.createCircleBody(
+            p.x, p.y,
+            radius,
+            "PLAYER",
+            p,
+            {}  -- No special options; empty table keeps lints happy
+        )
+        p.body = body
+        p.shapes = shape and { shape } or nil
+        p.fixtures = fixture and { fixture } or nil
+    end
 end
 
 function player.reset()
@@ -245,9 +314,11 @@ function player.update(dt, world)
     p.x = p.x + p.vx * dt
     p.y = p.y + p.vy * dt
     
-    -- World boundary handling - bounce off edges with velocity reversal
+    -- World boundary handling - bounce off edges with velocity reversal.
+    -- Use the collision radius (derived from the owned ship) when available
+    -- so the physical body and visual hull stay aligned at the borders.
     if world then
-        local margin = p.size
+        local margin = p.collisionRadius or p.size
         if p.x < world.minX + margin then
             p.x = world.minX + margin
             p.vx = math.abs(p.vx) * config.player.bounceFactor  -- Bounce with energy loss
@@ -264,18 +335,19 @@ function player.update(dt, world)
         end
     else
         local w, h = love.graphics.getWidth(), love.graphics.getHeight()
-        if p.x < p.size then
-            p.x = p.size
+        local margin = p.collisionRadius or p.size
+        if p.x < margin then
+            p.x = margin
             p.vx = math.abs(p.vx) * config.player.bounceFactor
-        elseif p.x > w - p.size then
-            p.x = w - p.size
+        elseif p.x > w - margin then
+            p.x = w - margin
             p.vx = -math.abs(p.vx) * 0.5
         end
-        if p.y < p.size then
-            p.y = p.size
+        if p.y < margin then
+            p.y = margin
             p.vy = math.abs(p.vy) * 0.5
-        elseif p.y > h - p.size then
-            p.y = h - p.size
+        elseif p.y > h - margin then
+            p.y = h - margin
             p.vy = -math.abs(p.vy) * 0.5
         end
     end
@@ -303,8 +375,17 @@ function player.draw(colors)
     love.graphics.translate(p.x, p.y)
     love.graphics.rotate(p.angle)
 
-    -- Main body (solid diamond/rhombus drone shape)
-    renderDrone(colors, p.size)
+    -- Ensure the player owns a concrete ship layout before drawing so that we
+    -- always render the same instance that the physics body and collisions use.
+    if not p.ship then
+        buildShipLayoutForState(p)
+    end
+
+    -- Main body: draw the owned ship layout using the shared ship renderer so
+    -- the player visuals stay consistent with enemies and other ship users.
+    if p.ship then
+        ship_renderer.drawPlayer(p.ship, colors)
+    end
 
     love.graphics.pop()
 end

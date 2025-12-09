@@ -261,48 +261,51 @@ local function drawTargetIndicator(colors, combatSystem, camera)
         end
     end
 
-    local labelText
-    local labelColor
-    local labelAlpha = 1.0
-    if isLocking then
-        labelText = "LOCKING..."
-        labelColor = colors.targetRingLocking or colors.targetRing
-        labelAlpha = labelColor[4] or 1.0
-    elseif isLocked then
-        labelText = "LOCKED"
-        labelColor = {1.0, 1.0, 1.0, 1.0}
+    local showWorldLockLabel = false
+    if showWorldLockLabel then
+        local labelText
+        local labelColor
+        local labelAlpha = 1.0
+        if isLocking then
+            labelText = "LOCKING..."
+            labelColor = colors.targetRingLocking or colors.targetRing
+            labelAlpha = labelColor[4] or 1.0
+        elseif isLocked then
+            labelText = "LOCKED"
+            labelColor = {1.0, 1.0, 1.0, 1.0}
 
-        if lockLabelLockedAt then
-            local now = love.timer.getTime()
-            local elapsed = now - lockLabelLockedAt
-            local visibleDuration = 0.6
-            local fadeDuration = 0.4
-            if elapsed >= visibleDuration + fadeDuration then
-                labelText = nil
-            else
-                if elapsed > visibleDuration then
-                    local tFade = (elapsed - visibleDuration) / fadeDuration
-                    if tFade < 0 then tFade = 0 end
-                    if tFade > 1 then tFade = 1 end
-                    labelAlpha = (1.0 - tFade) * 0.7
+            if lockLabelLockedAt then
+                local now = love.timer.getTime()
+                local elapsed = now - lockLabelLockedAt
+                local visibleDuration = 0.6
+                local fadeDuration = 0.4
+                if elapsed >= visibleDuration + fadeDuration then
+                    labelText = nil
                 else
-                    labelAlpha = 0.7
+                    if elapsed > visibleDuration then
+                        local tFade = (elapsed - visibleDuration) / fadeDuration
+                        if tFade < 0 then tFade = 0 end
+                        if tFade > 1 then tFade = 1 end
+                        labelAlpha = (1.0 - tFade) * 0.7
+                    else
+                        labelAlpha = 0.7
+                    end
                 end
+            else
+                labelAlpha = 0.7
             end
-        else
-            labelAlpha = 0.7
         end
-    end
 
-    if labelText then
-        local font = love.graphics.getFont()
-        if font then
-            local textWidth = font:getWidth(labelText)
-            local textHeight = font:getHeight()
-            local textX = sx - textWidth / 2
-            local textY = sy - screenRadius - textHeight - 4
-            love.graphics.setColor(labelColor[1], labelColor[2], labelColor[3], labelAlpha)
-            love.graphics.print(labelText, textX, textY)
+        if labelText then
+            local font = love.graphics.getFont()
+            if font then
+                local textWidth = font:getWidth(labelText)
+                local textHeight = font:getHeight()
+                local textX = sx - textWidth / 2
+                local textY = sy - screenRadius - textHeight - 4
+                love.graphics.setColor(labelColor[1], labelColor[2], labelColor[3], labelAlpha)
+                love.graphics.print(labelText, textX, textY)
+            end
         end
     end
 end

@@ -19,7 +19,7 @@ function target_panel.draw(colors)
     local screenH = love.graphics.getHeight()
 
     -- Panel layout constants (tweak as desired)
-    local panelWidth = 360
+    local panelWidth = math.min(screenW - 40, 480)
     local panelHeight = 64
     local panelX = (screenW - panelWidth) / 2
     local panelY = 18

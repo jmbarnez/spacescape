@@ -99,7 +99,9 @@ local function tryCastE(player, world, camera)
     local ny = player.y + (dy / dist) * moveDist
 
     if world and world.clampToWorld then
-        nx, ny = world.clampToWorld(nx, ny, player.size)
+        -- Clamp dash end position using the collision radius (from the owned
+        -- ship) when available so the ship does not overshoot the world edge.
+        nx, ny = world.clampToWorld(nx, ny, player.collisionRadius or player.size)
     end
 
     player.x = nx

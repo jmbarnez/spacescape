@@ -58,38 +58,36 @@ function hud_status.draw(player, colors)
     love.graphics.setColor(colors.uiText[1], colors.uiText[2], colors.uiText[3], 1.0)
     love.graphics.print(levelText, levelCenterX - levelTextWidth / 2, levelCenterY - levelTextHeight / 2)
 
-    -- Draw XP ring background
-    local outerRadius = ringRadius
-    local innerRadius = ringRadius - ringThickness
+    -- Draw XP ring as a circular bar.
+    -- The faint full ring is the track, and the colored arc is the current XP.
+    local trackRadius = ringRadius - ringThickness / 2
 
-    love.graphics.setLineWidth(2)
+    -- Background track: full circle so player sees the total XP path.
+    love.graphics.setLineWidth(ringThickness)
     love.graphics.setColor(colors.uiText[1], colors.uiText[2], colors.uiText[3], 0.2)
-    love.graphics.circle("line", levelCenterX, levelCenterY, outerRadius, 48)
-    love.graphics.circle("line", levelCenterX, levelCenterY, innerRadius, 48)
+    love.graphics.circle("line", levelCenterX, levelCenterY, trackRadius, 48)
 
-    -- Draw XP ring fill
+    -- Foreground XP progress: only the bar (arc) around the ring represents current XP.
     if expRatio > 0 then
+        -- Extra clamp safeguard before drawing.
+        expRatio = math.max(0, math.min(1, expRatio))
+
+        -- Start at the top of the circle and sweep clockwise based on XP ratio.
         local startAngle = -math.pi / 2
-        local gapAngle = math.rad(8)
-        local fullSpan = (2 * math.pi) - gapAngle
-        local endAngle = startAngle + fullSpan * expRatio
-        local segments = math.max(8, math.floor(48 * expRatio))
+        local endAngle = startAngle + (2 * math.pi) * expRatio
+        local segments = math.max(16, math.floor(64 * expRatio))
+
         local vertices = {}
-
         for i = 0, segments do
-            local angle = startAngle + (endAngle - startAngle) * (i / segments)
-            table.insert(vertices, levelCenterX + math.cos(angle) * outerRadius)
-            table.insert(vertices, levelCenterY + math.sin(angle) * outerRadius)
-        end
-
-        for i = segments, 0, -1 do
-            local angle = startAngle + (endAngle - startAngle) * (i / segments)
-            table.insert(vertices, levelCenterX + math.cos(angle) * innerRadius)
-            table.insert(vertices, levelCenterY + math.sin(angle) * innerRadius)
+            local t = i / segments
+            local angle = startAngle + (endAngle - startAngle) * t
+            table.insert(vertices, levelCenterX + math.cos(angle) * trackRadius)
+            table.insert(vertices, levelCenterY + math.sin(angle) * trackRadius)
         end
 
         love.graphics.setColor(colors.health[1], colors.health[2], colors.health[3], 0.95)
-        love.graphics.polygon("fill", vertices)
+        love.graphics.setLineWidth(ringThickness)
+        love.graphics.line(vertices)
     end
 
     -- Bars start position (right of level ring)
@@ -120,6 +118,40 @@ function hud_status.draw(player, colors)
     love.graphics.setLineWidth(3)
     love.graphics.setColor(0, 0, 0, 0.9)
     love.graphics.rectangle("line", barsX, shieldBarY, barWidth, barHeight, 4, 4)
+
+    ------------------------------------------------------------------------
+    -- Ship + total XP metadata block (bottom of the status panel)
+    --
+    -- This small text block makes the new player/ship separation visible in
+    -- game: it shows which ship the player is currently piloting and how
+    -- much total XP they have earned during this run.
+    ------------------------------------------------------------------------
+    local infoBaseY = shieldBarY + barHeight + 6
+
+    -- Resolve a friendly ship name from the owned ship layout if present.
+    local shipName = nil
+    if player.ship and player.ship.metadata and player.ship.metadata.displayName then
+        shipName = player.ship.metadata.displayName
+    elseif player.ship and player.ship.id then
+        shipName = tostring(player.ship.id)
+    else
+        shipName = "Player Ship"
+    end
+
+    -- Lifetime XP is tracked on player.totalXp; clamp and floor for display so
+    -- the number stays clean and readable.
+    local totalXp = math.max(0, math.floor(player.totalXp or 0))
+
+    local shipText = "Ship: " .. shipName
+    local xpText = string.format("Total XP: %d", totalXp)
+
+    -- Draw ship name in primary UI text color, then total XP slightly dimmer
+    -- so the most important label (the ship) stands out first.
+    love.graphics.setColor(colors.uiText[1], colors.uiText[2], colors.uiText[3], 0.9)
+    love.graphics.print(shipText, barsX, infoBaseY)
+
+    love.graphics.setColor(colors.uiText[1], colors.uiText[2], colors.uiText[3], 0.75)
+    love.graphics.print(xpText, barsX, infoBaseY + font:getHeight())
 end
 
 return hud_status
