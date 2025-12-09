@@ -29,6 +29,7 @@ local baseColors = require("src.core.colors")
 local config = require("src.core.config")
 local playerModule = require("src.entities.player")
 local projectileShards = require("src.entities.projectile_shards")
+local itemModule = require("src.entities.item")
 
 local collision = {}
 
@@ -244,6 +245,109 @@ local function spawnProjectileShards(projectile, target, contactX, contactY, rad
     projectileShards.spawn(ix, iy, dirX, dirY, baseSpeed, baseCount, projectileColor)
 end
 
+--- Compute a simple resource yield table for an asteroid based on its
+--- procedural stone/ice/mithril composition and size.
+--- @param asteroid table The asteroid entity
+--- @param radius number Approximate asteroid radius (for scaling yield)
+--- @return table Resource amounts { stone = n, ice = n, mithril = n }
+local function computeAsteroidResourceYield(asteroid, radius)
+    local size = asteroid and asteroid.size or radius or 20
+    local baseChunks = math.max(1, math.floor((size or 20) / 10))
+    local data = asteroid and asteroid.data
+    local comp = data and data.composition
+
+    if not comp then
+        return { stone = baseChunks }
+    end
+
+    local stone = comp.stone or 0
+    local ice = comp.ice or 0
+    local mithril = comp.mithril or 0
+    local total = stone + ice + mithril
+    if total <= 0 then
+        return { stone = baseChunks }
+    end
+
+    local scale = baseChunks / total
+    local stoneAmt = math.max(0, math.floor(stone * scale + 0.5))
+    local iceAmt = math.max(0, math.floor(ice * scale + 0.5))
+    local mithrilAmt = math.max(0, math.floor(mithril * scale + 0.5))
+
+    -- Ensure at least one chunk of something so every destroyed asteroid feels
+    -- tangibly rewarding.
+    if stoneAmt + iceAmt + mithrilAmt <= 0 then
+        stoneAmt = baseChunks
+    end
+
+    return {
+        stone = stoneAmt,
+        ice = iceAmt,
+        mithril = mithrilAmt,
+    }
+end
+
+--- Compute a lightweight salvage yield for a destroyed enemy ship. For now we
+--- treat this as generic "stone" scrap scaled very loosely by its radius.
+--- @param enemy table The enemy entity
+--- @param radius number Approximate enemy radius
+--- @return table Resource amounts
+local function computeEnemyResourceYield(enemy, radius)
+    local r = radius or getBoundingRadius(enemy)
+    local baseChunks = math.max(1, math.floor((r or 12) / 8))
+    return {
+        stone = baseChunks,
+    }
+end
+
+--- Spawn a bursting cluster of resource chunks at the given position.
+--- The total resources for each type are distributed across a handful of
+--- pickups so that collection still feels like a satisfying spray.
+--- @param x number World X position
+--- @param y number World Y position
+--- @param resources table Map resourceType -> totalAmount
+local function spawnResourceChunksAt(x, y, resources)
+    if not itemModule or not itemModule.spawnResourceChunk then
+        return
+    end
+    if not resources then
+        return
+    end
+
+    for resourceType, totalAmount in pairs(resources) do
+        local total = math.floor(totalAmount or 0)
+        if total > 0 then
+            -- Split into a small, visually pleasing number of chunks.
+            local minChunks = 2
+            local maxChunks = 5
+            local chunkCount = math.min(maxChunks, math.max(minChunks, math.floor(total / 2)))
+            if chunkCount <= 0 then
+                chunkCount = 1
+            end
+
+            local baseAmount = math.floor(total / chunkCount)
+            if baseAmount < 1 then
+                baseAmount = 1
+            end
+            local remainder = total - baseAmount * chunkCount
+
+            for i = 1, chunkCount do
+                local amount = baseAmount
+                if remainder > 0 then
+                    amount = amount + 1
+                    remainder = remainder - 1
+                end
+
+                local angle = math.random() * math.pi * 2
+                local radius = (math.random() * 14) + 6
+                local sx = x + math.cos(angle) * radius
+                local sy = y + math.sin(angle) * radius
+
+                itemModule.spawnResourceChunk(sx, sy, resourceType, amount)
+            end
+        end
+    end
+end
+
 --- Generic helper for handling a projectile hitting a target
 --- This centralizes miss logic, particles, damage, and death effects.
 --- @param projectile table The projectile entity
@@ -342,11 +446,16 @@ local function handlePlayerProjectileVsEnemy(projectile, enemy, contactX, contac
             cleanupProjectilesForTarget(target)
             removeEntity(enemies, target)
             local owner = projectile.owner
-            if owner and owner.faction ~= "enemy" and playerModule.addExperience then
+            if owner and owner.faction ~= "enemy" then
+                -- Award XP directly (to keep the ring working) and spawn salvage
+                -- resources instead of XP shards.
                 local xp = config.player.xpPerEnemy or 0
-                if xp > 0 then
+                if xp > 0 and playerModule and playerModule.addExperience then
                     playerModule.addExperience(xp)
                 end
+
+                local resources = computeEnemyResourceYield(target, radius)
+                spawnResourceChunksAt(target.x, target.y, resources)
             end
         end,
     })
@@ -396,11 +505,16 @@ local function handleProjectileVsAsteroid(projectile, asteroid, contactX, contac
             cleanupProjectilesForTarget(target)
             removeEntity(asteroids, target)
             local owner = projectile.owner
-            if owner and owner.faction ~= "enemy" and playerModule.addExperience then
+            if owner and owner.faction ~= "enemy" then
+                -- Award XP directly and spawn resource chunks that reflect the
+                -- asteroid's stone/ice/mithril mix.
                 local xp = config.player.xpPerAsteroid or 0
-                if xp > 0 then
+                if xp > 0 and playerModule and playerModule.addExperience then
                     playerModule.addExperience(xp)
                 end
+
+                local resources = computeAsteroidResourceYield(target, radius)
+                spawnResourceChunksAt(target.x, target.y, resources)
             end
         end,
     })
@@ -416,12 +530,14 @@ local function handlePlayerVsEnemy(player, enemy)
     explosionFx.spawn(enemy.x, enemy.y, currentColors.enemy, enemyRadius * 1.4)
     cleanupProjectilesForTarget(enemy)
     removeEntity(enemies, enemy)
-    if playerModule.addExperience then
-        local xp = config.player.xpPerEnemy or 0
-        if xp > 0 then
-            playerModule.addExperience(xp)
-        end
+    -- Ramming an enemy awards XP instantly and spawns salvage resources instead
+    -- of XP shard pickups.
+    local xp = config.player.xpPerEnemy or 0
+    if xp > 0 and playerModule and playerModule.addExperience then
+        playerModule.addExperience(xp)
     end
+    local resources = computeEnemyResourceYield(enemy, enemyRadius)
+    spawnResourceChunksAt(enemy.x, enemy.y, resources)
     
     -- Damage the player; shields absorb before hull
     local damage = currentDamagePerHit

@@ -314,6 +314,7 @@ local function drawWorldObjects(ctx)
     local player = ctx.player
     local playerModule = ctx.playerModule
     local asteroidModule = ctx.asteroidModule
+    local itemModule = ctx.itemModule
     local projectileModule = ctx.projectileModule
     local projectileShards = ctx.projectileShards
     local enemyModule = ctx.enemyModule
@@ -335,6 +336,9 @@ local function drawWorldObjects(ctx)
 
     drawMovementIndicator(player, colors)
     asteroidModule.draw(camera)
+    if itemModule and itemModule.draw then
+        itemModule.draw(colors)
+    end
     projectileModule.draw(colors)
     projectileShards.draw()
     enemyModule.draw(colors)

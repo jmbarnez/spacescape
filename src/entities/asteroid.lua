@@ -19,6 +19,44 @@ local function clamp01(x)
     return x
 end
 
+-- Build a readable composition label (for the HUD target panel) from the
+-- underlying numeric composition on the asteroid's generated data.
+local function buildCompositionText(asteroidData)
+    -- Defensive fallback: if the generator did not provide composition data,
+    -- we still return a reasonable generic description.
+    if not asteroidData or not asteroidData.composition then
+        return 'Stone and ice'
+    end
+
+    local c = asteroidData.composition
+    local stone = c.stone or 0
+    local ice = c.ice or 0
+    local mithril = c.mithril or 0
+
+    local total = stone + ice + mithril
+    if total <= 0 then
+        return 'Stone and ice'
+    end
+
+    stone = stone / total
+    ice = ice / total
+    mithril = mithril / total
+
+    local stonePercent = math.floor(stone * 100 + 0.5)
+    local icePercent = math.floor(ice * 100 + 0.5)
+    local mithrilPercent = math.floor(mithril * 100 + 0.5)
+
+    -- If mithril is present in meaningful amounts, always call it out.
+    if mithrilPercent >= 10 then
+        return string.format('Stone %d%%, Ice %d%%, Mithril %d%%', stonePercent, icePercent, mithrilPercent)
+    elseif mithrilPercent > 0 then
+        return string.format('Stone %d%%, Ice %d%%, traces of Mithril', stonePercent, icePercent)
+    end
+
+    -- No mithril: keep the label compact but still informative.
+    return string.format('Stone %d%%, Ice %d%%', stonePercent, icePercent)
+end
+
 function asteroid.load()
     asteroid.shader = nil
 end
@@ -56,21 +94,10 @@ function asteroid.populate(world, count)
             collisionVertices = data.shape.flatPoints
         end
         
-        -- Create the asteroid entity first (so we can pass it to physics)
-        -- NOTE: We also assign a simple textual composition here so that
-        --       the HUD target panel can display what this asteroid is
-        --       "made of" when locked/selected. This is purely flavor for
-        --       now but can later drive mining yields or resistances.
-        local compositions = {
-            "Carbonaceous (C-type)",
-            "Silicate-rich (S-type)",
-            "Metal-rich (M-type)",
-            "Ice-bearing",        -- volatiles / icy inclusions
-            "Nickel-Iron core",
-            "Crystalline veins",
-        }
-
-        local composition = compositions[math.random(1, #compositions)]
+        -- Create the asteroid entity first (so we can pass it to physics).
+        -- The composition text is derived from the generator's
+        -- stone/ice/mithril mix so HUD and gameplay stay consistent.
+        local composition = buildCompositionText(data)
         local newAsteroid = {
             x = x,
             y = y,

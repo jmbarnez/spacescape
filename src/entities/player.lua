@@ -41,8 +41,13 @@ local function buildShipLayoutForState(p)
     -- Use the configured player size as the base scale for the ship layout.
     local size = p.size or config.player.size
 
-    -- Build a concrete ship instance from the authored player_drone blueprint.
-    local layout = core_ship.buildInstanceFromBlueprint(player_drone, size)
+    -- Resolve which blueprint to use for this player. By default we fall back
+    -- to the authored player_drone data, but higher-level systems can assign
+    -- a different blueprint (e.g., for ship selection or unlocks).
+    local blueprint = p.shipBlueprint or player_drone
+
+    -- Build a concrete ship instance from the chosen blueprint.
+    local layout = core_ship.buildInstanceFromBlueprint(blueprint, size)
     p.ship = layout
 
     -- Cache collision vertices and a representative collision radius so that
@@ -88,12 +93,27 @@ player.state = {
     maxShield = config.player.maxShield or 0,
     -- Ship ownership: blueprint describes the chassis, ship is the concrete
     -- scaled layout instance used for rendering and collisions.
-    ship = nil,                 -- core.ship layout instance (built from player_drone)
+    shipBlueprint = player_drone, -- Current ship blueprint table the player is piloting
+    ship = nil,                   -- core.ship layout instance (built from shipBlueprint)
     level = 1,
     xp = 0,              -- XP toward the *current* level (drives the XP ring)
     xpToNext = config.player.xpBase,
     xpRatio = 0,
     totalXp = 0,         -- Lifetime XP for this run; always increases
+    -- Simple cargo component for storing mined / salvaged resources on the
+    -- currently piloted ship. For now we keep this intentionally lightweight:
+    -- a flat set of resource counters per run. Higher-level systems can later
+    -- extend this into per-ship capacity, jettisoning, trading, etc.
+    cargo = {
+        stone = 0,
+        ice = 0,
+        mithril = 0,
+    },
+    -- Magnet component: these radii are used by the item system to attract
+    -- nearby pickups (XP shards, resources) toward the ship and decide when
+    -- they are actually collected.
+    magnetRadius = config.player.magnetRadius,
+    magnetPickupRadius = config.player.magnetPickupRadius,
     isThrusting = false,
     body = nil,
     shapes = nil,           -- Table of shapes (polygon body may have multiple)
@@ -116,6 +136,45 @@ local function recalcXpProgress(p)
 
     p.xpToNext = xpToNext
     p.xpRatio = math.max(0, math.min(1, xp / xpToNext))
+end
+
+--- Add a quantity of a specific resource type to the player's cargo.
+--
+-- This helper is used by the item / pickup system when resource chunks are
+-- collected. It keeps all cargo bookkeeping behind the player module so that
+-- future changes to cargo structure (capacity limits, per-ship bays, etc.)
+-- do not leak into other systems.
+--
+-- @param resourceType string Resource identifier (e.g. "stone", "ice", "mithril")
+-- @param amount number Amount to add (ignored if nil or <= 0)
+-- @return number The amount that was actually added (for feedback)
+function player.addCargoResource(resourceType, amount)
+    local p = player.state
+
+    if not resourceType or not amount or amount <= 0 then
+        return 0
+    end
+
+    -- Lazy-initialize cargo in case older save/restore logic ever bypasses
+    -- the default state table.
+    if not p.cargo then
+        p.cargo = {
+            stone = 0,
+            ice = 0,
+            mithril = 0,
+        }
+    end
+
+    -- Normalise key to a simple string so we can safely index the cargo table.
+    local key = tostring(resourceType)
+    local current = p.cargo[key] or 0
+    local newValue = current + amount
+
+    -- For now we do not enforce a capacity limit; higher-level systems can add
+    -- that later by clamping newValue and returning the actual delta.
+    p.cargo[key] = newValue
+
+    return amount
 end
 
 function player.addExperience(amount)
@@ -237,6 +296,30 @@ function player.reset()
     p.approachAngle = nil
     createBody()
     p.weapon = weapons.pulseLaser
+end
+
+--- Change the player's ship blueprint at runtime.
+--
+-- This helper lets higher-level systems (menus, unlocks, debug tools) swap
+-- which ship the player is currently piloting without needing to know the
+-- details of ship layouts or physics. It rebuilds the ship layout and the
+-- physics body in-place while preserving position, velocity, and XP.
+--
+-- @param blueprint table|nil Ship blueprint table (e.g. require("src.data.ships.some_ship")).
+--        If nil, the function falls back to the default player_drone blueprint.
+function player.setShipBlueprint(blueprint)
+    local p = player.state
+
+    -- Accept nil to mean "reset to default" so callers can easily revert.
+    if blueprint == nil then
+        p.shipBlueprint = player_drone
+    else
+        p.shipBlueprint = blueprint
+    end
+
+    -- Rebuild the ship layout + physics body now so everything (collision
+    -- radius, hull shape, etc.) immediately matches the newly selected ship.
+    createBody()
 end
 
 function player.update(dt, world)

@@ -9,6 +9,7 @@ local ui = require("src.render.hud")
 local projectileModule = require("src.entities.projectile")
 local particlesModule = require("src.entities.particles")
 local projectileShards = require("src.entities.projectile_shards")
+local itemModule = require("src.entities.item")
 local starfield = require("src.render.starfield")
 local world = require("src.core.world")
 local camera = require("src.core.camera")
@@ -111,6 +112,13 @@ local function registerUpdateSystems()
 	systems.registerUpdate("combat", function(dt, ctx)
 		combatSystem.updateAutoShoot(dt, ctx.player)
 	end, 140)
+
+	-- Items / pickups are updated after ships so that magnets use the latest
+	-- player position, but before particles so they remain part of the core
+	-- world simulation rather than just an effect layer.
+	systems.registerUpdate("items", function(dt, ctx)
+		itemModule.update(dt, ctx.player, ctx.world)
+	end, 95)
 end
 --------------------------------------------------------------------------------
 -- Initialization
@@ -248,6 +256,7 @@ function game.restartGame()
     enemyModule.clear()
     asteroidModule.clear()
     particlesModule.clear()
+    itemModule.clear()
     engineTrail.reset()
     explosionFx.clear()
     floatingText.clear()
@@ -271,6 +280,7 @@ function game.draw()
 		player = player,
 		playerModule = playerModule,
 		asteroidModule = asteroidModule,
+		itemModule = itemModule,
 		projectileModule = projectileModule,
 		projectileShards = projectileShards,
 		enemyModule = enemyModule,

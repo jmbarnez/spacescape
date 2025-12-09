@@ -29,6 +29,15 @@ local config = {
         xpGrowth = 25,
         xpPerEnemy = 25,
         xpPerAsteroid = 5,
+        -- Radius (in world units) around the player ship within which loose
+        -- item pickups (XP shards, future resources) begin to feel the
+        -- magnetic pull.
+        magnetRadius = 260,
+        -- Distance from the player at which a pickup is considered "collected"
+        -- and its effect is applied immediately. This is generally a bit
+        -- smaller than magnetRadius so items are sucked into the hull before
+        -- they disappear.
+        magnetPickupRadius = 30,
     },
     enemy = {
         spawnMargin = 50,
@@ -89,6 +98,27 @@ local config = {
         projectileSpeed = 350,
         linearDamping = 0.1,
         angularDamping = 0.5,
+    },
+    -- Generic item / pickup tuning used by the XP shard + magnet system.
+    items = {
+        -- Visual base radius for item orbs; individual items can override.
+        baseRadius = 6,
+
+        -- Strength of the magnetic pull toward the player and maximum speed
+        -- items are allowed to reach when being attracted.
+        magnetForce = 220,
+        magnetMaxSpeed = 260,
+        magnetDamping = 3.0,
+
+        -- Lifetime of loose pickups in seconds before they quietly fade out.
+        maxLifetime = 20,
+
+        -- XP shard spawn counts for enemies and asteroids. The total XP value
+        -- for a death is distributed across this many shards.
+        xpShardMinPerEnemy = 3,
+        xpShardMaxPerEnemy = 5,
+        xpShardMinPerAsteroid = 2,
+        xpShardMaxPerAsteroid = 4,
     },
 }
 

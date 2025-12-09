@@ -34,47 +34,104 @@ local function computeBoundingRadius(points)
 end
 
 -------------------------------------------------------------------------------
--- Material definitions for realistic asteroid looks
+-- Simplified asteroid material model
 --
--- These are intentionally subtle and grounded (no neon sci-fi colors). Each
--- material has a base color range; shading and veins are derived at draw
--- time so we can keep the generator simple and fast.
+-- All asteroids are now generated as a mix of only three components:
+--   * stone   - baseline rocky body
+--   * ice     - volatile ices that brighten and cool the surface
+--   * mithril - rare, valuable metal that only appears occasionally
+--
+-- The generator stores numeric fractions for these components so the rest of
+-- the game (mining, loot, HUD text, etc.) can reason about them, while
+-- rendering uses a blended color derived from the same composition data.
 -------------------------------------------------------------------------------
 
-local MATERIAL_TYPES = {"carbonaceous", "silicate", "metallic", "icy", "crystalline"}
-
-local MATERIAL_COLOR_RANGES = {
-    -- Dark, slightly bluish/neutral carbon-rich rock
-    carbonaceous = {
-        r = {0.18, 0.26},
-        g = {0.18, 0.25},
-        b = {0.20, 0.28},
-    },
-    -- Warmer silicate rock (common stony asteroids)
-    silicate = {
-        r = {0.42, 0.52},
-        g = {0.34, 0.44},
-        b = {0.30, 0.38},
-    },
-    -- Cooler high-contrast metallic surfaces
-    metallic = {
-        r = {0.50, 0.62},
-        g = {0.50, 0.60},
-        b = {0.52, 0.65},
-    },
-    -- Icy / volatile-rich bodies (slightly brighter, cooler tones)
-    icy = {
-        r = {0.60, 0.72},
-        g = {0.66, 0.78},
-        b = {0.74, 0.86},
-    },
-    -- Rock with embedded crystalline veins (neutral base, veins colored later)
-    crystalline = {
-        r = {0.40, 0.50},
-        g = {0.38, 0.46},
-        b = {0.46, 0.56},
-    },
+local BASE_COLORS = {
+    stone = {0.45, 0.38, 0.32},  -- neutral, slightly warm rock
+    ice = {0.72, 0.80, 0.88},    -- bright, cool icy deposits
+    mithril = {0.82, 0.96, 1.00} -- pale, luminous metal highlights
 }
+
+-- Build a stone/ice mix with an optional mithril component.
+-- options.composition (optional) can override the defaults:
+--   * mithrilChance   - probability [0, 1] of any mithril being present
+--   * minMithrilShare - lower bound on mithril fraction when present
+--   * maxMithrilShare - upper bound on mithril fraction when present
+local function generateComposition(options)
+    local compositionOptions = (options and options.composition) or {}
+
+    local mithrilChance = compositionOptions.mithrilChance or 0.08
+    local minMithrilShare = compositionOptions.minMithrilShare or 0.04
+    local maxMithrilShare = compositionOptions.maxMithrilShare or 0.20
+
+    -- Decide how much mithril this body has, if any.
+    local mithrilShare = 0
+    if math.random() < mithrilChance then
+        local span = math.max(0, maxMithrilShare - minMithrilShare)
+        mithrilShare = minMithrilShare + math.random() * span
+    end
+
+    -- Split the remaining mass between stone and ice.
+    local baseRockVsIce = compositionOptions.baseRockVsIce or math.random()
+    local remaining = math.max(0, 1.0 - mithrilShare)
+    local stoneShare = remaining * baseRockVsIce
+    local iceShare = remaining * (1.0 - baseRockVsIce)
+
+    -- Normalize to make sure stone + ice + mithril = 1, even after overrides.
+    local total = stoneShare + iceShare + mithrilShare
+    if total <= 0 then
+        stoneShare, iceShare, mithrilShare = 1, 0, 0
+        total = 1
+    end
+
+    stoneShare = stoneShare / total
+    iceShare = iceShare / total
+    mithrilShare = mithrilShare / total
+
+    return {
+        stone = stoneShare,
+        ice = iceShare,
+        mithril = mithrilShare,
+    }
+end
+
+-- Convert the numeric composition into a base RGB color that the draw
+-- function can feed into its shading model. This keeps visuals and gameplay
+-- in sync.
+local function blendColorFromComposition(composition)
+    composition = composition or {}
+
+    local stoneShare = composition.stone or 0
+    local iceShare = composition.ice or 0
+    local mithrilShare = composition.mithril or 0
+
+    local total = stoneShare + iceShare + mithrilShare
+    if total <= 0 then
+        stoneShare, iceShare, mithrilShare = 1, 0, 0
+        total = 1
+    end
+
+    stoneShare = stoneShare / total
+    iceShare = iceShare / total
+    mithrilShare = mithrilShare / total
+
+    local stoneColor = BASE_COLORS.stone
+    local iceColor = BASE_COLORS.ice
+    local mithrilColor = BASE_COLORS.mithril
+
+    local r = stoneShare * stoneColor[1] + iceShare * iceColor[1] + mithrilShare * mithrilColor[1]
+    local g = stoneShare * stoneColor[2] + iceShare * iceColor[2] + mithrilShare * mithrilColor[2]
+    local b = stoneShare * stoneColor[3] + iceShare * iceColor[3] + mithrilShare * mithrilColor[3]
+
+    -- Tiny color jitter so nearby asteroids with identical composition do not
+    -- look like perfect clones.
+    local jitter = 0.04
+    r = math.max(0, math.min(1, r + (math.random() - 0.5) * jitter))
+    g = math.max(0, math.min(1, g + (math.random() - 0.5) * jitter))
+    b = math.max(0, math.min(1, b + (math.random() - 0.5) * jitter))
+
+    return {r, g, b}
+end
 
 function asteroid_generator.generate(size, options)
     options = options or {}
@@ -105,21 +162,11 @@ function asteroid_generator.generate(size, options)
         boundingRadius = computeBoundingRadius(points)
     }
 
-    -- Pick a material first so we can later tie visual style and HUD flavor
-    -- text together. If an explicit material is requested, honor it.
-    local material = options.material
-    if not material then
-        material = MATERIAL_TYPES[math.random(1, #MATERIAL_TYPES)]
-    end
+    -- Generate a physical composition (stone / ice / mithril) and derive a
+    -- corresponding surface color so HUD text and visuals stay in sync.
+    local composition = generateComposition(options)
 
-    local range = MATERIAL_COLOR_RANGES[material] or MATERIAL_COLOR_RANGES.silicate
-    local rRange, gRange, bRange = range.r, range.g, range.b
-
-    local color = {
-        (rRange[1] or 0.45) + math.random() * ((rRange[2] or rRange[1] or 0.45) - (rRange[1] or 0.45)),
-        (gRange[1] or 0.38) + math.random() * ((gRange[2] or gRange[1] or 0.38) - (gRange[1] or 0.38)),
-        (bRange[1] or 0.32) + math.random() * ((bRange[2] or bRange[1] or 0.32) - (bRange[1] or 0.32)),
-    }
+    local color = blendColorFromComposition(composition)
 
     local asteroid = {
         size = size,
@@ -127,7 +174,7 @@ function asteroid_generator.generate(size, options)
         roughness = roughness,
         shape = shape,
         color = color,
-        material = material,
+        composition = composition,
         seed = math.random() * 1000
     }
 

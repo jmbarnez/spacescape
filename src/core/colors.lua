@@ -53,7 +53,11 @@ local colors = {
 
     -- Floating text defaults
     floatingBg = {1.0, 0.0, 0.0},
-    floatingText = {1.0, 1.0, 1.0}
+    floatingText = {1.0, 1.0, 1.0},
+
+    -- Item / pickup visuals (XP shards, resources, etc.)
+    itemCore = {0.35, 1.0, 0.8, 1.0},
+    itemGlow = {0.15, 0.7, 0.6, 0.45},
 }
 
 return colors
