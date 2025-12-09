@@ -5,8 +5,11 @@ local hud_pause = require("src.render.hud.pause")
 local hud_gameover = require("src.render.hud.gameover")
 local hud_cargo = require("src.render.hud.cargo")
 
-function hud.drawHUD(player, colors)
-    hud_ingame.draw(player, colors)
+function hud.drawHUD(player, colors, enemyList, asteroidList)
+    -- Pass through the optional enemy / asteroid lists so in-game HUD widgets
+    -- (such as the minimap) can render additional context without coupling to
+    -- global modules.
+    hud_ingame.draw(player, colors, enemyList, asteroidList)
 end
 
 function hud.drawGameOver(player)

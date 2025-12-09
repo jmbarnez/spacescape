@@ -12,9 +12,11 @@ local camera = require("src.core.camera")
 
 --- Draw the minimap and coordinate display.
 --
--- @param player table  Player state table; must at least expose x / y.
--- @param colors table  Shared color palette from src.core.colors.
-function hud_minimap.draw(player, colors)
+-- @param player       table  Player state table; must at least expose x / y.
+-- @param colors       table  Shared color palette from src.core.colors.
+-- @param enemyList    table|nil Optional list of active enemies (each with x/y).
+-- @param asteroidList table|nil Optional list of active asteroids (each with x/y).
+function hud_minimap.draw(player, colors, enemyList, asteroidList)
     -- Defensive guard: if we have no player, there is nothing meaningful to
     -- show on the minimap, so we bail out early.
     if not player then
@@ -159,6 +161,43 @@ function hud_minimap.draw(player, colors)
         love.graphics.setColor(0, 0, 0, 0.8)
         love.graphics.setLineWidth(1)
         love.graphics.circle("line", mx, my, markerRadius + 1, 16)
+    end
+
+    --------------------------------------------------------------------------
+    -- Optional enemy / asteroid blips
+    --
+    -- These use small colored dots so they stay legible even when many
+    -- entities are present. Lists are treated as optional; if nil, that
+    -- category is simply skipped.
+    --------------------------------------------------------------------------
+    if enemyList and #enemyList > 0 then
+        love.graphics.setLineWidth(1)
+        for i = 1, #enemyList do
+            local e = enemyList[i]
+            local ex = e and e.x
+            local ey = e and e.y
+            if ex and ey then
+                local mx, my = worldToMinimap(ex, ey)
+                love.graphics.setColor(colors.enemy[1], colors.enemy[2], colors.enemy[3], 0.9)
+                love.graphics.circle("fill", mx, my, 2, 8)
+            end
+        end
+    end
+
+    if asteroidList and #asteroidList > 0 then
+        love.graphics.setLineWidth(1)
+        for i = 1, #asteroidList do
+            local a = asteroidList[i]
+            local ax = a and a.x
+            local ay = a and a.y
+            if ax and ay then
+                local mx, my = worldToMinimap(ax, ay)
+                -- Slightly dimmer, neutral tone so enemies remain visually
+                -- dominant on the minimap.
+                love.graphics.setColor(0.7, 0.7, 0.7, 0.8)
+                love.graphics.circle("fill", mx, my, 2, 8)
+            end
+        end
     end
 
     --------------------------------------------------------------------------

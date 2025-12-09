@@ -13,11 +13,11 @@ local windowState = {
     dragOffsetY = 0,
 }
 
--- Layout constants
+-- Layout constants (4x4 grid)
 local SLOT_SIZE = 90
 local SLOT_PADDING = 8
-local COLS = 3
-local ROWS = 2
+local COLS = 4
+local ROWS = 4
 local PANEL_PADDING = 20
 local TOP_BAR_HEIGHT = 40
 local BOTTOM_BAR_HEIGHT = 36
@@ -219,13 +219,26 @@ function hud_cargo.draw(player, colors)
 
     -- Cargo contents
     local cargo = player.cargo or {}
+    -- 4x4 grid = 16 slots; only the defined resources will render icons/labels
     local resources = {
         { id = "stone",   label = "Stone",   drawIcon = drawStoneIcon },
         { id = "ice",     label = "Ice",     drawIcon = drawIceIcon },
         { id = "mithril", label = "Mithril", drawIcon = drawMithrilIcon },
-        { id = nil,       label = nil,       drawIcon = nil },
-        { id = nil,       label = nil,       drawIcon = nil },
-        { id = nil,       label = nil,       drawIcon = nil },
+
+        -- remaining slots are empty placeholders (show slot frame only)
+        { id = nil, label = nil, drawIcon = nil },
+        { id = nil, label = nil, drawIcon = nil },
+        { id = nil, label = nil, drawIcon = nil },
+        { id = nil, label = nil, drawIcon = nil },
+        { id = nil, label = nil, drawIcon = nil },
+        { id = nil, label = nil, drawIcon = nil },
+        { id = nil, label = nil, drawIcon = nil },
+        { id = nil, label = nil, drawIcon = nil },
+        { id = nil, label = nil, drawIcon = nil },
+        { id = nil, label = nil, drawIcon = nil },
+        { id = nil, label = nil, drawIcon = nil },
+        { id = nil, label = nil, drawIcon = nil },
+        { id = nil, label = nil, drawIcon = nil },
     }
 
     for i, res in ipairs(resources) do

@@ -412,9 +412,17 @@ local function drawOverlay(ctx)
     local camera = ctx.camera
     local pauseMenu = ctx.pauseMenu
     local cargoOpen = ctx.cargoOpen
+    local enemyModule = ctx.enemyModule
+    local asteroidModule = ctx.asteroidModule
 
     drawTargetIndicator(colors, combatSystem, camera)
-    ui.drawHUD(player, colors)
+
+    -- Forward enemy / asteroid lists into the HUD so widgets such as the
+    -- minimap can optionally render blips for them without reaching into
+    -- global modules directly.
+    local enemyList = enemyModule and enemyModule.list or nil
+    local asteroidList = asteroidModule and asteroidModule.list or nil
+    ui.drawHUD(player, colors, enemyList, asteroidList)
 
     -- Cargo window overlay (shown when Tab is pressed)
     if cargoOpen and gameState == "playing" then
