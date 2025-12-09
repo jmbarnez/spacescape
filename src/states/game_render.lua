@@ -353,19 +353,46 @@ local function drawWorldObjects(ctx)
     -- This outline is rendered after ships/asteroids but before particles
     -- and explosions so that combat effects can still sit on top.
     if hoveredEntity then
-        local radius = 0
-        if hoveredEntity.ship and hoveredEntity.ship.boundingRadius then
-            radius = hoveredEntity.ship.boundingRadius
-        else
-            radius = hoveredEntity.collisionRadius or hoveredEntity.size or 0
+        local outlineColor = colors.hoverOutline or {0.3, 0.95, 1.0, 0.95}
+        love.graphics.setColor(outlineColor[1], outlineColor[2], outlineColor[3], outlineColor[4] or 0.95)
+        love.graphics.setLineWidth(2)
+
+        local drewPolygon = false
+
+        -- Prefer drawing the actual collision/shape outline when available so
+        -- the hover ring hugs the entity silhouette instead of a generic
+        -- circle. This uses the same local-space geometry that physics and
+        -- renderers share (ship baseOutline, asteroid flatPoints, etc.).
+        local verts = hoveredEntity.collisionVertices
+        if not verts and hoveredEntity.ship and hoveredEntity.ship.baseOutline then
+            verts = hoveredEntity.ship.baseOutline
+        end
+        if not verts and hoveredEntity.data and hoveredEntity.data.shape and hoveredEntity.data.shape.flatPoints then
+            verts = hoveredEntity.data.shape.flatPoints
         end
 
-        if radius and radius > 0 then
-            local outlineColor = colors.hoverOutline or {0.3, 0.95, 1.0, 0.95}
-            love.graphics.setColor(outlineColor[1], outlineColor[2], outlineColor[3], outlineColor[4] or 0.95)
-            love.graphics.setLineWidth(2)
-            -- Slight padding so the outline sits just outside the visual body
-            love.graphics.circle("line", hoveredEntity.x, hoveredEntity.y, radius + 6)
+        if verts and #verts >= 6 and hoveredEntity.angle then
+            love.graphics.push()
+            love.graphics.translate(hoveredEntity.x, hoveredEntity.y)
+            love.graphics.rotate(hoveredEntity.angle)
+            love.graphics.polygon("line", verts)
+            love.graphics.pop()
+            drewPolygon = true
+        end
+
+        -- Fallback to the previous circular outline when we do not have
+        -- usable polygon data (or for entity types that remain circle-based).
+        if not drewPolygon then
+            local radius = 0
+            if hoveredEntity.ship and hoveredEntity.ship.boundingRadius then
+                radius = hoveredEntity.ship.boundingRadius
+            else
+                radius = hoveredEntity.collisionRadius or hoveredEntity.size or hoveredEntity.radius or 0
+            end
+
+            if radius and radius > 0 then
+                love.graphics.circle("line", hoveredEntity.x, hoveredEntity.y, radius + 6)
+            end
         end
     end
 

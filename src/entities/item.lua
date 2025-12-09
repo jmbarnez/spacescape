@@ -318,7 +318,9 @@ function item.draw(palette)
             item_icons.drawResource(it, def, col, baseRadius, pulse)
         else
             -- Legacy / fallback path (e.g. XP shards if they are ever reused).
-            item_icons.drawSimpleOrb(it, col, baseRadius, pulse)
+            -- We simply use the generic resource icon when no specific
+            -- definition is available.
+            item_icons.drawResource(it, nil, col, baseRadius, pulse)
         end
     end
 

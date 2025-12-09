@@ -34,7 +34,8 @@ function hud_status.draw(player, colors)
     local contentLeft = baseX
     local contentRight = levelCenterX + ringRadius + 16 + barWidth
     local contentTop = levelCenterY - ringRadius
-    local contentBottom = levelCenterY + ringRadius
+    -- Extend the content bottom to leave space for the XP/currency block below the bars.
+    local contentBottom = levelCenterY + ringRadius + 22
     local panelPaddingX = 12
     local panelPaddingY = 12
     local panelX = contentLeft - panelPaddingX
@@ -120,38 +121,92 @@ function hud_status.draw(player, colors)
     love.graphics.rectangle("line", barsX, shieldBarY, barWidth, barHeight, 4, 4)
 
     ------------------------------------------------------------------------
-    -- Ship + total XP metadata block (bottom of the status panel)
-    --
-    -- This small text block makes the new player/ship separation visible in
-    -- game: it shows which ship the player is currently piloting and how
-    -- much total XP they have earned during this run.
+    -- XP and Currency counters (below the bars, inside the status panel)
     ------------------------------------------------------------------------
     local infoBaseY = shieldBarY + barHeight + 6
 
-    -- Resolve a friendly ship name from the owned ship layout if present.
-    local shipName = nil
-    if player.ship and player.ship.metadata and player.ship.metadata.displayName then
-        shipName = player.ship.metadata.displayName
-    elseif player.ship and player.ship.id then
-        shipName = tostring(player.ship.id)
-    else
-        shipName = "Player Ship"
+    -- Lifetime XP
+    local totalXp = math.max(0, math.floor(player.totalXp or 0))
+    -- Generic currency/token placeholder
+    local totalCurrency = math.max(0, math.floor(player.currency or player.credits or 0))
+
+    local iconRadius = 5
+
+    -- XP icon position (aligned with left edge of bars)
+    local xpIconCenterX = barsX + iconRadius
+    local xpIconCenterY = infoBaseY + font:getHeight() * 0.5
+
+    -- XP core orb
+    love.graphics.setColor(0.2, 1.0, 0.4, 1.0)
+    love.graphics.circle("fill", xpIconCenterX, xpIconCenterY, iconRadius, 24)
+
+    -- XP highlight
+    love.graphics.setColor(0.8, 1.0, 0.8, 0.85)
+    love.graphics.circle("fill", xpIconCenterX - iconRadius * 0.35, xpIconCenterY - iconRadius * 0.25, iconRadius * 0.4, 16)
+
+    -- XP outline
+    love.graphics.setColor(0.0, 0.25, 0.0, 0.9)
+    love.graphics.setLineWidth(1.2)
+    love.graphics.circle("line", xpIconCenterX, xpIconCenterY, iconRadius + 0.5, 24)
+
+    -- XP text
+    local xpText = string.format("%d", totalXp)
+    local xpTextX = xpIconCenterX + iconRadius + 6
+    love.graphics.setColor(colors.uiText[1], colors.uiText[2], colors.uiText[3], 0.9)
+    love.graphics.print(xpText, xpTextX, infoBaseY)
+
+    -- Currency token position (to the right of XP)
+    local xpTextWidth = font:getWidth(xpText)
+    local tokenSpacing = 12
+    local tokenCenterX = xpTextX + xpTextWidth + tokenSpacing + iconRadius
+    local tokenCenterY = xpIconCenterY
+
+    -- Token base (hexagonal coin shape)
+    local hexPoints = {}
+    for i = 0, 5 do
+        local angle = (i / 6) * math.pi * 2 - math.pi / 2
+        hexPoints[#hexPoints + 1] = tokenCenterX + math.cos(angle) * iconRadius
+        hexPoints[#hexPoints + 1] = tokenCenterY + math.sin(angle) * iconRadius
     end
 
-    -- Lifetime XP is tracked on player.totalXp; clamp and floor for display so
-    -- the number stays clean and readable.
-    local totalXp = math.max(0, math.floor(player.totalXp or 0))
+    -- Token shadow/depth
+    love.graphics.setColor(0.6, 0.45, 0.1, 0.9)
+    love.graphics.polygon("fill", hexPoints)
 
-    local shipText = "Ship: " .. shipName
-    local xpText = string.format("Total XP: %d", totalXp)
+    -- Token face (slightly smaller, offset for 3D effect)
+    local innerHexPoints = {}
+    for i = 0, 5 do
+        local angle = (i / 6) * math.pi * 2 - math.pi / 2
+        innerHexPoints[#innerHexPoints + 1] = tokenCenterX + math.cos(angle) * (iconRadius * 0.85) - 0.5
+        innerHexPoints[#innerHexPoints + 1] = tokenCenterY + math.sin(angle) * (iconRadius * 0.85) - 0.5
+    end
+    love.graphics.setColor(1.0, 0.85, 0.3, 1.0)
+    love.graphics.polygon("fill", innerHexPoints)
 
-    -- Draw ship name in primary UI text color, then total XP slightly dimmer
-    -- so the most important label (the ship) stands out first.
+    -- Inner emblem (star/diamond shape)
+    local emblemSize = iconRadius * 0.45
+    love.graphics.setColor(0.9, 0.65, 0.1, 0.9)
+    love.graphics.polygon("fill",
+        tokenCenterX, tokenCenterY - emblemSize,
+        tokenCenterX + emblemSize * 0.6, tokenCenterY,
+        tokenCenterX, tokenCenterY + emblemSize,
+        tokenCenterX - emblemSize * 0.6, tokenCenterY
+    )
+
+    -- Highlight
+    love.graphics.setColor(1.0, 1.0, 0.9, 0.7)
+    love.graphics.circle("fill", tokenCenterX - iconRadius * 0.25, tokenCenterY - iconRadius * 0.3, iconRadius * 0.25, 12)
+
+    -- Token outline
+    love.graphics.setColor(0.45, 0.3, 0.05, 1.0)
+    love.graphics.setLineWidth(1.5)
+    love.graphics.polygon("line", hexPoints)
+
+    -- Currency text
+    local currencyText = string.format("%d", totalCurrency)
+    local currencyTextX = tokenCenterX + iconRadius + 6
     love.graphics.setColor(colors.uiText[1], colors.uiText[2], colors.uiText[3], 0.9)
-    love.graphics.print(shipText, barsX, infoBaseY)
-
-    love.graphics.setColor(colors.uiText[1], colors.uiText[2], colors.uiText[3], 0.75)
-    love.graphics.print(xpText, barsX, infoBaseY + font:getHeight())
+    love.graphics.print(currencyText, currencyTextX, infoBaseY)
 end
 
 return hud_status

@@ -210,23 +210,8 @@ end
 -- PUBLIC API
 --------------------------------------------------------------------------------
 
--- Simple orb fallback (used for legacy XP items or unknown types).
-function item_icons.drawSimpleOrb(it, palette, baseRadius, pulse)
-    local col = palette or {}
-    local coreColor = col.itemCore or {0.3, 1.0, 0.7, 1.0}
-
-    local r = baseRadius * (0.9 + 0.2 * pulse)
-
-    love.graphics.setColor(coreColor[1], coreColor[2], coreColor[3], coreColor[4] or 1.0)
-    love.graphics.circle("fill", it.x, it.y, r)
-
-    love.graphics.setColor(0, 0, 0, 0.85)
-    love.graphics.setLineWidth(1.4)
-    love.graphics.circle("line", it.x, it.y, r + 0.4)
-end
-
--- Main entry point for resource pickups. Chooses a specific drawer based on
--- the resource id, so each material can have a bespoke procedural design.
+--- Main entry point for resource pickups. Chooses a specific drawer based on
+--- the resource id, so each material can have a bespoke procedural design.
 function item_icons.drawResource(it, def, palette, baseRadius, pulse)
     -- Prefer a per-resource custom icon drawer if one is provided on the
     -- definition table. This lets each resource live in its own file and own
