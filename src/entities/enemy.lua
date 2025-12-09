@@ -7,6 +7,7 @@ local physics = require("src.core.physics")
 local weapons = require("src.core.weapons")
 local projectileModule = require("src.entities.projectile")
 local config = require("src.core.config")
+local ship_renderer = require("src.render.ship_renderer")
 
 function enemy.spawn(world, safeRadius)
     local side = math.random(1, 4)
@@ -310,7 +311,9 @@ function enemy.draw(colors)
         love.graphics.translate(e.x, e.y)
         love.graphics.rotate(e.angle)
 
-        ship_generator.draw(e.ship, colors)
+        if e.ship then
+            ship_renderer.drawEnemy(e.ship, colors)
+        end
 
         love.graphics.pop()
 
