@@ -179,7 +179,6 @@ function hud_cargo.draw(player, colors)
         { id = nil, label = nil, drawIcon = nil },
         { id = nil, label = nil, drawIcon = nil },
         { id = nil, label = nil, drawIcon = nil },
-        { id = nil, label = nil, drawIcon = nil },
     }
 
     for i, res in ipairs(resources) do

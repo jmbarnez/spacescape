@@ -293,6 +293,7 @@ local function drawWorldObjects(ctx)
     local particlesModule = ctx.particlesModule
     local explosionFx = ctx.explosionFx
     local floatingText = ctx.floatingText
+    local shieldImpactFx = ctx.shieldImpactFx
     local colors = ctx.colors
     local camera = ctx.camera
     local gameState = ctx.gameState
@@ -317,6 +318,10 @@ local function drawWorldObjects(ctx)
     if gameState == "playing" or gameState == "paused" then
         engineTrail.draw()
         playerModule.draw(colors)
+    end
+
+    if shieldImpactFx and shieldImpactFx.draw then
+        shieldImpactFx.draw()
     end
 
     -- Draw a cyan outline around the hovered entity so that the player gets

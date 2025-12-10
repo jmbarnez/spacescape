@@ -302,4 +302,54 @@ function window_manager.mousemoved(uiCtx, x, y, dx, dy)
     return handled
 end
 
+--- Reset a registered window's position and drag state.
+-- This centralizes the position reset so that callers do not need to reach
+-- into individual HUD modules.
+function window_manager.resetWindow(id)
+    if id == "cargo" then
+        require("src.render.hud.cargo").reset()
+    elseif id == "map" then
+        require("src.render.hud.world_map").reset()
+    elseif id == "pause" then
+        require("src.render.hud.pause").reset()
+    end
+end
+
+--- Handle key press for all HUD windows.
+-- This is intended to be called from game.keypressed before the game state
+-- performs its own key handling. The primary purpose is to allow Escape to
+-- close in-play overlay windows (cargo, map) before toggling the pause menu.
+--
+-- @param uiCtx table  The UI context (must include gameState at minimum).
+-- @param key   string The key that was pressed.
+-- @return boolean handled  True if the key was consumed by a HUD window.
+-- @return string? action   Optional high-level intent (e.g., "close_window").
+function window_manager.keypressed(uiCtx, key)
+    -- Only intercept Escape while playing (not paused, not gameover)
+    if key ~= "escape" then
+        return false, nil
+    end
+
+    if uiCtx.gameState ~= "playing" then
+        return false, nil
+    end
+
+    -- Close the topmost open in-play window (by z-index order) instead of
+    -- pausing the game. This gives players intuitive Escape behavior: the
+    -- window they are currently looking at closes first.
+    for _, win in ipairs(getWindowsInZOrderDescending()) do
+        if win.isOpen then
+            win.isOpen = false
+            -- Reset the window position when closing via Escape for a clean
+            -- slate next time the player opens it.
+            window_manager.resetWindow(win.id)
+            return true, "close_window"
+        end
+    end
+
+    -- No in-play window was open; let the game state handle Escape normally
+    -- (which will toggle the pause menu).
+    return false, nil
+end
+
 return window_manager

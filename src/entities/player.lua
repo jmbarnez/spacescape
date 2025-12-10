@@ -101,13 +101,26 @@ player.state = {
     xpRatio = 0,
     totalXp = 0,         -- Lifetime XP for this run; always increases
     -- Simple cargo component for storing mined / salvaged resources on the
-    -- currently piloted ship. For now we keep this intentionally lightweight:
-    -- a flat set of resource counters per run. Higher-level systems can later
-    -- extend this into per-ship capacity, jettisoning, trading, etc.
+    -- currently piloted ship. This is now backed by a fixed-size slot array so
+    -- the HUD can render a 4x4 inventory grid that supports drag-and-drop and
+    -- future per-slot behaviors.
+    --
+    -- Layout:
+    --   cargo = {
+    --       maxSlots = 16,               -- 4x4 grid in the HUD
+    --       slots = {                    -- 1-based array of slots
+    --           -- Each occupied slot:
+    --           -- { id = "stone", quantity = 12 }
+    --       },
+    --   }
+    --
+    -- Note: older save / restore code that expects numeric cargo.stone-style
+    -- counters is no longer used in this project. The authoritative source of
+    -- truth is the slots array; aggregate counts can be derived from it when
+    -- needed.
     cargo = {
-        stone = 0,
-        ice = 0,
-        mithril = 0,
+        maxSlots = 16,
+        slots = {},
     },
     -- Magnet component: these radii are used by the item system to attract
     -- nearby pickups (XP shards, resources) toward the ship and decide when
@@ -155,25 +168,72 @@ function player.addCargoResource(resourceType, amount)
         return 0
     end
 
-    -- Lazy-initialize cargo in case older save/restore logic ever bypasses
-    -- the default state table.
-    if not p.cargo then
+    --------------------------------------------------------------------------
+    -- Ensure the cargo structure exists and is in the expected slot-based
+    -- format. This keeps the function resilient if older code ever overwrites
+    -- p.cargo with a plain table.
+    --------------------------------------------------------------------------
+    if not p.cargo or type(p.cargo) ~= "table" then
         p.cargo = {
-            stone = 0,
-            ice = 0,
-            mithril = 0,
+            maxSlots = 16,
+            slots = {},
         }
     end
 
-    -- Normalise key to a simple string so we can safely index the cargo table.
+    local cargo = p.cargo
+    cargo.maxSlots = cargo.maxSlots or 16
+    cargo.slots = cargo.slots or {}
+
+    local slots = cargo.slots
+    local maxSlots = cargo.maxSlots
+
+    -- Normalise key to a simple string so we can safely store it in slots.
     local key = tostring(resourceType)
-    local current = p.cargo[key] or 0
-    local newValue = current + amount
 
-    -- For now we do not enforce a capacity limit; higher-level systems can add
-    -- that later by clamping newValue and returning the actual delta.
-    p.cargo[key] = newValue
+    --------------------------------------------------------------------------
+    -- First, try to find an existing stack for this resource type so we can
+    -- simply increase its quantity instead of occupying a new slot.
+    --------------------------------------------------------------------------
+    local targetIndex = nil
+    for i = 1, maxSlots do
+        local slot = slots[i]
+        if slot and slot.id == key then
+            targetIndex = i
+            break
+        end
+    end
 
+    --------------------------------------------------------------------------
+    -- If no existing stack was found, look for the first empty slot.
+    --------------------------------------------------------------------------
+    if not targetIndex then
+        for i = 1, maxSlots do
+            local slot = slots[i]
+            if not slot or slot.id == nil then
+                slots[i] = {
+                    id = key,
+                    quantity = 0,
+                }
+                targetIndex = i
+                break
+            end
+        end
+    end
+
+    --------------------------------------------------------------------------
+    -- If we still do not have a target slot, the inventory is full. For now
+    -- we simply reject the pickup (return 0) so callers can decide what to do
+    -- (e.g. spawn overflow into space) without crashing.
+    --------------------------------------------------------------------------
+    if not targetIndex then
+        return 0
+    end
+
+    local slot = slots[targetIndex]
+    slot.quantity = (slot.quantity or 0) + amount
+
+    -- No capacity limit yet: everything fits into the chosen stack. If you
+    -- later add max stack sizes, clamp here and return the actual delta.
     return amount
 end
 

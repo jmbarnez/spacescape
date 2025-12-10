@@ -24,6 +24,7 @@ local inputSystem = require("src.systems.input")
 local abilitiesSystem = require("src.systems.abilities")
 local engineTrail = require("src.entities.engine_trail")
 local explosionFx = require("src.entities.explosion_fx")
+local shieldImpactFx = require("src.entities.shield_impact_fx")
 local floatingText = require("src.entities.floating_text")
 local gameRender = require("src.states.game_render")
 
@@ -107,6 +108,10 @@ local function registerUpdateSystems()
 		particlesModule.update(dt)
 	end, 100)
 
+	systems.registerUpdate("shieldImpactFx", function(dt, ctx)
+		shieldImpactFx.update(dt)
+	end, 105)
+
 	systems.registerUpdate("floatingText", function(dt, ctx)
 		floatingText.update(dt)
 	end, 110)
@@ -153,6 +158,7 @@ function game.load()
 	engineTrail.load()
 	engineTrail.reset()
 	explosionFx.load()
+	shieldImpactFx.load()
 	floatingText.clear()
 	abilitiesSystem.load(playerModule.state)
 	asteroidModule.load()
@@ -265,6 +271,17 @@ function game.wheelmoved(x, y)
 end
 
 function game.keypressed(key)
+	-- Delegate keyboard input to the window manager first. This allows Escape
+	-- to close in-play overlay windows (cargo, map) before toggling pause.
+	local uiCtx = createUiContext()
+	local handled, action = windowManager.keypressed(uiCtx, key)
+	applyUiContext(uiCtx)
+
+	if handled then
+		-- An in-play window was closed; do not proceed to pause toggle.
+		return
+	end
+
 	if key == "escape" then
 		if gameState == "playing" then
 			gameState = "paused"
@@ -280,7 +297,7 @@ function game.keypressed(key)
 		local nowOpen = not windowManager.isWindowOpen("cargo")
 		windowManager.setWindowOpen("cargo", nowOpen)
 		if not nowOpen then
-			ui.resetCargo() -- Reset position when closing with Tab
+			windowManager.resetWindow("cargo") -- Use centralized reset
 		end
 		return
 	end
@@ -351,6 +368,7 @@ function game.restartGame()
 	itemModule.clear()
 	engineTrail.reset()
 	explosionFx.clear()
+	shieldImpactFx.clear()
 	floatingText.clear()
 	collisionSystem.clear()
 
@@ -381,6 +399,7 @@ function game.draw()
 		engineTrail = engineTrail,
 		particlesModule = particlesModule,
 		explosionFx = explosionFx,
+		shieldImpactFx = shieldImpactFx,
 		floatingText = floatingText,
 		colors = colors,
 		gameState = gameState,

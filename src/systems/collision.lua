@@ -24,6 +24,7 @@ local enemyModule = require("src.entities.enemy")
 local projectileModule = require("src.entities.projectile")
 local asteroidModule = require("src.entities.asteroid")
 local explosionFx = require("src.entities.explosion_fx")
+local shieldImpactFx = require("src.entities.shield_impact_fx")
 local floatingText = require("src.entities.floating_text")
 local baseColors = require("src.core.colors")
 local config = require("src.core.config")
@@ -402,6 +403,17 @@ local function resolveProjectileHit(projectile, target, contactX, contactY, radi
         spawnDamageText(shieldDamage, target.x, target.y, radius, shieldColor, nil)
     end
 
+    if shieldDamage and shieldDamage > 0 and shieldImpactFx and shieldImpactFx.spawn then
+        local cx = target.x or contactX or (projectile and projectile.x)
+        local cy = target.y or contactY or (projectile and projectile.y)
+        local ix = contactX or cx
+        local iy = contactY or cy
+        local shieldRadius = radius or getBoundingRadius(target)
+        if shieldRadius and shieldRadius > 0 and cx and cy and ix and iy then
+            shieldImpactFx.spawn(cx, cy, ix, iy, shieldRadius * 1.15, baseColors.shieldDamage or baseColors.projectile or baseColors.white)
+        end
+    end
+
     -- Hull damage (use configured damage text color)
     if hullDamage and hullDamage > 0 then
         local hullColor = config.damageTextColor or DAMAGE_COLOR_ENEMY
@@ -525,7 +537,9 @@ end
 --- Handle player colliding with an enemy (ram damage)
 --- @param player table The player entity
 --- @param enemy table The enemy entity
-local function handlePlayerVsEnemy(player, enemy)
+--- @param contactX number|nil Contact point X (optional)
+--- @param contactY number|nil Contact point Y (optional)
+local function handlePlayerVsEnemy(player, enemy, contactX, contactY)
     local enemyRadius = getBoundingRadius(enemy)
     
     -- Destroy the enemy on contact
@@ -549,6 +563,17 @@ local function handlePlayerVsEnemy(player, enemy)
     if shieldDamage and shieldDamage > 0 then
         local shieldColor = baseColors.shieldDamage or baseColors.projectile or (currentColors and currentColors.projectile) or baseColors.white
         spawnDamageText(shieldDamage, player.x, player.y, player.size, shieldColor, nil)
+    end
+
+    if shieldDamage and shieldDamage > 0 and shieldImpactFx and shieldImpactFx.spawn then
+        local px = player.x
+        local py = player.y
+        local ix = contactX or (enemy and enemy.x) or px
+        local iy = contactY or (enemy and enemy.y) or py
+        local radius = getBoundingRadius(player)
+        if radius and radius > 0 and px and py and ix and iy then
+            shieldImpactFx.spawn(px, py, ix, iy, radius * 1.15, baseColors.shieldDamage or baseColors.projectile or baseColors.white)
+        end
     end
 
     -- Hull damage text (red for player)
