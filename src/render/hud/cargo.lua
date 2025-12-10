@@ -1,5 +1,7 @@
 local hud_cargo = {}
 
+local ui_theme = require("src.core.ui_theme")
+
 --------------------------------------------------------------------------------
 -- WINDOW STATE
 -- Position and drag state for the cargo window.
@@ -162,26 +164,45 @@ function hud_cargo.draw(player, colors)
     local font = love.graphics.getFont()
     local mx, my = love.mouse.getPosition()
 
+    -- Resolve the shared window style once so all cargo visuals stay aligned
+    -- with the global UI theme (same palette used by the world map window).
+    local windowStyle = ui_theme.window
+
     local panelX, panelY = getPanelPosition()
 
     -- Main panel background
-    love.graphics.setColor(0.08, 0.08, 0.12, 0.95)
+    love.graphics.setColor(
+        windowStyle.background[1],
+        windowStyle.background[2],
+        windowStyle.background[3],
+        windowStyle.background[4]
+    )
     love.graphics.rectangle("fill", panelX, panelY, PANEL_WIDTH, PANEL_HEIGHT, 8, 8)
 
     -- Top bar
-    love.graphics.setColor(0.15, 0.15, 0.22, 1.0)
+    love.graphics.setColor(
+        windowStyle.topBar[1],
+        windowStyle.topBar[2],
+        windowStyle.topBar[3],
+        windowStyle.topBar[4]
+    )
     love.graphics.rectangle("fill", panelX, panelY, PANEL_WIDTH, TOP_BAR_HEIGHT, 8, 8)
     -- Fill the bottom corners of the top bar
     love.graphics.rectangle("fill", panelX, panelY + TOP_BAR_HEIGHT - 8, PANEL_WIDTH, 8)
 
     -- Bottom bar
-    love.graphics.setColor(0.12, 0.12, 0.18, 1.0)
+    love.graphics.setColor(
+        windowStyle.bottomBar[1],
+        windowStyle.bottomBar[2],
+        windowStyle.bottomBar[3],
+        windowStyle.bottomBar[4]
+    )
     love.graphics.rectangle("fill", panelX, panelY + PANEL_HEIGHT - BOTTOM_BAR_HEIGHT, PANEL_WIDTH, BOTTOM_BAR_HEIGHT, 8,
         8)
     love.graphics.rectangle("fill", panelX, panelY + PANEL_HEIGHT - BOTTOM_BAR_HEIGHT, PANEL_WIDTH, 8)
 
     -- Border
-    local borderColor = colors.uiPanelBorder or { 1, 1, 1, 0.5 }
+    local borderColor = windowStyle.border or colors.uiPanelBorder or { 1, 1, 1, 0.5 }
     love.graphics.setColor(borderColor[1], borderColor[2], borderColor[3], borderColor[4] or 0.5)
     love.graphics.setLineWidth(2)
     love.graphics.rectangle("line", panelX, panelY, PANEL_WIDTH, PANEL_HEIGHT, 8, 8)
@@ -198,14 +219,38 @@ function hud_cargo.draw(player, colors)
     local closeHovered = isPointInRect(mx, my, closeX, closeY, CLOSE_BUTTON_SIZE, CLOSE_BUTTON_SIZE)
 
     if closeHovered then
-        love.graphics.setColor(0.8, 0.2, 0.2, 0.8)
+        love.graphics.setColor(
+            windowStyle.closeButtonBgHover[1],
+            windowStyle.closeButtonBgHover[2],
+            windowStyle.closeButtonBgHover[3],
+            windowStyle.closeButtonBgHover[4]
+        )
     else
-        love.graphics.setColor(0.5, 0.5, 0.5, 0.5)
+        love.graphics.setColor(
+            windowStyle.closeButtonBg[1],
+            windowStyle.closeButtonBg[2],
+            windowStyle.closeButtonBg[3],
+            windowStyle.closeButtonBg[4]
+        )
     end
     love.graphics.rectangle("fill", closeX, closeY, CLOSE_BUTTON_SIZE, CLOSE_BUTTON_SIZE, 4, 4)
 
     -- X icon
-    love.graphics.setColor(1, 1, 1, closeHovered and 1.0 or 0.7)
+    if closeHovered then
+        love.graphics.setColor(
+            windowStyle.closeButtonXHover[1],
+            windowStyle.closeButtonXHover[2],
+            windowStyle.closeButtonXHover[3],
+            windowStyle.closeButtonXHover[4]
+        )
+    else
+        love.graphics.setColor(
+            windowStyle.closeButtonX[1],
+            windowStyle.closeButtonX[2],
+            windowStyle.closeButtonX[3],
+            windowStyle.closeButtonX[4]
+        )
+    end
     love.graphics.setLineWidth(2)
     local padding = 6
     love.graphics.line(closeX + padding, closeY + padding, closeX + CLOSE_BUTTON_SIZE - padding,

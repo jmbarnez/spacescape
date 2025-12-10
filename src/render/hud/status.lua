@@ -1,9 +1,11 @@
 local hud_status = {}
 
 local config = require("src.core.config")
+local ui_theme = require("src.core.ui_theme")
 
 function hud_status.draw(player, colors)
     local font = love.graphics.getFont()
+    local hudPanelStyle = ui_theme.hudPanel
 
     -- Player stats
     local level = player.level or 1
@@ -43,10 +45,15 @@ function hud_status.draw(player, colors)
     local panelWidth = (contentRight - contentLeft) + panelPaddingX * 2
     local panelHeight = (contentBottom - contentTop) + panelPaddingY * 2
 
-    love.graphics.setColor(0, 0, 0, 0.7)
+    love.graphics.setColor(
+        hudPanelStyle.background[1],
+        hudPanelStyle.background[2],
+        hudPanelStyle.background[3],
+        hudPanelStyle.background[4]
+    )
     love.graphics.rectangle("fill", panelX, panelY, panelWidth, panelHeight, 8, 8)
 
-    local borderColor = colors.uiPanelBorder or {1, 1, 1, 0.6}
+    local borderColor = hudPanelStyle.border or colors.uiPanelBorder or {1, 1, 1, 0.6}
     love.graphics.setColor(borderColor[1], borderColor[2], borderColor[3], borderColor[4] or 0.6)
     love.graphics.setLineWidth(2)
     love.graphics.rectangle("line", panelX, panelY, panelWidth, panelHeight, 8, 8)
@@ -98,12 +105,19 @@ function hud_status.draw(player, colors)
     -- Hull bar
     local hullRatio = math.max(0, math.min(1, hull / maxHull))
 
-    love.graphics.setColor(0, 0, 0, 0.5)
+    love.graphics.setColor(
+        hudPanelStyle.barBackground[1],
+        hudPanelStyle.barBackground[2],
+        hudPanelStyle.barBackground[3],
+        hudPanelStyle.barBackground[4]
+    )
     love.graphics.rectangle("fill", barsX, barsY, barWidth, barHeight, 4, 4)
 
     love.graphics.setColor(colors.damagePlayer[1], colors.damagePlayer[2], colors.damagePlayer[3], 0.9)
     love.graphics.rectangle("fill", barsX, barsY, barWidth * hullRatio, barHeight, 4, 4)
     love.graphics.setLineWidth(3)
+    -- Match the shield bar with a clean black outline so both bars share the
+    -- same high-contrast frame.
     love.graphics.setColor(0, 0, 0, 0.9)
     love.graphics.rectangle("line", barsX, barsY, barWidth, barHeight, 4, 4)
 

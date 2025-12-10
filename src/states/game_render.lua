@@ -412,6 +412,7 @@ local function drawOverlay(ctx)
     local camera = ctx.camera
     local pauseMenu = ctx.pauseMenu
     local cargoOpen = ctx.cargoOpen
+    local mapOpen = ctx.mapOpen
     local enemyModule = ctx.enemyModule
     local asteroidModule = ctx.asteroidModule
 
@@ -427,6 +428,12 @@ local function drawOverlay(ctx)
     -- Cargo window overlay (shown when Tab is pressed)
     if cargoOpen and gameState == "playing" then
         ui.drawCargo(player, colors)
+    end
+
+    -- Full-screen world map overlay (toggled with M). This is rendered after
+    -- the regular HUD so it sits on top of other UI elements.
+    if mapOpen and gameState == "playing" then
+        ui.drawWorldMap(player, colors, enemyList, asteroidList)
     end
 
     if gameState == "gameover" then

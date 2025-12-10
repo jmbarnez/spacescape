@@ -36,6 +36,7 @@ local enemies = enemyModule.list
 -- Game state
 local gameState = "playing" -- "playing", "gameover"
 local cargoOpen = false
+local mapOpen = false -- Full-screen world map overlay (toggled via M)
 
 local pauseMenu = {
 	items = {
@@ -211,7 +212,20 @@ function game.mousepressed(x, y, button)
 		return
 	end
 
-	-- Handle cargo window interactions first
+	-- Handle world map interactions first (it sits on top of other HUD
+	-- windows). Mouse input is swallowed when the map reports that it handled
+	-- the click.
+	if mapOpen then
+		local result = ui.mapMousepressed(x, y, button)
+		if result == "close" then
+			mapOpen = false
+			return
+		elseif result then
+			return -- Consumed by world map (e.g., dragging / inside window)
+		end
+	end
+
+	-- Handle cargo window interactions next
 	if cargoOpen then
 		local result = ui.cargoMousepressed(x, y, button)
 		if result == "close" then
@@ -226,12 +240,18 @@ function game.mousepressed(x, y, button)
 end
 
 function game.mousereleased(x, y, button)
+	if mapOpen then
+		ui.mapMousereleased(x, y, button)
+	end
 	if cargoOpen then
 		ui.cargoMousereleased(x, y, button)
 	end
 end
 
 function game.mousemoved(x, y, dx, dy)
+	if mapOpen then
+		ui.mapMousemoved(x, y)
+	end
 	if cargoOpen then
 		ui.cargoMousemoved(x, y)
 	end
@@ -261,6 +281,14 @@ function game.keypressed(key)
 		if not cargoOpen then
 			ui.resetCargo() -- Reset position when closing with Tab
 		end
+		return
+	end
+
+	-- Toggle the full-screen world map overlay. We treat this similarly to the
+	-- cargo window: it is an overlay drawn during normal gameplay, without
+	-- changing the core game state.
+	if key == "m" and gameState == "playing" then
+		mapOpen = not mapOpen
 		return
 	end
 
@@ -326,6 +354,7 @@ function game.draw()
 		combatSystem = combatSystem,
 		pauseMenu = pauseMenu,
 		cargoOpen = cargoOpen,
+		mapOpen = mapOpen,
 	}
 
 	gameRender.draw(renderCtx)

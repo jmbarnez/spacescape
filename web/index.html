@@ -4,7 +4,8 @@
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, minimum-scale=1, maximum-scale=1">
-    <title>{{title}}</title>
+    <!-- Set a concrete page title instead of the template placeholder -->
+    <title>Spacescape</title>
 
     <!-- Load custom style sheet -->
     <link rel="stylesheet" type="text/css" href="theme/love.css">
@@ -12,7 +13,8 @@
   <body>
     <center>
       <div>
-        <h1>{{title}}</h1>
+        <!-- Match the page heading to the title above -->
+        <h1>Spacescape</h1>
         <canvas id="loadingCanvas" oncontextmenu="event.preventDefault()" width="800" height="600"></canvas>
         <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
       </div>
@@ -60,8 +62,13 @@
       }, false);
 
       var Module = {
-        arguments: {{{arguments}}},
-        INITIAL_MEMORY: {{memory}},
+        // IMPORTANT: Tell love.js which .love file to load.
+        // This file (Novus.love) should live in the same directory as this index.html.
+        arguments: ['Novus.love'],
+
+        // INITIAL_MEMORY is specified in bytes. 268435456 = 256 MB.
+        // Increase this value if you run into out-of-memory issues in the browser.
+        INITIAL_MEMORY: 268435456,
         printErr: console.error.bind(console),
         canvas: (function() {
           var canvas = document.getElementById('canvas');
@@ -99,11 +106,19 @@
       };
 
       var applicationLoad = function(e) {
-        Love(Module);
+        // Kick off the LVE runtime using the configuration defined in Module.
+        // NOTE: We now rely on player.js to bootstrap the game instead of calling
+        //       Love(Module) directly here, so this function is kept for reference
+        //       but does not invoke Love() anymore.
+        // Love(Module);
       }
     </script>
-    <script type="text/javascript" src="game.js"></script>
-    <script async type="text/javascript" src="love.js" onload="applicationLoad(this)"></script>
+    <!-- game.js is not required when running a standalone .love file with love.js.
+         If you later switch to a different love.js build pipeline that generates
+         game.js, you can re-enable this script tag. For now we keep it commented
+         out to avoid a missing-file request. -->
+    <!-- <script type="text/javascript" src="game.js"></script> -->
+    <script type="text/javascript" src="player.js?g=Novus.love"></script>
     <footer>
       <p>Built with <a href="https://github.com/Davidobot/love.js">love.js</a> <button onclick="goFullScreen();">Go Fullscreen</button><br>Hint: Reload the page if screen is blank</p>
     </footer>

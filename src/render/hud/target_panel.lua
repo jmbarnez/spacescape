@@ -1,6 +1,7 @@
 local target_panel = {}
 
 local combatSystem = require("src.systems.combat")
+local ui_theme = require("src.core.ui_theme")
 
 -- Draws a target information panel at the top center of the screen.
 -- This panel shows information about the currently locked/targeted entity.
@@ -24,12 +25,19 @@ function target_panel.draw(colors)
     local panelX = (screenW - panelWidth) / 2
     local panelY = 18
 
+    local hudPanelStyle = ui_theme.hudPanel
+
     -- Background
-    love.graphics.setColor(0, 0, 0, 0.7)
+    love.graphics.setColor(
+        hudPanelStyle.background[1],
+        hudPanelStyle.background[2],
+        hudPanelStyle.background[3],
+        hudPanelStyle.background[4]
+    )
     love.graphics.rectangle("fill", panelX, panelY, panelWidth, panelHeight, 8, 8)
 
     -- Border
-    local borderColor = colors.uiPanelBorder or {1, 1, 1, 0.6}
+    local borderColor = hudPanelStyle.border or colors.uiPanelBorder or {1, 1, 1, 0.6}
     love.graphics.setColor(borderColor[1], borderColor[2], borderColor[3], borderColor[4] or 0.6)
     love.graphics.setLineWidth(2)
     love.graphics.rectangle("line", panelX, panelY, panelWidth, panelHeight, 8, 8)

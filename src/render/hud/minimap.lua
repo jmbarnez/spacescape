@@ -1,5 +1,7 @@
 local hud_minimap = {}
 
+local ui_theme = require("src.core.ui_theme")
+
 -- Minimap HUD widget
 --
 -- This module is responsible *only* for drawing a small world overview in the
@@ -27,6 +29,9 @@ function hud_minimap.draw(player, colors, enemyList, asteroidList)
     local screenW = love.graphics.getWidth()
     local screenH = love.graphics.getHeight()
 
+    local hudPanelStyle = ui_theme.hudPanel
+    local minimapStyle = ui_theme.minimap
+
     --------------------------------------------------------------------------
     -- Layout constants
     --
@@ -45,10 +50,15 @@ function hud_minimap.draw(player, colors, enemyList, asteroidList)
     --------------------------------------------------------------------------
     -- Panel background + border
     --------------------------------------------------------------------------
-    love.graphics.setColor(0, 0, 0, 0.7)
+    love.graphics.setColor(
+        hudPanelStyle.background[1],
+        hudPanelStyle.background[2],
+        hudPanelStyle.background[3],
+        hudPanelStyle.background[4]
+    )
     love.graphics.rectangle("fill", panelX, panelY, panelWidth, panelHeight, 8, 8)
 
-    local borderColor = colors.uiPanelBorder or { 1, 1, 1, 0.5 }
+    local borderColor = hudPanelStyle.border or colors.uiPanelBorder or { 1, 1, 1, 0.5 }
     love.graphics.setColor(borderColor[1], borderColor[2], borderColor[3], borderColor[4] or 0.5)
     love.graphics.setLineWidth(2)
     love.graphics.rectangle("line", panelX, panelY, panelWidth, panelHeight, 8, 8)
@@ -98,7 +108,12 @@ function hud_minimap.draw(player, colors, enemyList, asteroidList)
     --------------------------------------------------------------------------
     -- Draw world bounds outline inside the panel
     --------------------------------------------------------------------------
-    love.graphics.setColor(0.25, 0.35, 0.6, 0.9)
+    love.graphics.setColor(
+        minimapStyle.worldBounds[1],
+        minimapStyle.worldBounds[2],
+        minimapStyle.worldBounds[3],
+        minimapStyle.worldBounds[4]
+    )
     love.graphics.setLineWidth(1)
     love.graphics.rectangle("line", worldRectX, worldRectY, scaledWorldWidth, scaledWorldHeight)
 
@@ -138,7 +153,12 @@ function hud_minimap.draw(player, colors, enemyList, asteroidList)
         local viewW = math.abs(vx2 - vx1)
         local viewH = math.abs(vy2 - vy1)
 
-        love.graphics.setColor(0.2, 0.9, 1.0, 0.35)
+        love.graphics.setColor(
+            minimapStyle.viewport[1],
+            minimapStyle.viewport[2],
+            minimapStyle.viewport[3],
+            minimapStyle.viewport[4]
+        )
         love.graphics.setLineWidth(1)
         love.graphics.rectangle("line", viewX, viewY, viewW, viewH)
     end
