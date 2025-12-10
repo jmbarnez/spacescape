@@ -128,6 +128,21 @@ local function applyPickupEffect(pickup, player)
                     alpha = 1.0,
                     bgColor = {0, 0, 0, 0},
                     textColor = textColor,
+                    stackKey = text,
+                    stackCountIncrement = 1,
+                })
+            else
+                -- Cargo is full: provide minimal feedback so the player understands
+                -- why the pickup did not increase their stored resources.
+                local text = "Cargo Full"
+                local textColor = colors.health or colors.white
+                floatingText.spawn(text, player.x, player.y, nil, {
+                    duration = 1.0,
+                    riseSpeed = 20,
+                    scale = 0.75,
+                    alpha = 1.0,
+                    bgColor = {0, 0, 0, 0.4},
+                    textColor = textColor,
                 })
             end
         end
@@ -149,6 +164,8 @@ local function applyPickupEffect(pickup, player)
                 alpha = 1.0,
                 bgColor = {0, 0, 0, 0},
                 textColor = textColor,
+                stackKey = text,
+                stackCountIncrement = 1,
             })
         end
     end

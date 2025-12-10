@@ -6,6 +6,8 @@ local config = require("src.core.config")
 local core_ship = require("src.core.ship")
 local ship_renderer = require("src.render.ship_renderer")
 local player_drone = require("src.data.ships.player_drone")
+local colors = require("src.core.colors")
+local shieldImpactFx = require("src.entities.shield_impact_fx")
 
 local function renderDrone(colors, size)
     -- Build a concrete world-space layout for the current player blueprint
@@ -457,41 +459,98 @@ function player.update(dt, world)
     p.x = p.x + p.vx * dt
     p.y = p.y + p.vy * dt
     
-    -- World boundary handling - bounce off edges with velocity reversal.
-    -- Use the collision radius (derived from the owned ship) when available
-    -- so the physical body and visual hull stay aligned at the borders.
+    ----------------------------------------------------------------------
+    -- World / screen boundary handling
+    --
+    -- The player should bounce off the invisible world edges so that the
+    -- ship never leaves the playable area. When shields are up, we also
+    -- trigger a shield impact FX on the side that was hit so the player
+    -- gets a clear, stylish cue that they smacked the field boundary.
+    ----------------------------------------------------------------------
+    local function handleBoundaryBounce(boundX, boundY)
+        -- Only spawn FX when we actually have an active shield; the hull
+        -- alone just quietly bounces.
+        if not (p.shield and p.shield > 0) then
+            return
+        end
+
+        if not shieldImpactFx or not shieldImpactFx.spawn then
+            return
+        end
+
+        local radius = p.collisionRadius or p.size or config.player.size
+        if not radius or radius <= 0 then
+            return
+        end
+
+        local cx = p.x
+        local cy = p.y
+        local ix = boundX or cx
+        local iy = boundY or cy
+
+        if not ix or not iy then
+            return
+        end
+
+        local color = colors.shieldDamage or colors.projectile or colors.white
+        shieldImpactFx.spawn(cx, cy, ix, iy, radius * 1.15, color)
+    end
+
     if world then
+        ------------------------------------------------------------------
+        -- World-space bounds (large playfield defined by core.world)
+        ------------------------------------------------------------------
         local margin = p.collisionRadius or p.size
+        local bounced = false
+
         if p.x < world.minX + margin then
             p.x = world.minX + margin
-            p.vx = math.abs(p.vx) * config.player.bounceFactor  -- Bounce with energy loss
+            p.vx = math.abs(p.vx) * config.player.bounceFactor
+            handleBoundaryBounce(world.minX + margin, p.y)
+            bounced = true
         elseif p.x > world.maxX - margin then
             p.x = world.maxX - margin
             p.vx = -math.abs(p.vx) * config.player.bounceFactor
+            handleBoundaryBounce(world.maxX - margin, p.y)
+            bounced = true
         end
+
         if p.y < world.minY + margin then
             p.y = world.minY + margin
             p.vy = math.abs(p.vy) * config.player.bounceFactor
+            handleBoundaryBounce(p.x, world.minY + margin)
+            bounced = true
         elseif p.y > world.maxY - margin then
             p.y = world.maxY - margin
             p.vy = -math.abs(p.vy) * config.player.bounceFactor
+            handleBoundaryBounce(p.x, world.maxY - margin)
+            bounced = true
         end
     else
+        ------------------------------------------------------------------
+        -- Fallback to screen bounds if the world table is not provided.
+        ------------------------------------------------------------------
         local w, h = love.graphics.getWidth(), love.graphics.getHeight()
         local margin = p.collisionRadius or p.size
+
         if p.x < margin then
             p.x = margin
             p.vx = math.abs(p.vx) * config.player.bounceFactor
+            handleBoundaryBounce(margin, p.y)
         elseif p.x > w - margin then
             p.x = w - margin
-            p.vx = -math.abs(p.vx) * 0.5
+            p.vx = -math.abs(p.vx) * config.player.bounceFactor
+            handleBoundaryBounce(w - margin, p.y)
         end
+
         if p.y < margin then
             p.y = margin
-            p.vy = math.abs(p.vy) * 0.5
+            p.vy = math.abs(p.vy) * config.player.bounceFactor
+            handleBoundaryBounce(p.x, margin)
         elseif p.y > h - margin then
             p.y = h - margin
-            p.vy = -math.abs(p.vy) * 0.5
+            p.vy = -math.abs(p.vy) * config.player.bounceFactor
+            handleBoundaryBounce(p.x, h - margin)
         end
     end
 

@@ -56,6 +56,10 @@ local config = {
         -- away from its spawn point. This does not affect chase/attack behavior;
         -- it only keeps "idle" enemies loosely leashed to their home area.
         wanderRadius = 600,
+        -- Obstacle avoidance steering settings
+        avoidanceRadius = 180,    -- How far ahead to scan for obstacles
+        avoidanceStrength = 1.5,  -- Multiplier for avoidance steering force
+        avoidanceLookahead = 150, -- Look-ahead distance for velocity projection
     },
     input = {
         selectionRadius = 40,

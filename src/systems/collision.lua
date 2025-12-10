@@ -248,6 +248,31 @@ local function spawnProjectileShards(projectile, target, contactX, contactY, rad
     projectileShards.spawn(ix, iy, dirX, dirY, baseSpeed, baseCount, projectileColor)
 end
 
+local function spawnShieldImpactVisual(target, projectile, contactX, contactY, radius)
+    if not shieldImpactFx or not shieldImpactFx.spawn then
+        return
+    end
+    if not target then
+        return
+    end
+
+    local cx = target.x or contactX or (projectile and projectile.x)
+    local cy = target.y or contactY or (projectile and projectile.y)
+    local ix = contactX or cx
+    local iy = contactY or cy
+    local shieldRadius = radius or getBoundingRadius(target)
+
+    if not shieldRadius or shieldRadius <= 0 then
+        return
+    end
+    if not cx or not cy or not ix or not iy then
+        return
+    end
+
+    local color = baseColors.shieldDamage or baseColors.projectile or baseColors.white
+    shieldImpactFx.spawn(cx, cy, ix, iy, shieldRadius * 1.15, color)
+end
+
 --- Compute a simple resource yield table for an asteroid based on its
 --- procedural stone/ice/mithril composition and size.
 --- @param asteroid table The asteroid entity
@@ -386,6 +411,11 @@ local function resolveProjectileHit(projectile, target, contactX, contactY, radi
     -- Handle miss logic (for shots that can miss)
     if config.canMiss and not rollHitChance(projectile) then
         spawnProjectileShards(projectile, target, contactX, contactY, radius, 0.6)
+
+        if target and target.shield and target.shield > 0 then
+            spawnShieldImpactVisual(target, projectile, contactX, contactY, radius)
+        end
+
         removeEntity(bullets, projectile)
         return
     end
@@ -401,17 +431,7 @@ local function resolveProjectileHit(projectile, target, contactX, contactY, radi
     if shieldDamage and shieldDamage > 0 then
         local shieldColor = baseColors.shieldDamage or baseColors.projectile or (currentColors and currentColors.projectile) or baseColors.white
         spawnDamageText(shieldDamage, target.x, target.y, radius, shieldColor, nil)
-    end
-
-    if shieldDamage and shieldDamage > 0 and shieldImpactFx and shieldImpactFx.spawn then
-        local cx = target.x or contactX or (projectile and projectile.x)
-        local cy = target.y or contactY or (projectile and projectile.y)
-        local ix = contactX or cx
-        local iy = contactY or cy
-        local shieldRadius = radius or getBoundingRadius(target)
-        if shieldRadius and shieldRadius > 0 and cx and cy and ix and iy then
-            shieldImpactFx.spawn(cx, cy, ix, iy, shieldRadius * 1.15, baseColors.shieldDamage or baseColors.projectile or baseColors.white)
-        end
+        spawnShieldImpactVisual(target, projectile, contactX, contactY, radius)
     end
 
     -- Hull damage (use configured damage text color)
@@ -630,6 +650,12 @@ local function resolveShipVsAsteroid(ship, asteroid, contactX, contactY)
     if distance < minDistance then
         local overlap = minDistance - distance
         local invDist = 1.0 / distance
+
+        ------------------------------------------------------------------
+        -- Positional resolve: push the ship out of the asteroid so that the
+        -- two shapes no longer overlap. This keeps the physics stable and
+        -- avoids jitter at the contact point.
+        ------------------------------------------------------------------
         ship.x = ship.x + dx * invDist * overlap
         ship.y = ship.y + dy * invDist * overlap
         
@@ -638,7 +664,10 @@ local function resolveShipVsAsteroid(ship, asteroid, contactX, contactY)
             ship.body:setPosition(ship.x, ship.y)
         end
         
-        -- Subtle spark effect at the true contact point when available
+        ------------------------------------------------------------------
+        -- Visual sparks at the contact point; reused for both player and
+        -- enemy ships so asteroid impacts always feel physical.
+        ------------------------------------------------------------------
         local sparkX, sparkY = contactX, contactY
         if not sparkX or not sparkY then
             sparkX = asteroid.x + dx * invDist * asteroidRadius
@@ -647,6 +676,46 @@ local function resolveShipVsAsteroid(ship, asteroid, contactX, contactY)
 
         if sparkX and sparkY and currentParticles then
             currentParticles.spark(sparkX, sparkY, baseColors.asteroidSpark, 2)
+        end
+
+        ------------------------------------------------------------------
+        -- Shield impact FX + bounce for the player ship when shields are up.
+        -- Enemies keep their existing sliding behavior so they do not jitter
+        -- around asteroids as aggressively.
+        ------------------------------------------------------------------
+        if ship == playerModule.state and ship.shield and ship.shield > 0 then
+            if shieldImpactFx and shieldImpactFx.spawn then
+                local sx = ship.x
+                local sy = ship.y
+                local ix = sparkX
+                local iy = sparkY
+                local shieldRadius = getBoundingRadius(ship)
+
+                if shieldRadius and shieldRadius > 0 and sx and sy and ix and iy then
+                    shieldImpactFx.spawn(sx, sy, ix, iy, shieldRadius * 1.15, baseColors.shieldDamage or baseColors.projectile or baseColors.white)
+                end
+            end
+
+            -- Reflect the player's velocity around the contact normal so that
+            -- the ship "bounces" off the asteroid surface while losing a bit
+            -- of speed according to the configured bounceFactor.
+            local vx = ship.vx or 0
+            local vy = ship.vy or 0
+            local speedSq = vx * vx + vy * vy
+            if speedSq > 0 then
+                local nx = dx * invDist
+                local ny = dy * invDist
+                local dot = vx * nx + vy * ny
+
+                -- Only reflect if we are actually moving into the surface.
+                if dot < 0 then
+                    local bounce = config.player.bounceFactor or 0.5
+                    local rvx = vx - 2 * dot * nx
+                    local rvy = vy - 2 * dot * ny
+                    ship.vx = rvx * bounce
+                    ship.vy = rvy * bounce
+                end
+            end
         end
     end
 end

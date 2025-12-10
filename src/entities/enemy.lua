@@ -8,6 +8,7 @@ local weapons = require("src.core.weapons")
 local projectileModule = require("src.entities.projectile")
 local config = require("src.core.config")
 local ship_renderer = require("src.render.ship_renderer")
+local asteroidModule = require("src.entities.asteroid")
 
 function enemy.spawn(world, safeRadius)
     local side = math.random(1, 4)
@@ -61,7 +62,7 @@ function enemy.spawn(world, safeRadius)
 
     local collisionRadius = (ship and ship.boundingRadius) or size
     local consts = physics.constants
-    
+
     -- Get collision vertices from the ship's hull
     local collisionVertices = nil
     if ship then
@@ -71,7 +72,7 @@ function enemy.spawn(world, safeRadius)
             collisionVertices = ship_generator.getBaseOutline(ship)
         end
     end
-    
+
     -- Create the enemy entity first (so we can pass it to physics)
     local newEnemy = {
         x = x,
@@ -80,7 +81,7 @@ function enemy.spawn(world, safeRadius)
         spawnX = x,
         spawnY = y,
         -- Zero-g velocity
-        vx = (math.random() - 0.5) * config.enemy.initialDriftSpeed,  -- Small initial drift
+        vx = (math.random() - 0.5) * config.enemy.initialDriftSpeed, -- Small initial drift
         vy = (math.random() - 0.5) * config.enemy.initialDriftSpeed,
         size = size,
         thrust = consts.enemyThrust,
@@ -107,7 +108,7 @@ function enemy.spawn(world, safeRadius)
         wanderRadius = config.enemy.wanderRadius,
         isThrusting = false
     }
-    
+
     -- Create physics body with polygon collision from ship hull
     if collisionVertices and #collisionVertices >= 6 then
         newEnemy.body, newEnemy.shapes, newEnemy.fixtures = physics.createPolygonBody(
@@ -125,11 +126,77 @@ function enemy.spawn(world, safeRadius)
             newEnemy
         )
         newEnemy.body = body
-        newEnemy.shapes = shape and {shape} or nil
-        newEnemy.fixtures = fixture and {fixture} or nil
+        newEnemy.shapes = shape and { shape } or nil
+        newEnemy.fixtures = fixture and { fixture } or nil
     end
-    
+
     table.insert(enemy.list, newEnemy)
+end
+
+--- Compute obstacle avoidance steering vector for an enemy.
+--- Scans nearby asteroids and returns a steering direction to avoid collisions.
+--- @param e table The enemy entity
+--- @return number, number Avoidance steering vector (avoidX, avoidY)
+local function computeAvoidanceSteering(e)
+    local asteroids = asteroidModule.list
+    if not asteroids or #asteroids == 0 then
+        return 0, 0
+    end
+
+    local avoidRadius = config.enemy.avoidanceRadius or 180
+    local lookahead = config.enemy.avoidanceLookahead or 150
+
+    local avoidX, avoidY = 0, 0
+
+    -- Compute current speed for lookahead projection
+    local speed = math.sqrt(e.vx * e.vx + e.vy * e.vy)
+    local futureX, futureY = e.x, e.y
+
+    -- Project future position based on velocity direction
+    if speed > 1 then
+        futureX = e.x + (e.vx / speed) * lookahead
+        futureY = e.y + (e.vy / speed) * lookahead
+    end
+
+    local shipRadius = e.collisionRadius or e.size or 20
+
+    for i = 1, #asteroids do
+        local a = asteroids[i]
+        if a and a.x and a.y then
+            local asteroidRadius = a.collisionRadius or a.size or 20
+            local combinedRadius = shipRadius + asteroidRadius
+            local checkRadius = avoidRadius + combinedRadius
+
+            -- Check both current position and projected future position
+            local dx1, dy1 = e.x - a.x, e.y - a.y
+            local dist1Sq = dx1 * dx1 + dy1 * dy1
+
+            local dx2, dy2 = futureX - a.x, futureY - a.y
+            local dist2Sq = dx2 * dx2 + dy2 * dy2
+
+            -- Use whichever is closer as the primary avoidance concern
+            local dx, dy, distSq
+            if dist2Sq < dist1Sq then
+                dx, dy, distSq = dx2, dy2, dist2Sq
+            else
+                dx, dy, distSq = dx1, dy1, dist1Sq
+            end
+
+            local checkRadiusSq = checkRadius * checkRadius
+            if distSq < checkRadiusSq and distSq > 0 then
+                local dist = math.sqrt(distSq)
+                -- Weight increases as we get closer (quadratic falloff)
+                local t = 1 - (dist / checkRadius)
+                local weight = t * t
+
+                -- Steer away from the asteroid
+                avoidX = avoidX + (dx / dist) * weight
+                avoidY = avoidY + (dy / dist) * weight
+            end
+        end
+    end
+
+    return avoidX, avoidY
 end
 
 function enemy.update(dt, playerState, world)
@@ -178,7 +245,7 @@ function enemy.update(dt, playerState, world)
         -- Calculate target angle based on state
         local thrustAngle = e.angle
         e.isThrusting = false
-        
+
         if e.state == "chase" then
             -- Chase: thrust towards player
             if distance > 0 then
@@ -264,9 +331,36 @@ function enemy.update(dt, playerState, world)
         -- Smoothly rotate towards target angle
         e.angle = physics.rotateTowards(e.angle, e.targetAngle, consts.shipRotationSpeed * 0.8, dt)
 
-        -- Apply thrust if thrusting
+        -- Compute obstacle avoidance steering and blend with thrust direction
+        local avoidX, avoidY = computeAvoidanceSteering(e)
+        local avoidMagnitude = math.sqrt(avoidX * avoidX + avoidY * avoidY)
+
+        -- Apply thrust if thrusting, blending in avoidance when obstacles are nearby
         if e.isThrusting then
+            local avoidanceStrength = config.enemy.avoidanceStrength or 1.5
+
+            if avoidMagnitude > 0.01 then
+                -- Compute current goal direction from thrust angle
+                local goalX = math.cos(thrustAngle)
+                local goalY = math.sin(thrustAngle)
+
+                -- Blend goal direction with avoidance steering
+                local blendedX = goalX + avoidX * avoidanceStrength
+                local blendedY = goalY + avoidY * avoidanceStrength
+
+                -- Normalize and use as new thrust angle
+                local blendedLen = math.sqrt(blendedX * blendedX + blendedY * blendedY)
+                if blendedLen > 0 then
+                    thrustAngle = math.atan2(blendedY, blendedX)
+                end
+            end
+
             e.vx, e.vy = physics.applyThrust(e.vx, e.vy, thrustAngle, e.thrust, dt, e.maxSpeed)
+        elseif avoidMagnitude > 0.1 then
+            -- Even when not actively thrusting, apply gentle avoidance if very close to obstacle
+            local emergencyThrust = e.thrust * 0.3
+            local avoidAngle = math.atan2(avoidY, avoidX)
+            e.vx, e.vy = physics.applyThrust(e.vx, e.vy, avoidAngle, emergencyThrust, dt, e.maxSpeed)
         end
 
         -- Apply minimal damping

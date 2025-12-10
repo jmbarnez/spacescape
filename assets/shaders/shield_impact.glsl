@@ -31,20 +31,22 @@ vec4 effect(vec4 vcolor, Image tex, vec2 texcoord, vec2 screencoord) {
 
     // Project the current pixel onto the center->impact axis in shield space.
     vec2 shieldDir = toCenter / r;
-    float axialPos = dot(shieldDir, dirCI);      // position along the axis
-    vec2 lateralVec = shieldDir - dirCI * axialPos;
-    float lateral = length(lateralVec);          // distance away from the axis
+    float lenSD = length(shieldDir);
+    vec2 shieldDirNorm = lenSD > 0.0 ? shieldDir / lenSD : dirCI;
+    float cosAngle = clamp(dot(shieldDirNorm, dirCI), -1.0, 1.0);
+    float angleDiff = acos(cosAngle);
+    float normAngle = angleDiff / 3.14159265;
 
     // A thin streak along the axis from center toward impact.
-    float streak = exp(-36.0 * lateral * lateral);
+    float streak = exp(-36.0 * normAngle * normAngle);
 
     // Outward-traveling energy wave along the shield radius.
-    float wavePos = t * 1.2; // expands slightly beyond 1.0 to allow soft fade
-    float wave = exp(-48.0 * (ndCenter - wavePos) * (ndCenter - wavePos));
+    float spread = 0.08 + t * 0.9; // angular spread grows over time
+    float wave = exp(- (normAngle * normAngle) / (2.0 * spread * spread));
 
     // Fade intensity toward the outer edge of the shield so the effect feels
     // contained within the field rather than a hard disc.
-    float radialFalloff = smoothstep(1.15, 0.55, ndCenter);
+    float radialFalloff = exp(-((ndCenter - 1.0) * (ndCenter - 1.0)) / (2.0 * 0.08 * 0.08));
 
     // Combine components into a single intensity value.
     float intensity = 0.0;

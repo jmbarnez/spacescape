@@ -12,6 +12,33 @@ floating_text.font = nil
 function floating_text.spawn(text, x, y, color, options)
     options = options or {}
 
+    local stackKey = options.stackKey
+    local stackCountIncrement = options.stackCountIncrement or 1
+    local baseText = tostring(text)
+
+    if stackKey then
+        for i = #floating_text.list, 1, -1 do
+            local f = floating_text.list[i]
+            if f.stackKey == stackKey then
+                f.stackCount = (f.stackCount or 1) + stackCountIncrement
+                f.baseText = f.baseText or f.text or baseText
+
+                if f.stackCount > 1 then
+                    f.text = f.baseText .. " x" .. f.stackCount
+                else
+                    f.text = f.baseText
+                end
+
+                f.t = 0
+                if options.duration then
+                    f.life = options.duration
+                end
+
+                return
+            end
+        end
+    end
+
     local life = options.duration or 1.2
     local riseSpeed = options.riseSpeed or 25
     local vx = options.vx or 0
@@ -26,7 +53,7 @@ function floating_text.spawn(text, x, y, color, options)
     local offsetY = (math.random() - 0.5) * 60
 
     table.insert(floating_text.list, {
-        text = tostring(text),
+        text = baseText,
         x = x + offsetX,
         y = y + offsetY,
         vx = vx,
@@ -36,7 +63,10 @@ function floating_text.spawn(text, x, y, color, options)
         alphaStart = alphaStart,
         scale = scale,
         bgColor = bgColor,
-        textColor = textColor
+        textColor = textColor,
+        stackKey = stackKey,
+        stackCount = stackKey and stackCountIncrement or nil,
+        baseText = baseText,
     })
 end
 
