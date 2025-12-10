@@ -10,7 +10,7 @@ varying float v_lifePhase;
 varying float v_type;
 varying float v_seed;
 
-extern float u_time;
+extern highp float u_time;
 
 vec4 position(mat4 transform_projection, vec4 vertex_position)
 {
@@ -59,7 +59,7 @@ extern vec3 u_colorSpark;
 extern float u_intensityExplosion;
 extern float u_intensityImpact;
 extern float u_intensitySpark;
-extern float u_time;
+extern highp float u_time;
 
 float hash(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);

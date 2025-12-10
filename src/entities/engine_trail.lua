@@ -9,8 +9,8 @@ local engine_trail = {}
 
 -- Radius range used to derive the base sprite size for the shader.
 -- Slightly larger again so each particle has more visual "body" on screen.
-local TRAIL_RADIUS_MIN = 4      -- smallest visual radius near the end of life
-local TRAIL_RADIUS_MAX = 10     -- largest visual radius when freshly spawned
+local TRAIL_RADIUS_MIN = 4  -- smallest visual radius near the end of life
+local TRAIL_RADIUS_MAX = 10 -- largest visual radius when freshly spawned
 
 -- How many trail points to spawn per emission step while thrusting.
 -- Lowered a bit so the trail feels less like a solid fog and more like
@@ -53,8 +53,8 @@ function engine_trail.load()
 
         -- GPU-backed point mesh: each vertex carries position + custom user data
         local format = {
-            {"VertexPosition", "float", 2},  -- world position
-            {"VertexUserData", "float", 4},  -- spawn time, base size, seed, unused
+            { "VertexPosition", "float", 2 }, -- world position
+            { "VertexUserData", "float", 4 }, -- spawn time, base size, seed, unused
         }
 
         -- Preallocate a dynamic point mesh for the maximum number of trail points
@@ -88,9 +88,9 @@ function engine_trail.update(dt, player)
         -- Per-particle initial velocity controls how fast the plume drifts away
         -- from the ship. We still allow a cone, but tighten it and reduce
         -- variation so the plume is less smoky and more directional.
-        local baseSpeed = 140         -- forward/back drift speed for the exhaust
-        local speedJitter = 55        -- random variation around baseSpeed
-        local dirJitter = 0.6         -- angular spread; smaller = tighter cone
+        local baseSpeed = 140  -- forward/back drift speed for the exhaust
+        local speedJitter = 55 -- random variation around baseSpeed
+        local dirJitter = 0.6  -- angular spread; smaller = tighter cone
 
         for n = 1, TRAIL_SPAWN_PER_STEP do
             -- Lateral offset spreads points across the ship width to avoid a
@@ -137,7 +137,6 @@ function engine_trail.update(dt, player)
         if p.life <= 0 then
             table.remove(engine_trail.points, i)
         else
-
             -- Time-based noise phase for gentle wobble / curl in the exhaust.
             local t = engine_trail.time * 1.1 + p.noiseOffset
 
@@ -162,7 +161,8 @@ function engine_trail.update(dt, player)
         if count > 0 then
             for i = 1, count do
                 local p = engine_trail.points[i]
-                local spawn = p.spawnTime or (engine_trail.time - (p.maxLife or engine_trail.trailLifetime) + (p.life or 0))
+                local spawn = p.spawnTime or
+                (engine_trail.time - (p.maxLife or engine_trail.trailLifetime) + (p.life or 0))
                 local size = p.size or 4
                 local seed = p.seed or 0
                 engine_trail.mesh:setVertex(i, p.x, p.y, spawn, size, seed, 0)
@@ -188,7 +188,7 @@ function engine_trail.draw()
     -- Feed timing + color information into the shader every frame
     engine_trail.shader:send("u_time", engine_trail.time)
     engine_trail.shader:send("u_trailLifetime", engine_trail.trailLifetime)
-    engine_trail.shader:send("u_colorMode", 2)
+    engine_trail.shader:send("u_colorMode", 2.0) -- Use float for WebGL compatibility
     engine_trail.shader:send("u_colorA", colors.engineTrailA)
     engine_trail.shader:send("u_colorB", colors.engineTrailB)
     engine_trail.shader:send("u_intensity", TRAIL_INTENSITY)

@@ -100,10 +100,9 @@ echo [build_web] Running love.js to create web build...
 echo [build_web] This may take a moment...
 echo.
 
-rem Use npx to run love.js (will download if not cached)
-rem -t sets the title, -c enables compatibility mode for broader browser support
-rem On Windows, must use love.js.cmd instead of love.js
-npx love.js.cmd "%DIST_DIR%\%LOVE_FILE%" "%WEB_DIR%" -t "%GAME_TITLE%" -c
+rem Run love.js using the locally installed module
+rem -t sets the title, -c enables compatibility mode, -m sets memory (64MB)
+node node_modules/love.js/index.js "%DIST_DIR%\%LOVE_FILE%" "%WEB_DIR%" -t "%GAME_TITLE%" -c -m 67108864
 
 rem Check the result
 if %ERRORLEVEL% NEQ 0 (

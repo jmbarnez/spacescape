@@ -9,9 +9,9 @@ varying float v_alpha;
 varying float v_lifePhase;
 varying float v_seed;
 
-extern float u_time;
-extern float u_trailLifetime;
-extern int u_colorMode;
+extern highp float u_time;
+extern mediump float u_trailLifetime;
+extern mediump float u_colorMode;  // Changed from int to float for WebGL compat
 
 vec4 position(mat4 transform_projection, vec4 vertex_position) {
     float a_lifetime = VertexUserData.x;
@@ -53,11 +53,11 @@ varying float v_lifePhase;
 varying float v_seed;
 varying vec2 v_texCoord;
 
-extern vec3 u_colorA;
-extern vec3 u_colorB;
-extern int  u_colorMode;
-extern float u_intensity;
-extern float u_time;
+extern mediump vec3 u_colorA;
+extern mediump vec3 u_colorB;
+extern mediump float u_colorMode;  // Changed from int to float for WebGL compat
+extern mediump float u_intensity;
+extern highp float u_time;
 
 // Noise functions for smoke/plume variation
 float hash(vec2 p) {
@@ -151,11 +151,11 @@ vec4 effect(vec4 color, Image texture, vec2 texcoord, vec2 screen_coords) {
     // ------------------------------------------------------------
 
     vec3 trailColor;
-    if (u_colorMode == 0) {
+    if (u_colorMode < 0.5) {
         trailColor = u_colorA;
-    } else if (u_colorMode == 1) {
+    } else if (u_colorMode < 1.5) {
         trailColor = mix(u_colorA, u_colorB, life);
-    } else if (u_colorMode == 2) {
+    } else if (u_colorMode < 2.5) {
         // Neon exhaust: bright cyan/white core with cooler outer halo
         float hueShift = clamp(life * 0.55 + swirlCombined * 0.25, 0.0, 1.0);
         vec3 mixed = mix(u_colorA, u_colorB, hueShift);
