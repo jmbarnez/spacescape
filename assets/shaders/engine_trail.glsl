@@ -76,13 +76,14 @@ vec4 effect(vec4 color, Image texture, vec2 texcoord, vec2 screen_coords) {
     spec = pow(spec, 1.2) * 0.9;
 
     // ============================================
-    // INTENSE CYAN COLORS
+    // DYNAMIC COLORS (uses u_colorA and u_colorB)
     // ============================================
     
-    vec3 cyanHot = vec3(0.6, 1.0, 1.0);       // Hot white-cyan
-    vec3 cyanBright = vec3(0.0, 1.0, 1.0);    // Pure bright cyan
-    vec3 cyanMid = vec3(0.0, 0.85, 1.0);      // Slightly blue-shifted
-    vec3 cyanDeep = vec3(0.0, 0.6, 0.9);      // Deeper blue-cyan
+    // Derive color palette from the uniform colors
+    vec3 colorHot = mix(u_colorA, vec3(1.0), 0.5);   // Lighter/white version
+    vec3 colorBright = u_colorA;                      // Main bright color
+    vec3 colorMid = mix(u_colorA, u_colorB, 0.3);    // Mid blend
+    vec3 colorDeep = u_colorB;                        // Deeper color
     vec3 white = vec3(1.0, 1.0, 1.0);
 
     vec3 bubbleColor;
@@ -91,22 +92,22 @@ vec4 effect(vec4 color, Image texture, vec2 texcoord, vec2 screen_coords) {
     } else if (u_colorMode < 1.5) {
         bubbleColor = mix(u_colorA, u_colorB, life);
     } else {
-        // Bubbly cyan mode
+        // Bubbly mode with dynamic colors
         
         // Start with body gradient
-        bubbleColor = mix(cyanBright, cyanMid, smoothstep(0.0, 0.4, dist));
+        bubbleColor = mix(colorBright, colorMid, smoothstep(0.0, 0.4, dist));
         
         // Hot core
-        bubbleColor = mix(bubbleColor, cyanHot, core * 0.9);
+        bubbleColor = mix(bubbleColor, colorHot, core * 0.9);
         
         // Bright rim
-        bubbleColor = mix(bubbleColor, cyanBright * 1.2, rim);
+        bubbleColor = mix(bubbleColor, colorBright * 1.2, rim);
         
         // White specular
         bubbleColor = mix(bubbleColor, white, spec);
         
         // Age: older bubbles get deeper/cooler
-        bubbleColor = mix(bubbleColor, cyanDeep, life * 0.3);
+        bubbleColor = mix(bubbleColor, colorDeep, life * 0.3);
         
         // Shimmer animation
         float shimmer = 0.9 + 0.1 * sin(u_time * 8.0 + seed * 20.0);

@@ -91,6 +91,8 @@ local function findEnemyAtPosition(x, y, maxRadius)
 end
 
 function combat.updateAutoShoot(dt, player)
+    -- Validate lock and active target; if either becomes invalid we clear the
+    -- reference so we never try to fire at destroyed entities.
     if lockTarget and not isEnemyValid(lockTarget) then
         lockTarget = nil
         lockTimer = 0
@@ -98,23 +100,13 @@ function combat.updateAutoShoot(dt, player)
 
     if targetEnemy and not isEnemyValid(targetEnemy) then
         targetEnemy = nil
-        fireTimer = 0
+        -- NOTE: we intentionally do NOT reset fireTimer here so the global
+        -- weapon cooldown continues counting from the last shot, even if the
+        -- target disappears mid-fight.
     end
 
-    if lockTarget and not targetEnemy then
-        lockTimer = lockTimer + dt
-        if lockDuration > 0 and lockTimer >= lockDuration then
-            lockTimer = lockDuration
-            targetEnemy = lockTarget
-            fireTimer = 0
-        end
-    end
-
-    if not targetEnemy then
-        return
-    end
-
-    fireTimer = fireTimer + dt
+    -- Resolve the effective fire interval for the current weapon, including
+    -- any attack-speed bonuses the player might have.
     local interval = fireInterval
     if player.weapon and player.weapon.fireInterval then
         interval = player.weapon.fireInterval
@@ -125,6 +117,42 @@ function combat.updateAutoShoot(dt, player)
         interval = interval / (1 + bonus)
     end
 
+    -- Always advance the weapon cooldown timer, even when we do not currently
+    -- have a locked target. This allows us to know, at the precise moment a
+    -- lock completes, whether the weapon is already off cooldown and can fire
+    -- instantly.
+    fireTimer = fireTimer + dt
+
+    -- Handle lock-on progression. Once the lock duration is reached we
+    -- promote the lock target to the active target and, if the cooldown has
+    -- finished, immediately fire the first shot.
+    if lockTarget and not targetEnemy then
+        lockTimer = lockTimer + dt
+
+        if lockDuration > 0 and lockTimer >= lockDuration then
+            lockTimer = lockDuration
+            targetEnemy = lockTarget
+
+            -- Auto-fire a shot as soon as the player is fully locked-on,
+            -- unless the weapon is still on cooldown.
+            if isEnemyValid(targetEnemy) and fireTimer >= interval then
+                fireTimer = 0
+                projectileModule.spawn(player, targetEnemy.x, targetEnemy.y, targetEnemy)
+                -- We fired this frame; skip the generic auto-fire logic below
+                -- to avoid double shots.
+                return
+            end
+        end
+    end
+
+    -- If there is no active target yet, there is nothing left to do this
+    -- frame. The cooldown timer will continue to tick in the background.
+    if not targetEnemy then
+        return
+    end
+
+    -- Standard auto-fire loop: once the cooldown reaches the required
+    -- interval, fire and reset the timer.
     if fireTimer >= interval then
         fireTimer = 0
         projectileModule.spawn(player, targetEnemy.x, targetEnemy.y, targetEnemy)
@@ -136,16 +164,21 @@ function combat.handleLeftClick(worldX, worldY, selectionRadius)
 
     if enemy then
         if enemy ~= targetEnemy then
+            -- Begin locking onto a new target. We deliberately keep the global
+            -- fireTimer intact so that the weapon cooldown carries across
+            -- target changes; this lets us fire immediately on lock
+            -- completion when the weapon is already ready.
             lockTarget = enemy
             lockTimer = 0
             targetEnemy = nil
-            fireTimer = 0
         end
     else
+        -- Clearing the current target/lock should also leave the cooldown
+        -- untouched; the timer is driven solely by time since the last
+        -- projectile was fired.
         targetEnemy = nil
         lockTarget = nil
         lockTimer = 0
-        fireTimer = 0
     end
 end
 

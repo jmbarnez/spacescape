@@ -23,12 +23,13 @@ function explosion_fx.spawn(x, y, color, radius)
     table.insert(explosion_fx.list, {
         x = x,
         y = y,
-        radius = radius,
-        color = {color[1] or 1, color[2] or 1, color[3] or 1},
+        radius = radius * 1.2, -- Slightly larger for enhanced effect
+        color = { color[1] or 1, color[2] or 1, color[3] or 1 },
         startTime = love.timer.getTime(),
-        duration = 0.4
+        duration = 0.6 -- Longer duration for dramatic effect
     })
 end
+
 function explosion_fx.draw()
     if #explosion_fx.list == 0 then
         return
@@ -66,7 +67,7 @@ function explosion_fx.draw()
                 local screenX = (e.x - camX) * camScale + width / 2
                 local screenY = (e.y - camY) * camScale + height / 2
 
-                shader:send("center", {screenX, screenY})
+                shader:send("center", { screenX, screenY })
                 shader:send("radius", e.radius * camScale)
                 shader:send("color", e.color)
                 shader:send("progress", t)

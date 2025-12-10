@@ -77,7 +77,7 @@ local function registerUpdateSystems()
 	end, 30)
 
 	systems.registerUpdate("engineTrail", function(dt, ctx)
-		engineTrail.update(dt, ctx.player)
+		engineTrail.update(dt, ctx.player, enemyModule.list)
 	end, 40)
 
 	systems.registerUpdate("camera", function(dt, ctx)
