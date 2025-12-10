@@ -1,7 +1,7 @@
 --------------------------------------------------------------------------------
 -- COLLISION SYSTEM
 -- Unified collision handling using Box2D callbacks with type-based dispatch
--- 
+--
 -- This system registers itself with the physics module to receive collision
 -- events. When two fixtures collide, Box2D calls our onBeginContact handler,
 -- which dispatches to the appropriate handler based on entity types.
@@ -90,7 +90,7 @@ local function getContactPoint(x1, y1, x2, y2, boundingRadius)
         local invDist = 1.0 / distance
         -- Point on the target's surface, facing the projectile's center
         return x2 + dx * invDist * boundingRadius,
-               y2 + dy * invDist * boundingRadius
+            y2 + dy * invDist * boundingRadius
     end
 
     -- Fallback: just use the projectile position if something is degenerate
@@ -234,9 +234,12 @@ local function spawnProjectileShards(projectile, target, contactX, contactY, rad
     end
 
     local baseSpeed = projectile.speed or (physics.constants and physics.constants.projectileSpeed) or 350
-    local baseCount = 10
+
+    -- Scale shard count based on projectile size (subtle: 3-5 shards max)
+    local projectileRadius = 4 -- Default projectile radius
+    local baseCount = math.max(2, math.min(5, math.floor(projectileRadius / 2) + 2))
     if countScale and countScale > 0 then
-        baseCount = math.max(4, math.floor(baseCount * countScale))
+        baseCount = math.max(2, math.floor(baseCount * countScale))
     end
 
     local projectileConfig = projectile.projectileConfig or (projectile.weapon and projectile.weapon.projectile)
@@ -429,7 +432,8 @@ local function resolveProjectileHit(projectile, target, contactX, contactY, radi
 
     -- Shield damage (bright blue)
     if shieldDamage and shieldDamage > 0 then
-        local shieldColor = baseColors.shieldDamage or baseColors.projectile or (currentColors and currentColors.projectile) or baseColors.white
+        local shieldColor = baseColors.shieldDamage or baseColors.projectile or
+        (currentColors and currentColors.projectile) or baseColors.white
         spawnDamageText(shieldDamage, target.x, target.y, radius, shieldColor, nil)
         spawnShieldImpactVisual(target, projectile, contactX, contactY, radius)
     end
@@ -465,7 +469,7 @@ local function handlePlayerProjectileVsEnemy(projectile, enemy, contactX, contac
     if projectile.target and projectile.target ~= enemy then
         return
     end
-    
+
     local enemyRadius = getBoundingRadius(enemy)
 
     resolveProjectileHit(projectile, enemy, contactX, contactY, enemyRadius, {
@@ -523,7 +527,8 @@ end
 --- @param contactY number Contact point Y (optional)
 local function handleProjectileVsAsteroid(projectile, asteroid, contactX, contactY)
     local asteroidRadius = getBoundingRadius(asteroid)
-    local asteroidColor = (asteroid.data and asteroid.data.color) or (currentColors and currentColors.enemy) or baseColors.enemy
+    local asteroidColor = (asteroid.data and asteroid.data.color) or (currentColors and currentColors.enemy) or
+    baseColors.enemy
 
     -- Asteroids always get hit (no miss chance)
     resolveProjectileHit(projectile, asteroid, contactX, contactY, asteroidRadius, {
@@ -561,7 +566,7 @@ end
 --- @param contactY number|nil Contact point Y (optional)
 local function handlePlayerVsEnemy(player, enemy, contactX, contactY)
     local enemyRadius = getBoundingRadius(enemy)
-    
+
     -- Destroy the enemy on contact
     explosionFx.spawn(enemy.x, enemy.y, currentColors.enemy, enemyRadius * 1.4)
     cleanupProjectilesForTarget(enemy)
@@ -574,14 +579,15 @@ local function handlePlayerVsEnemy(player, enemy, contactX, contactY)
     end
     local resources = computeEnemyResourceYield(enemy, enemyRadius)
     spawnResourceChunksAt(enemy.x, enemy.y, resources)
-    
+
     -- Damage the player; shields absorb before hull
     local damage = currentDamagePerHit
     local died, shieldDamage, hullDamage = applyDamage(player, damage)
 
     -- Shield damage text (bright blue)
     if shieldDamage and shieldDamage > 0 then
-        local shieldColor = baseColors.shieldDamage or baseColors.projectile or (currentColors and currentColors.projectile) or baseColors.white
+        local shieldColor = baseColors.shieldDamage or baseColors.projectile or
+        (currentColors and currentColors.projectile) or baseColors.white
         spawnDamageText(shieldDamage, player.x, player.y, player.size, shieldColor, nil)
     end
 
@@ -592,7 +598,8 @@ local function handlePlayerVsEnemy(player, enemy, contactX, contactY)
         local iy = contactY or (enemy and enemy.y) or py
         local radius = getBoundingRadius(player)
         if radius and radius > 0 and px and py and ix and iy then
-            shieldImpactFx.spawn(px, py, ix, iy, radius * 1.15, baseColors.shieldDamage or baseColors.projectile or baseColors.white)
+            shieldImpactFx.spawn(px, py, ix, iy, radius * 1.15,
+                baseColors.shieldDamage or baseColors.projectile or baseColors.white)
         end
     end
 
@@ -600,7 +607,7 @@ local function handlePlayerVsEnemy(player, enemy, contactX, contactY)
     if hullDamage and hullDamage > 0 then
         spawnDamageText(hullDamage, player.x, player.y, player.size, DAMAGE_COLOR_PLAYER, nil)
     end
-    
+
     if died then
         explosionFx.spawn(player.x, player.y, currentColors.ship, player.size * 2.2)
         playerDiedThisFrame = true
@@ -645,7 +652,7 @@ local function resolveShipVsAsteroid(ship, asteroid, contactX, contactY)
     end
 
     local minDistance = shipRadius + asteroidRadius
-    
+
     -- Push ship away from asteroid
     if distance < minDistance then
         local overlap = minDistance - distance
@@ -658,12 +665,12 @@ local function resolveShipVsAsteroid(ship, asteroid, contactX, contactY)
         ------------------------------------------------------------------
         ship.x = ship.x + dx * invDist * overlap
         ship.y = ship.y + dy * invDist * overlap
-        
+
         -- Sync physics body position
         if ship.body then
             ship.body:setPosition(ship.x, ship.y)
         end
-        
+
         ------------------------------------------------------------------
         -- Visual sparks at the contact point; reused for both player and
         -- enemy ships so asteroid impacts always feel physical.
@@ -692,7 +699,8 @@ local function resolveShipVsAsteroid(ship, asteroid, contactX, contactY)
                 local shieldRadius = getBoundingRadius(ship)
 
                 if shieldRadius and shieldRadius > 0 and sx and sy and ix and iy then
-                    shieldImpactFx.spawn(sx, sy, ix, iy, shieldRadius * 1.15, baseColors.shieldDamage or baseColors.projectile or baseColors.white)
+                    shieldImpactFx.spawn(sx, sy, ix, iy, shieldRadius * 1.15,
+                        baseColors.shieldDamage or baseColors.projectile or baseColors.white)
                 end
             end
 
@@ -801,14 +809,14 @@ local function processCollision(dataA, dataB, contactX, contactY)
     if not entityA or not entityB or entityA._removed or entityB._removed then
         return
     end
-    
+
     local typeA = dataA.type
     local typeB = dataB.type
-    
+
     -- Look up the handler
     local key = typeA .. ":" .. typeB
     local entry = COLLISION_HANDLERS[key]
-    
+
     if entry then
         -- Call handler with entities in correct order
         if entry.order == "ab" then
@@ -842,7 +850,7 @@ function collision.update(player, particlesModule, colors, damagePerHit)
     currentColors = colors
     currentDamagePerHit = damagePerHit or config.combat.damagePerHit
     playerDiedThisFrame = false
-    
+
     -- Process all pending collisions
     for _, pending in ipairs(pendingCollisions) do
         processCollision(pending.dataA, pending.dataB, pending.contactX, pending.contactY)
@@ -857,7 +865,8 @@ function collision.update(player, particlesModule, colors, damagePerHit)
     -- generates impact FX and damage.
     ------------------------------------------------------------------------
     if false and bullets and #bullets > 0 then
-        local bulletRadius = config.combat.bulletRadius  -- Matches projectile collision radius in physics.createCircleBody
+        local bulletRadius = config.combat
+        .bulletRadius                                   -- Matches projectile collision radius in physics.createCircleBody
 
         for bi = #bullets, 1, -1 do
             local b = bullets[bi]
@@ -953,7 +962,7 @@ function collision.update(player, particlesModule, colors, damagePerHit)
 
     -- Clear the queue
     pendingCollisions = {}
-    
+
     return playerDiedThisFrame
 end
 
