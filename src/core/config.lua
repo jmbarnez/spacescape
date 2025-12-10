@@ -29,6 +29,8 @@ local config = {
         xpGrowth = 25,
         xpPerEnemy = 25,
         xpPerAsteroid = 5,
+        tokensPerEnemy = 1,
+        tokensPerAsteroid = 1,
         -- Radius (in world units) around the player ship within which loose
         -- item pickups (XP shards, future resources) begin to feel the
         -- magnetic pull.

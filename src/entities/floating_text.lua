@@ -1,4 +1,5 @@
 local colors = require("src.core.colors")
+local xpTokenIcons = require("src.render.hud.xp_token_icons")
 
 local floating_text = {}
 
@@ -17,6 +18,7 @@ function floating_text.spawn(text, x, y, color, options)
     local stackValueIncrement = options.stackValueIncrement
     local baseText = tostring(text)
     local stackBaseText = options.stackBaseText
+    local iconPreset = options.iconPreset
 
     if stackKey then
         for i = #floating_text.list, 1, -1 do
@@ -90,6 +92,7 @@ function floating_text.spawn(text, x, y, color, options)
             stackCount = nil,
             stackValue = value,
             baseText = labelText,
+            iconPreset = iconPreset,
         })
     else
         table.insert(floating_text.list, {
@@ -107,6 +110,7 @@ function floating_text.spawn(text, x, y, color, options)
             stackKey = stackKey,
             stackCount = stackKey and stackCountIncrement or nil,
             baseText = baseText,
+            iconPreset = iconPreset,
         })
     end
 end
@@ -157,10 +161,31 @@ function floating_text.draw()
         local w = font:getWidth(text) * scale
         local h = font:getHeight() * scale
 
-        -- Colored text only (no background box behind it)
+        local baseX = f.x
+        local baseY = f.y
+
+        if f.iconPreset == "xp_only" or f.iconPreset == "token_only" or f.iconPreset == "xp_token" then
+            local iconRadius = 5 * scale
+            local margin = 6 * scale
+            local iconCenterY = baseY
+
+            if f.iconPreset == "xp_only" then
+                local xpCenterX = baseX - w / 2 - margin - iconRadius
+                xpTokenIcons.drawXpIcon(xpCenterX, iconCenterY, iconRadius, alpha)
+            elseif f.iconPreset == "token_only" then
+                local tokenCenterX = baseX - w / 2 - margin - iconRadius
+                xpTokenIcons.drawTokenIcon(tokenCenterX, iconCenterY, iconRadius, alpha)
+            elseif f.iconPreset == "xp_token" then
+                local xpCenterX = baseX - w / 2 - margin - iconRadius
+                local tokenCenterX = baseX + w / 2 + margin + iconRadius
+                xpTokenIcons.drawXpIcon(xpCenterX, iconCenterY, iconRadius, alpha)
+                xpTokenIcons.drawTokenIcon(tokenCenterX, iconCenterY, iconRadius, alpha)
+            end
+        end
+
         local tc = f.textColor
         love.graphics.setColor(tc[1], tc[2], tc[3], alpha)
-        love.graphics.print(text, f.x - w / 2, f.y - h / 2, 0, scale, scale)
+        love.graphics.print(text, baseX - w / 2, baseY - h / 2, 0, scale, scale)
     end
 
     love.graphics.setFont(prevFont)

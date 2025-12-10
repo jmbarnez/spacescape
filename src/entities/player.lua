@@ -102,6 +102,7 @@ player.state = {
     xpToNext = config.player.xpBase,
     xpRatio = 0,
     totalXp = 0,         -- Lifetime XP for this run; always increases
+    currency = 0,
     -- Simple cargo component for storing mined / salvaged resources on the
     -- currently piloted ship. This is now backed by a fixed-size slot array so
     -- the HUD can render a 4x4 inventory grid that supports drag-and-drop and
@@ -278,6 +279,15 @@ function player.addExperience(amount)
     -- Recalculate ratio after leveling and possible XP reset.
     recalcXpProgress(p)
     return leveledUp
+end
+
+function player.addCurrency(amount)
+    local p = player.state
+    if not amount or amount <= 0 then
+        return 0
+    end
+    p.currency = (p.currency or 0) + amount
+    return amount
 end
 
 function player.resetExperience()
@@ -493,7 +503,13 @@ function player.update(dt, world)
         end
 
         local color = colors.shieldDamage or colors.projectile or colors.white
-        shieldImpactFx.spawn(cx, cy, ix, iy, radius * 1.15, color)
+
+        ----------------------------------------------------------------------
+        -- Attach the shield FX to the player state so the ring continues to
+        -- wrap the ship as it slides along the world boundary instead of
+        -- being left behind at the initial contact point.
+        ----------------------------------------------------------------------
+        shieldImpactFx.spawn(cx, cy, ix, iy, radius * 1.15, color, p)
     end
 
     if world then

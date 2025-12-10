@@ -273,7 +273,57 @@ local function spawnShieldImpactVisual(target, projectile, contactX, contactY, r
     end
 
     local color = baseColors.shieldDamage or baseColors.projectile or baseColors.white
-    shieldImpactFx.spawn(cx, cy, ix, iy, shieldRadius * 1.15, color)
+
+    --------------------------------------------------------------------------
+    -- Pass the target through to the FX so the shield ring can track the
+    -- entity's live position instead of staying behind at the impact point.
+    -- This is especially important for the player, who can still drift after
+    -- being hit.
+    --------------------------------------------------------------------------
+    shieldImpactFx.spawn(cx, cy, ix, iy, shieldRadius * 1.15, color, target)
+end
+
+local function awardXpAndTokensOnKill(xp, tokens)
+    local playerState = playerModule and playerModule.state or nil
+    if not playerState then
+        return
+    end
+
+    if xp and xp > 0 and playerModule.addExperience then
+        playerModule.addExperience(xp)
+        local value = math.floor(xp + 0.5)
+        local baseText = "XP"
+        floatingText.spawn(baseText, playerState.x, playerState.y - 22, nil, {
+            duration = 1.1,
+            riseSpeed = 26,
+            scale = 0.8,
+            alpha = 1.0,
+            bgColor = { 0, 0, 0, 0 },
+            textColor = baseColors.health or baseColors.white,
+            stackKey = "xp_total",
+            stackValueIncrement = value,
+            stackBaseText = baseText,
+            iconPreset = "xp_only",
+        })
+    end
+
+    if tokens and tokens > 0 and playerModule.addCurrency then
+        playerModule.addCurrency(tokens)
+        local value = math.floor(tokens + 0.5)
+        local baseText = "Tokens"
+        floatingText.spawn(baseText, playerState.x, playerState.y - 8, nil, {
+            duration = 1.1,
+            riseSpeed = 26,
+            scale = 0.8,
+            alpha = 1.0,
+            bgColor = { 0, 0, 0, 0 },
+            textColor = baseColors.uiText or baseColors.white,
+            stackKey = "tokens_total",
+            stackValueIncrement = value,
+            stackBaseText = baseText,
+            iconPreset = "token_only",
+        })
+    end
 end
 
 --- Compute a simple resource yield table for an asteroid based on its
@@ -485,13 +535,9 @@ local function handlePlayerProjectileVsEnemy(projectile, enemy, contactX, contac
             removeEntity(enemies, target)
             local owner = projectile.owner
             if owner and owner.faction ~= "enemy" then
-                -- Award XP directly (to keep the ring working) and spawn salvage
-                -- resources instead of XP shards.
                 local xp = config.player.xpPerEnemy or 0
-                if xp > 0 and playerModule and playerModule.addExperience then
-                    playerModule.addExperience(xp)
-                end
-
+                local tokens = config.player.tokensPerEnemy or 0
+                awardXpAndTokensOnKill(xp, tokens)
                 local resources = computeEnemyResourceYield(target, radius)
                 spawnResourceChunksAt(target.x, target.y, resources)
             end
@@ -545,13 +591,9 @@ local function handleProjectileVsAsteroid(projectile, asteroid, contactX, contac
             removeEntity(asteroids, target)
             local owner = projectile.owner
             if owner and owner.faction ~= "enemy" then
-                -- Award XP directly and spawn resource chunks that reflect the
-                -- asteroid's stone/ice/mithril mix.
                 local xp = config.player.xpPerAsteroid or 0
-                if xp > 0 and playerModule and playerModule.addExperience then
-                    playerModule.addExperience(xp)
-                end
-
+                local tokens = config.player.tokensPerAsteroid or 0
+                awardXpAndTokensOnKill(xp, tokens)
                 local resources = computeAsteroidResourceYield(target, radius)
                 spawnResourceChunksAt(target.x, target.y, resources)
             end
@@ -571,12 +613,9 @@ local function handlePlayerVsEnemy(player, enemy, contactX, contactY)
     explosionFx.spawn(enemy.x, enemy.y, currentColors.enemy, enemyRadius * 1.4)
     cleanupProjectilesForTarget(enemy)
     removeEntity(enemies, enemy)
-    -- Ramming an enemy awards XP instantly and spawns salvage resources instead
-    -- of XP shard pickups.
     local xp = config.player.xpPerEnemy or 0
-    if xp > 0 and playerModule and playerModule.addExperience then
-        playerModule.addExperience(xp)
-    end
+    local tokens = config.player.tokensPerEnemy or 0
+    awardXpAndTokensOnKill(xp, tokens)
     local resources = computeEnemyResourceYield(enemy, enemyRadius)
     spawnResourceChunksAt(enemy.x, enemy.y, resources)
 
@@ -598,8 +637,13 @@ local function handlePlayerVsEnemy(player, enemy, contactX, contactY)
         local iy = contactY or (enemy and enemy.y) or py
         local radius = getBoundingRadius(player)
         if radius and radius > 0 and px and py and ix and iy then
+            ------------------------------------------------------------------
+            -- Attach the FX to the player state so the ring visually follows
+            -- the ship if it continues to move after the ram impact.
+            ------------------------------------------------------------------
             shieldImpactFx.spawn(px, py, ix, iy, radius * 1.15,
-                baseColors.shieldDamage or baseColors.projectile or baseColors.white)
+                baseColors.shieldDamage or baseColors.projectile or baseColors.white,
+                player)
         end
     end
 
@@ -699,8 +743,14 @@ local function resolveShipVsAsteroid(ship, asteroid, contactX, contactY)
                 local shieldRadius = getBoundingRadius(ship)
 
                 if shieldRadius and shieldRadius > 0 and sx and sy and ix and iy then
+                    ------------------------------------------------------------------
+                    -- Attach the asteroid bump FX to the player ship so the
+                    -- ring remains centered on the hull while the short
+                    -- bounce animation plays out.
+                    ------------------------------------------------------------------
                     shieldImpactFx.spawn(sx, sy, ix, iy, shieldRadius * 1.15,
-                        baseColors.shieldDamage or baseColors.projectile or baseColors.white)
+                        baseColors.shieldDamage or baseColors.projectile or baseColors.white,
+                        ship)
                 end
             end
 

@@ -115,11 +115,9 @@ local function applyPickupEffect(pickup, player)
         if amount > 0 and playerModule.addCargoResource then
             local added = playerModule.addCargoResource(resourceType, amount)
             if added and added > 0 then
-                -- Resolve display name from the resource data so future resources do
-                -- not require changes here.
                 local def = getResourceDef(resourceType)
                 local label = def.displayName or def.name or tostring(resourceType)
-                local baseText = string.format("Picked up %s", label)
+                local baseText = label
                 local textColor = colors.health or colors.white
                 floatingText.spawn(baseText, player.x, player.y, nil, {
                     duration = 1.1,
@@ -151,22 +149,20 @@ local function applyPickupEffect(pickup, player)
         local amount = pickup.amount or 0
         if amount > 0 and playerModule.addExperience then
             local leveledUp = playerModule.addExperience(amount)
-
-            -- Visual feedback: small floating "+XP" text where the item was
-            -- collected so the player can immediately see that the pickup was
-            -- meaningful.
-            local text = string.format("+%d XP", math.floor(amount + 0.5))
+            local value = math.floor(amount + 0.5)
+            local baseText = "XP"
             local textColor = colors.health or colors.white
 
-            floatingText.spawn(text, player.x, player.y, nil, {
+            floatingText.spawn(baseText, player.x, player.y, nil, {
                 duration = 1.1,
                 riseSpeed = 26,
                 scale = leveledUp and 0.95 or 0.8,
                 alpha = 1.0,
                 bgColor = { 0, 0, 0, 0 },
                 textColor = textColor,
-                stackKey = text,
-                stackCountIncrement = 1,
+                stackKey = "xp_total",
+                stackValueIncrement = value,
+                stackBaseText = baseText,
             })
         end
     end

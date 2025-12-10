@@ -15,27 +15,68 @@ function shield_impact_fx.load()
     end
 end
 
-function shield_impact_fx.spawn(centerX, centerY, impactX, impactY, radius, color)
+function shield_impact_fx.spawn(centerX, centerY, impactX, impactY, radius, color, followEntity)
+    -- Basic guard: all coordinates must be valid numbers for the effect to work.
     if not centerX or not centerY or not impactX or not impactY then
         return
     end
 
+    -- Normalise radius so the shader always has a sensible falloff.
     radius = radius or 40
     if radius <= 0 then
         radius = 40
     end
 
-    color = color or colors.shieldDamage or colors.projectile or {1, 1, 1}
+    -- Fallback to standard shield color palette if nothing specific was provided.
+    color = color or colors.shieldDamage or colors.projectile or { 1, 1, 1 }
+
+    --------------------------------------------------------------------------
+    -- Precompute the impact direction relative to the shield center.
+    --
+    -- This lets us keep the visible "dent" in the ring on the same side of
+    -- the shield even if the center later follows a moving entity (for
+    -- example, the player ship sliding after a hit or ramming an enemy).
+    --------------------------------------------------------------------------
+    local dirX = (impactX or centerX) - centerX
+    local dirY = (impactY or centerY) - centerY
+    local impactDistance = math.sqrt(dirX * dirX + dirY * dirY)
+
+    if impactDistance > 0 then
+        dirX = dirX / impactDistance
+        dirY = dirY / impactDistance
+    else
+        -- If the impact landed exactly at the center, choose an arbitrary
+        -- direction; the shader only needs a stable offset, not the exact
+        -- world-space point.
+        dirX = 1
+        dirY = 0
+        impactDistance = radius
+    end
 
     local hit = {
+        -- World-space reference center at spawn time. When followEntity is
+        -- provided, the draw step will resolve the *current* center from the
+        -- entity and treat these as fallbacks.
         cx = centerX,
         cy = centerY,
+
+        -- Original impact point in world space (kept as a fallback and for
+        -- any legacy use that might rely on it).
         ix = impactX,
         iy = impactY,
+
+        -- Visual parameters
         radius = radius,
         color = { color[1] or 1, color[2] or 1, color[3] or 1 },
         startTime = love.timer.getTime(),
         duration = 0.35,
+
+        -- Tracking data so the shield ring can follow a moving entity while
+        -- still remembering which side was hit.
+        impactDirX = dirX,
+        impactDirY = dirY,
+        impactDistance = impactDistance,
+        followEntity = followEntity,
     }
 
     table.insert(shield_impact_fx.list, hit)
@@ -92,10 +133,39 @@ function shield_impact_fx.draw()
         if t >= 1.0 then
             table.remove(shield_impact_fx.list, i)
         else
-            local screenCenterX = (hit.cx - camX) * camScale + width / 2
-            local screenCenterY = (hit.cy - camY) * camScale + height / 2
-            local screenImpactX = (hit.ix - camX) * camScale + width / 2
-            local screenImpactY = (hit.iy - camY) * camScale + height / 2
+            ------------------------------------------------------------------
+            -- Resolve the current world-space center for this shield hit.
+            --
+            -- If followEntity is set (e.g., the player state), we use the
+            -- entity's live position so the ring visually tracks the ship as
+            -- it continues to move after being hit.
+            ------------------------------------------------------------------
+            local centerX = hit.cx
+            local centerY = hit.cy
+
+            local follower = hit.followEntity
+            if follower and follower.x and follower.y then
+                centerX = follower.x
+                centerY = follower.y
+            end
+
+            ------------------------------------------------------------------
+            -- Reconstruct the impact point based on the stored direction and
+            -- distance so that the visible distortion remains on the same
+            -- side of the shield relative to its center.
+            ------------------------------------------------------------------
+            local impactX = hit.ix
+            local impactY = hit.iy
+
+            if hit.impactDirX and hit.impactDirY and hit.impactDistance then
+                impactX = centerX + hit.impactDirX * hit.impactDistance
+                impactY = centerY + hit.impactDirY * hit.impactDistance
+            end
+
+            local screenCenterX = (centerX - camX) * camScale + width / 2
+            local screenCenterY = (centerY - camY) * camScale + height / 2
+            local screenImpactX = (impactX - camX) * camScale + width / 2
+            local screenImpactY = (impactY - camY) * camScale + height / 2
 
             shader:send("center", { screenCenterX, screenCenterY })
             shader:send("impact", { screenImpactX, screenImpactY })
@@ -105,7 +175,7 @@ function shield_impact_fx.draw()
 
             love.graphics.setColor(1, 1, 1, 1)
             local r = hit.radius
-            love.graphics.rectangle("fill", hit.cx - r, hit.cy - r, r * 2, r * 2)
+            love.graphics.rectangle("fill", centerX - r, centerY - r, r * 2, r * 2)
         end
     end
 
