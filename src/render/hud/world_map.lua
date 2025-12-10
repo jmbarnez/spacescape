@@ -1,11 +1,13 @@
 local hud_world_map = {}
 
 local ui_theme = require("src.core.ui_theme")
+local window_frame = require("src.render.hud.window_frame")
 
 --------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- WINDOW STATE / LAYOUT
--- Shared window-style frame for the world map so it visually matches the
--- cargo window (top + bottom bars, draggable title bar, close button).
+-- Position / drag state for the galaxy map window. The shared window_frame
+-- helper uses this table to compute placement and handle dragging.
 --------------------------------------------------------------------------------
 
 local windowState = {
@@ -15,38 +17,6 @@ local windowState = {
     dragOffsetX = 0,
     dragOffsetY = 0,
 }
-
--- Layout constants mirroring the cargo window so the map feels like part of
--- the same HUD family.
-local TOP_BAR_HEIGHT = 40
-local BOTTOM_BAR_HEIGHT = 36
-local CLOSE_BUTTON_SIZE = 24
-local PANEL_SCREEN_MARGIN = 40 -- Minimum distance from screen edge to panel
-
-local function getPanelSize()
-    local screenW = love.graphics.getWidth()
-    local screenH = love.graphics.getHeight()
-
-    -- Make the map window large but still leave a margin around the edges.
-    local panelWidth = math.max(600, screenW - PANEL_SCREEN_MARGIN * 2)
-    local panelHeight = math.max(420, screenH - PANEL_SCREEN_MARGIN * 2)
-
-    return panelWidth, panelHeight
-end
-
-local function getPanelPosition()
-    local screenW = love.graphics.getWidth()
-    local screenH = love.graphics.getHeight()
-    local panelWidth, panelHeight = getPanelSize()
-
-    local px = windowState.x or (screenW - panelWidth) / 2
-    local py = windowState.y or (screenH - panelHeight) / 2
-    return px, py, panelWidth, panelHeight
-end
-
-local function isPointInRect(px, py, rx, ry, rw, rh)
-    return px >= rx and px <= rx + rw and py >= ry and py <= ry + rh
-end
 
 -- Full-screen world map overlay (rendered inside a HUD window frame)
 --
@@ -70,164 +40,36 @@ function hud_world_map.draw(player, colors, enemyList, asteroidList)
     end
 
     local font = love.graphics.getFont()
-    local screenW = love.graphics.getWidth()
-    local screenH = love.graphics.getHeight()
-
-    -- Mouse position is used for close button hover feedback.
-    local mx, my = love.mouse.getPosition()
-
-    -- Resolve window rect in screen-space using the shared window state.
-    local panelX, panelY, panelWidth, panelHeight = getPanelPosition()
-
-    -- Pull the shared window style so the galaxy map frame visually matches
-    -- other HUD windows (cargo, future dialogs, etc.).
     local windowStyle = ui_theme.window
+    local minimapStyle = ui_theme.minimap
 
-    --------------------------------------------------------------------------
-    -- Dim the gameplay behind the map for clarity (subtle glass overlay)
-    --------------------------------------------------------------------------
-    love.graphics.setColor(0, 0, 0, 0.6)
-    love.graphics.rectangle("fill", 0, 0, screenW, screenH)
+    -- Draw the shared window frame and obtain the layout rects for placing the
+    -- actual galaxy map content.
+    local layout = window_frame.draw(windowState, {
+        minWidth = 600,
+        minHeight = 420,
+        screenMargin = 40,
+        title = "GALAXY MAP",
+        hint = "M to close  •  Drag title bar to move",
+    }, colors)
 
-    --------------------------------------------------------------------------
-    -- Main map window frame (matches cargo window theme)
-    --------------------------------------------------------------------------
-    -- Main panel background
-    love.graphics.setColor(
-        windowStyle.background[1],
-        windowStyle.background[2],
-        windowStyle.background[3],
-        windowStyle.background[4]
-    )
-    love.graphics.rectangle("fill", panelX, panelY, panelWidth, panelHeight, 8, 8)
-
-    -- Top bar
-    love.graphics.setColor(
-        windowStyle.topBar[1],
-        windowStyle.topBar[2],
-        windowStyle.topBar[3],
-        windowStyle.topBar[4]
-    )
-    love.graphics.rectangle("fill", panelX, panelY, panelWidth, TOP_BAR_HEIGHT, 8, 8)
-    -- Fill the bottom corners of the top bar
-    love.graphics.rectangle("fill", panelX, panelY + TOP_BAR_HEIGHT - 8, panelWidth, 8)
-
-    -- Bottom bar
-    love.graphics.setColor(
-        windowStyle.bottomBar[1],
-        windowStyle.bottomBar[2],
-        windowStyle.bottomBar[3],
-        windowStyle.bottomBar[4]
-    )
-    love.graphics.rectangle(
-        "fill",
-        panelX,
-        panelY + panelHeight - BOTTOM_BAR_HEIGHT,
-        panelWidth,
-        BOTTOM_BAR_HEIGHT,
-        8,
-        8
-    )
-    love.graphics.rectangle(
-        "fill",
-        panelX,
-        panelY + panelHeight - BOTTOM_BAR_HEIGHT,
-        panelWidth,
-        8
-    )
-
-    -- Border
-    local borderColor = windowStyle.border or colors.uiPanelBorder or { 1, 1, 1, 0.5 }
-    love.graphics.setColor(borderColor[1], borderColor[2], borderColor[3], borderColor[4] or 0.5)
-    love.graphics.setLineWidth(2)
-    love.graphics.rectangle("line", panelX, panelY, panelWidth, panelHeight, 8, 8)
-
-    --------------------------------------------------------------------------
-    -- Title + close button in the top bar; hint text in the bottom bar
-    --------------------------------------------------------------------------
-    local titleText = "GALAXY MAP"
-    local hintText = "M to close  •  Drag title bar to move"
-
-    -- Title (left side of top bar)
-    love.graphics.setColor(colors.uiText[1], colors.uiText[2], colors.uiText[3], 1.0)
-    local titleWidth = font:getWidth(titleText)
-    local titleX = panelX + 12
-    local titleY = panelY + (TOP_BAR_HEIGHT - font:getHeight()) / 2
-    love.graphics.print(titleText, titleX, titleY)
-
-    -- Close button (top-right)
-    local closeX = panelX + panelWidth - CLOSE_BUTTON_SIZE - 4
-    local closeY = panelY + 4
-    local closeHovered = isPointInRect(mx, my, closeX, closeY, CLOSE_BUTTON_SIZE, CLOSE_BUTTON_SIZE)
-
-    if closeHovered then
-        love.graphics.setColor(
-            windowStyle.closeButtonBgHover[1],
-            windowStyle.closeButtonBgHover[2],
-            windowStyle.closeButtonBgHover[3],
-            windowStyle.closeButtonBgHover[4]
-        )
-    else
-        love.graphics.setColor(
-            windowStyle.closeButtonBg[1],
-            windowStyle.closeButtonBg[2],
-            windowStyle.closeButtonBg[3],
-            windowStyle.closeButtonBg[4]
-        )
-    end
-    love.graphics.rectangle("fill", closeX, closeY, CLOSE_BUTTON_SIZE, CLOSE_BUTTON_SIZE, 4, 4)
-
-    -- X icon
-    if closeHovered then
-        love.graphics.setColor(
-            windowStyle.closeButtonXHover[1],
-            windowStyle.closeButtonXHover[2],
-            windowStyle.closeButtonXHover[3],
-            windowStyle.closeButtonXHover[4]
-        )
-    else
-        love.graphics.setColor(
-            windowStyle.closeButtonX[1],
-            windowStyle.closeButtonX[2],
-            windowStyle.closeButtonX[3],
-            windowStyle.closeButtonX[4]
-        )
-    end
-    love.graphics.setLineWidth(2)
-    local padding = 6
-    love.graphics.line(
-        closeX + padding,
-        closeY + padding,
-        closeX + CLOSE_BUTTON_SIZE - padding,
-        closeY + CLOSE_BUTTON_SIZE - padding
-    )
-    love.graphics.line(
-        closeX + CLOSE_BUTTON_SIZE - padding,
-        closeY + padding,
-        closeX + padding,
-        closeY + CLOSE_BUTTON_SIZE - padding
-    )
-
-    -- Hint text centered in the bottom bar
-    love.graphics.setColor(colors.uiText[1], colors.uiText[2], colors.uiText[3], 0.5)
-    local hintWidth = font:getWidth(hintText)
-    local hintX = panelX + (panelWidth - hintWidth) / 2
-    local hintY = panelY + panelHeight - BOTTOM_BAR_HEIGHT + (BOTTOM_BAR_HEIGHT - font:getHeight()) / 2
-    love.graphics.print(hintText, hintX, hintY)
+    local panelX = layout.panelX
+    local panelY = layout.panelY
+    local panelWidth = layout.panelWidth
+    local panelHeight = layout.panelHeight
 
     --------------------------------------------------------------------------
     -- Map content area (inside the panel, below the title)
     --------------------------------------------------------------------------
-    local mapMarginTop = TOP_BAR_HEIGHT + 12
     local mapPadding = 24
-    local mapX = panelX + mapPadding
-    local mapY = panelY + mapMarginTop
-    local mapWidth = panelWidth - mapPadding * 2
-    local mapHeight = panelHeight - mapMarginTop - BOTTOM_BAR_HEIGHT - mapPadding
+    local mapX = layout.contentX + mapPadding
+    local mapY = layout.contentY + mapPadding
+    local mapWidth = layout.contentWidth - mapPadding * 2
+    local mapHeight = layout.contentHeight - mapPadding * 2
 
     -- Draw a subtle background for the map area
     love.graphics.setColor(0.05, 0.08, 0.15, 1.0)
-    love.graphics.rectangle("fill", mapX, mapY, mapWidth, mapHeight, 8, 8)
+    love.graphics.rectangle("fill", mapX, mapY, mapWidth, mapHeight, windowStyle.radius or 6, windowStyle.radius or 6)
 
     --------------------------------------------------------------------------
     -- World-to-map projection (similar to minimap but scaled up)
@@ -257,8 +99,13 @@ function hud_world_map.draw(player, colors, enemyList, asteroidList)
         return worldRectX + nx, worldRectY + ny
     end
 
-    -- World bounds
-    love.graphics.setColor(0.3, 0.45, 0.85, 0.95)
+    -- World bounds (reuse minimap-style boundary color for consistency)
+    love.graphics.setColor(
+        minimapStyle.worldBounds[1],
+        minimapStyle.worldBounds[2],
+        minimapStyle.worldBounds[3],
+        minimapStyle.worldBounds[4] or 1.0
+    )
     love.graphics.setLineWidth(2)
     love.graphics.rectangle("line", worldRectX, worldRectY, scaledWorldWidth, scaledWorldHeight)
 
@@ -316,7 +163,7 @@ function hud_world_map.draw(player, colors, enemyList, asteroidList)
     end
 
     local coordX = panelX + 20
-    local coordY = panelY + panelHeight - BOTTOM_BAR_HEIGHT - font:getHeight() - 8
+    local coordY = (layout.bottomBarY or (panelY + panelHeight)) - font:getHeight() - 8
     love.graphics.setColor(colors.uiText[1], colors.uiText[2], colors.uiText[3], 0.9)
     love.graphics.print(coordText, coordX, coordY)
 
@@ -354,69 +201,36 @@ end
 --------------------------------------------------------------------------------
 -- MOUSE HANDLING
 -- Mouse helpers mirror the cargo window so the map behaves like a standard
--- HUD window (draggable title bar, clickable close button).
+-- HUD window (draggable title bar, clickable close button). All heavy lifting
+-- is delegated to the shared window_frame helper.
 --------------------------------------------------------------------------------
 
 function hud_world_map.mousepressed(x, y, button)
-    if button ~= 1 then
-        return false
-    end
-
-    local panelX, panelY, panelWidth, panelHeight = getPanelPosition()
-
-    -- Close button hit-test
-    local closeX = panelX + panelWidth - CLOSE_BUTTON_SIZE - 4
-    local closeY = panelY + 4
-    if isPointInRect(x, y, closeX, closeY, CLOSE_BUTTON_SIZE, CLOSE_BUTTON_SIZE) then
-        return "close"
-    end
-
-    -- Dragging via the top bar
-    if isPointInRect(x, y, panelX, panelY, panelWidth, TOP_BAR_HEIGHT) then
-        windowState.isDragging = true
-        windowState.dragOffsetX = x - panelX
-        windowState.dragOffsetY = y - panelY
-        return "drag"
-    end
-
-    -- Swallow clicks inside the window so they do not reach gameplay
-    if isPointInRect(x, y, panelX, panelY, panelWidth, panelHeight) then
-        return true
-    end
-
-    return false
+    return window_frame.mousepressed(windowState, {
+        minWidth = 600,
+        minHeight = 420,
+        screenMargin = 40,
+    }, x, y, button)
 end
 
 function hud_world_map.mousereleased(x, y, button)
-    if button == 1 then
-        windowState.isDragging = false
-    end
+    window_frame.mousereleased(windowState, {
+        minWidth = 600,
+        minHeight = 420,
+        screenMargin = 40,
+    }, x, y, button)
 end
 
 function hud_world_map.mousemoved(x, y)
-    if not windowState.isDragging then
-        return
-    end
-
-    local panelWidth, panelHeight = getPanelSize()
-    local screenW = love.graphics.getWidth()
-    local screenH = love.graphics.getHeight()
-
-    windowState.x = x - windowState.dragOffsetX
-    windowState.y = y - windowState.dragOffsetY
-
-    -- Clamp to screen bounds so the window cannot be dragged completely off-
-    -- screen (matching cargo window behavior).
-    windowState.x = math.max(0, math.min(screenW - panelWidth, windowState.x))
-    windowState.y = math.max(0, math.min(screenH - panelHeight, windowState.y))
+    window_frame.mousemoved(windowState, {
+        minWidth = 600,
+        minHeight = 420,
+        screenMargin = 40,
+    }, x, y)
 end
 
 function hud_world_map.reset()
-    windowState.x = nil
-    windowState.y = nil
-    windowState.isDragging = false
-    windowState.dragOffsetX = 0
-    windowState.dragOffsetY = 0
+    window_frame.reset(windowState)
 end
 
 return hud_world_map

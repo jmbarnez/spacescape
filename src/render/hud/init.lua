@@ -24,11 +24,27 @@ function hud.drawGameOver(player)
 end
 
 function hud.drawPause(player, colors, menu)
-    hud_pause.draw(player, colors, menu)
+	hud_pause.draw(player, colors, menu)
 end
 
 function hud.hitTestPauseMenu(menu, mx, my)
-    return hud_pause.hitTestPauseMenu(menu, mx, my)
+	return hud_pause.hitTestPauseMenu(menu, mx, my)
+end
+
+function hud.pauseMousepressed(menu, x, y, button)
+	return hud_pause.mousepressed(menu, x, y, button)
+end
+
+function hud.pauseMousereleased(menu, x, y, button)
+	return hud_pause.mousereleased(menu, x, y, button)
+end
+
+function hud.pauseMousemoved(menu, x, y)
+	return hud_pause.mousemoved(menu, x, y)
+end
+
+function hud.resetPause()
+	return hud_pause.reset()
 end
 
 function hud.drawCargo(player, colors)

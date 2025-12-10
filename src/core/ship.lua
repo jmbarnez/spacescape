@@ -58,6 +58,85 @@ end
 
 ship.flattenPoints = flattenPoints
 
+local function computeConvexHull(points)
+    if not points or #points < 3 then
+        return points
+    end
+
+    table.sort(points, function(a, b)
+        if a[1] == b[1] then
+            return a[2] < b[2]
+        end
+        return a[1] < b[1]
+    end)
+
+    local function cross(o, a, b)
+        return (a[1] - o[1]) * (b[2] - o[2]) - (a[2] - o[2]) * (b[1] - o[1])
+    end
+
+    local lower = {}
+    for _, p in ipairs(points) do
+        while #lower >= 2 and cross(lower[#lower - 1], lower[#lower], p) <= 0 do
+            table.remove(lower)
+        end
+        lower[#lower + 1] = p
+    end
+
+    local upper = {}
+    for i = #points, 1, -1 do
+        local p = points[i]
+        while #upper >= 2 and cross(upper[#upper - 1], upper[#upper], p) <= 0 do
+            table.remove(upper)
+        end
+        upper[#upper + 1] = p
+    end
+
+    table.remove(lower)
+    table.remove(upper)
+
+    local hull = {}
+    for i = 1, #lower do
+        hull[#hull + 1] = lower[i]
+    end
+    for i = 1, #upper do
+        hull[#hull + 1] = upper[i]
+    end
+
+    return hull
+end
+
+function ship.buildCombinedOutline(layout)
+    if not layout then
+        return nil
+    end
+
+    local combined = {}
+
+    if layout.hull and layout.hull.points then
+        for i = 1, #layout.hull.points do
+            local p = layout.hull.points[i]
+            combined[#combined + 1] = { p[1], p[2] }
+        end
+    end
+
+    if layout.wings then
+        for _, wing in ipairs(layout.wings) do
+            if wing.points then
+                for i = 1, #wing.points do
+                    local p = wing.points[i]
+                    combined[#combined + 1] = { p[1], p[2] }
+                end
+            end
+        end
+    end
+
+    if #combined < 3 then
+        return nil
+    end
+
+    return computeConvexHull(combined)
+end
+
 -------------------------------------------------------------------------------
 -- Bounding radius computation (world space)
 -------------------------------------------------------------------------------
@@ -200,16 +279,21 @@ function ship.buildInstanceFromBlueprint(blueprint, size, overrides)
     local collisionSource = nil
     if blueprint.collision and blueprint.collision.vertices then
         collisionSource = scalePoints(blueprint.collision.vertices, s)
-    elseif inst.hull and inst.hull.points then
-        collisionSource = inst.hull.points
+    else
+        collisionSource = ship.buildCombinedOutline(inst)
+        if not collisionSource and inst.hull and inst.hull.points then
+            collisionSource = inst.hull.points
+        end
     end
 
     inst.collision = inst.collision or {}
     inst.collision.vertices = collisionSource
-    inst.collisionVertices = flattenPoints(collisionSource)
+    inst.collisionVertices = flattenPoints(collisionSource or {})
 
     -- Convenience: base hull outline as flat array for rendering.
-    if inst.hull and inst.hull.points then
+    if collisionSource then
+        inst.baseOutline = flattenPoints(collisionSource)
+    elseif inst.hull and inst.hull.points then
         inst.baseOutline = flattenPoints(inst.hull.points)
     end
 

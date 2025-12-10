@@ -6,6 +6,7 @@ local playerModule = require("src.entities.player")
 local enemyModule = require("src.entities.enemy")
 local asteroidModule = require("src.entities.asteroid")
 local ui = require("src.render.hud")
+local windowManager = require("src.render.hud.window_manager")
 local projectileModule = require("src.entities.projectile")
 local particlesModule = require("src.entities.particles")
 local projectileShards = require("src.entities.projectile_shards")
@@ -35,8 +36,6 @@ local enemies = enemyModule.list
 
 -- Game state
 local gameState = "playing" -- "playing", "gameover"
-local cargoOpen = false
-local mapOpen = false -- Full-screen world map overlay (toggled via M)
 
 local pauseMenu = {
 	items = {
@@ -191,20 +190,28 @@ function game.mousepressed(x, y, button)
 		return
 	end
 
-	if gameState == "paused" then
-		if button == 1 then
-			local index, item = ui.hitTestPauseMenu(pauseMenu, x, y)
-			if item then
-				pauseMenu.selected = index
-				if item.id == "resume" then
-					gameState = "playing"
-				elseif item.id == "restart" then
-					game.restartGame()
-				elseif item.id == "quit" then
-					love.event.quit()
-				end
-			end
-		end
+	-- Route all HUD window-style input through the centralized window manager so
+	-- the game state no longer needs to know per-window frame details.
+	local uiCtx = {
+		gameState = gameState,
+		pauseMenu = pauseMenu,
+	}
+
+	local handled, action = windowManager.mousepressed(uiCtx, x, y, button)
+
+	-- Persist any changes the window manager made to the HUD-related state.
+	gameState = uiCtx.gameState
+	pauseMenu = uiCtx.pauseMenu
+
+	if action == "restart" then
+		game.restartGame()
+		return
+	elseif action == "quit_to_desktop" then
+		love.event.quit()
+		return
+	end
+
+	if handled then
 		return
 	end
 
@@ -212,48 +219,46 @@ function game.mousepressed(x, y, button)
 		return
 	end
 
-	-- Handle world map interactions first (it sits on top of other HUD
-	-- windows). Mouse input is swallowed when the map reports that it handled
-	-- the click.
-	if mapOpen then
-		local result = ui.mapMousepressed(x, y, button)
-		if result == "close" then
-			mapOpen = false
-			return
-		elseif result then
-			return -- Consumed by world map (e.g., dragging / inside window)
-		end
-	end
-
-	-- Handle cargo window interactions next
-	if cargoOpen then
-		local result = ui.cargoMousepressed(x, y, button)
-		if result == "close" then
-			cargoOpen = false
-			return
-		elseif result then
-			return -- Consumed by cargo window (e.g., dragging)
-		end
-	end
-
 	inputSystem.mousepressed(x, y, button, player, world, camera)
 end
 
 function game.mousereleased(x, y, button)
-	if mapOpen then
-		ui.mapMousereleased(x, y, button)
+	if gameState == "gameover" then
+		return
 	end
-	if cargoOpen then
-		ui.cargoMousereleased(x, y, button)
+
+	local uiCtx = {
+		gameState = gameState,
+		pauseMenu = pauseMenu,
+	}
+
+	local handled = windowManager.mousereleased(uiCtx, x, y, button)
+
+	gameState = uiCtx.gameState
+	pauseMenu = uiCtx.pauseMenu
+
+	if handled then
+		return
 	end
 end
 
 function game.mousemoved(x, y, dx, dy)
-	if mapOpen then
-		ui.mapMousemoved(x, y)
+	if gameState == "gameover" then
+		return
 	end
-	if cargoOpen then
-		ui.cargoMousemoved(x, y)
+
+	local uiCtx = {
+		gameState = gameState,
+		pauseMenu = pauseMenu,
+	}
+
+	local handled = windowManager.mousemoved(uiCtx, x, y, dx, dy)
+
+	gameState = uiCtx.gameState
+	pauseMenu = uiCtx.pauseMenu
+
+	if handled then
+		return
 	end
 end
 
@@ -269,7 +274,8 @@ function game.keypressed(key)
 	if key == "escape" then
 		if gameState == "playing" then
 			gameState = "paused"
-			cargoOpen = false -- Close cargo when pausing
+			windowManager.setWindowOpen("cargo", false) -- Close cargo when pausing
+			pauseMenu.selected = 1
 		elseif gameState == "paused" then
 			gameState = "playing"
 		end
@@ -277,8 +283,9 @@ function game.keypressed(key)
 	end
 
 	if key == "tab" and gameState == "playing" then
-		cargoOpen = not cargoOpen
-		if not cargoOpen then
+		local nowOpen = not windowManager.isWindowOpen("cargo")
+		windowManager.setWindowOpen("cargo", nowOpen)
+		if not nowOpen then
 			ui.resetCargo() -- Reset position when closing with Tab
 		end
 		return
@@ -288,7 +295,39 @@ function game.keypressed(key)
 	-- cargo window: it is an overlay drawn during normal gameplay, without
 	-- changing the core game state.
 	if key == "m" and gameState == "playing" then
-		mapOpen = not mapOpen
+		windowManager.toggleWindow("map")
+		return
+	end
+
+	if gameState == "paused" then
+		local items = pauseMenu.items or {}
+		local count = #items
+		if count == 0 then
+			return
+		end
+		pauseMenu.selected = pauseMenu.selected or 1
+
+		if key == "up" or key == "w" then
+			pauseMenu.selected = ((pauseMenu.selected - 2) % count) + 1
+			return
+		elseif key == "down" or key == "s" then
+			pauseMenu.selected = (pauseMenu.selected % count) + 1
+			return
+		elseif key == "return" or key == "space" then
+			local item = items[pauseMenu.selected]
+			if not item then
+				return
+			end
+
+			if item.id == "resume" then
+				gameState = "playing"
+			elseif item.id == "restart" then
+				game.restartGame()
+			elseif item.id == "quit" then
+				love.event.quit()
+			end
+			return
+		end
 		return
 	end
 
@@ -327,6 +366,8 @@ function game.restartGame()
 	combatSystem.reset()
 	abilitiesSystem.reset(player)
 	gameState = "playing"
+	windowManager.setWindowOpen("cargo", false)
+	windowManager.setWindowOpen("map", false)
 end
 
 --- Rendering
@@ -353,8 +394,8 @@ function game.draw()
 		gameState = gameState,
 		combatSystem = combatSystem,
 		pauseMenu = pauseMenu,
-		cargoOpen = cargoOpen,
-		mapOpen = mapOpen,
+		cargoOpen = windowManager.isWindowOpen("cargo"),
+		mapOpen = windowManager.isWindowOpen("map"),
 	}
 
 	gameRender.draw(renderCtx)

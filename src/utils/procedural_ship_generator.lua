@@ -412,6 +412,13 @@ function ship_generator.generate(size, options)
 
     ship.boundingRadius = computeBoundingRadius(ship)
 
+    local combinedCollision = core_ship.buildCombinedOutline(ship)
+    if combinedCollision and #combinedCollision >= 3 then
+        ship.collisionVertices = flattenPoints(combinedCollision)
+    else
+        ship.collisionVertices = ship.baseOutline
+    end
+
     return ship
 end
 
@@ -426,6 +433,10 @@ end
 function ship_generator.getBaseOutline(ship)
     if not ship then
         return nil
+    end
+
+    if ship.collisionVertices and #ship.collisionVertices >= 6 then
+        return ship.collisionVertices
     end
 
     if ship.baseOutline then

@@ -1,6 +1,7 @@
 local hud_cargo = {}
 
 local ui_theme = require("src.core.ui_theme")
+local window_frame = require("src.render.hud.window_frame")
 
 --------------------------------------------------------------------------------
 -- WINDOW STATE
@@ -109,51 +110,28 @@ end
 --------------------------------------------------------------------------------
 
 function hud_cargo.mousepressed(x, y, button)
-    if button ~= 1 then return false end
-
-    local panelX, panelY = getPanelPosition()
-
-    -- Check close button
-    local closeX = panelX + PANEL_WIDTH - CLOSE_BUTTON_SIZE - 4
-    local closeY = panelY + 4
-    if isPointInRect(x, y, closeX, closeY, CLOSE_BUTTON_SIZE, CLOSE_BUTTON_SIZE) then
-        return "close"
-    end
-
-    -- Check top bar for dragging
-    if isPointInRect(x, y, panelX, panelY, PANEL_WIDTH, TOP_BAR_HEIGHT) then
-        windowState.isDragging = true
-        windowState.dragOffsetX = x - panelX
-        windowState.dragOffsetY = y - panelY
-        return "drag"
-    end
-
-    return false
+    return window_frame.mousepressed(windowState, {
+        fixedWidth = PANEL_WIDTH,
+        fixedHeight = PANEL_HEIGHT,
+    }, x, y, button)
 end
 
 function hud_cargo.mousereleased(x, y, button)
-    if button == 1 then
-        windowState.isDragging = false
-    end
+    window_frame.mousereleased(windowState, {
+        fixedWidth = PANEL_WIDTH,
+        fixedHeight = PANEL_HEIGHT,
+    }, x, y, button)
 end
 
 function hud_cargo.mousemoved(x, y)
-    if windowState.isDragging then
-        windowState.x = x - windowState.dragOffsetX
-        windowState.y = y - windowState.dragOffsetY
-
-        -- Clamp to screen bounds
-        local w = love.graphics.getWidth()
-        local h = love.graphics.getHeight()
-        windowState.x = math.max(0, math.min(w - PANEL_WIDTH, windowState.x))
-        windowState.y = math.max(0, math.min(h - PANEL_HEIGHT, windowState.y))
-    end
+    window_frame.mousemoved(windowState, {
+        fixedWidth = PANEL_WIDTH,
+        fixedHeight = PANEL_HEIGHT,
+    }, x, y)
 end
 
 function hud_cargo.reset()
-    windowState.x = nil
-    windowState.y = nil
-    windowState.isDragging = false
+    window_frame.reset(windowState)
 end
 
 --------------------------------------------------------------------------------
@@ -162,105 +140,22 @@ end
 
 function hud_cargo.draw(player, colors)
     local font = love.graphics.getFont()
-    local mx, my = love.mouse.getPosition()
 
-    -- Resolve the shared window style once so all cargo visuals stay aligned
-    -- with the global UI theme (same palette used by the world map window).
-    local windowStyle = ui_theme.window
+    -- Draw the shared window frame and obtain the layout rects for placing our
+    -- inner cargo grid.
+    local layout = window_frame.draw(windowState, {
+        fixedWidth = PANEL_WIDTH,
+        fixedHeight = PANEL_HEIGHT,
+        title = "CARGO",
+        hint = "TAB to close  •  Drag title bar to move",
+    }, colors)
 
-    local panelX, panelY = getPanelPosition()
-
-    -- Main panel background
-    love.graphics.setColor(
-        windowStyle.background[1],
-        windowStyle.background[2],
-        windowStyle.background[3],
-        windowStyle.background[4]
-    )
-    love.graphics.rectangle("fill", panelX, panelY, PANEL_WIDTH, PANEL_HEIGHT, 8, 8)
-
-    -- Top bar
-    love.graphics.setColor(
-        windowStyle.topBar[1],
-        windowStyle.topBar[2],
-        windowStyle.topBar[3],
-        windowStyle.topBar[4]
-    )
-    love.graphics.rectangle("fill", panelX, panelY, PANEL_WIDTH, TOP_BAR_HEIGHT, 8, 8)
-    -- Fill the bottom corners of the top bar
-    love.graphics.rectangle("fill", panelX, panelY + TOP_BAR_HEIGHT - 8, PANEL_WIDTH, 8)
-
-    -- Bottom bar
-    love.graphics.setColor(
-        windowStyle.bottomBar[1],
-        windowStyle.bottomBar[2],
-        windowStyle.bottomBar[3],
-        windowStyle.bottomBar[4]
-    )
-    love.graphics.rectangle("fill", panelX, panelY + PANEL_HEIGHT - BOTTOM_BAR_HEIGHT, PANEL_WIDTH, BOTTOM_BAR_HEIGHT, 8,
-        8)
-    love.graphics.rectangle("fill", panelX, panelY + PANEL_HEIGHT - BOTTOM_BAR_HEIGHT, PANEL_WIDTH, 8)
-
-    -- Border
-    local borderColor = windowStyle.border or colors.uiPanelBorder or { 1, 1, 1, 0.5 }
-    love.graphics.setColor(borderColor[1], borderColor[2], borderColor[3], borderColor[4] or 0.5)
-    love.graphics.setLineWidth(2)
-    love.graphics.rectangle("line", panelX, panelY, PANEL_WIDTH, PANEL_HEIGHT, 8, 8)
-
-    -- Title in top bar
-    local title = "CARGO"
-    local titleWidth = font:getWidth(title)
-    love.graphics.setColor(colors.uiText[1], colors.uiText[2], colors.uiText[3], 1.0)
-    love.graphics.print(title, panelX + 12, panelY + (TOP_BAR_HEIGHT - font:getHeight()) / 2)
-
-    -- Close button
-    local closeX = panelX + PANEL_WIDTH - CLOSE_BUTTON_SIZE - 4
-    local closeY = panelY + 4
-    local closeHovered = isPointInRect(mx, my, closeX, closeY, CLOSE_BUTTON_SIZE, CLOSE_BUTTON_SIZE)
-
-    if closeHovered then
-        love.graphics.setColor(
-            windowStyle.closeButtonBgHover[1],
-            windowStyle.closeButtonBgHover[2],
-            windowStyle.closeButtonBgHover[3],
-            windowStyle.closeButtonBgHover[4]
-        )
-    else
-        love.graphics.setColor(
-            windowStyle.closeButtonBg[1],
-            windowStyle.closeButtonBg[2],
-            windowStyle.closeButtonBg[3],
-            windowStyle.closeButtonBg[4]
-        )
-    end
-    love.graphics.rectangle("fill", closeX, closeY, CLOSE_BUTTON_SIZE, CLOSE_BUTTON_SIZE, 4, 4)
-
-    -- X icon
-    if closeHovered then
-        love.graphics.setColor(
-            windowStyle.closeButtonXHover[1],
-            windowStyle.closeButtonXHover[2],
-            windowStyle.closeButtonXHover[3],
-            windowStyle.closeButtonXHover[4]
-        )
-    else
-        love.graphics.setColor(
-            windowStyle.closeButtonX[1],
-            windowStyle.closeButtonX[2],
-            windowStyle.closeButtonX[3],
-            windowStyle.closeButtonX[4]
-        )
-    end
-    love.graphics.setLineWidth(2)
-    local padding = 6
-    love.graphics.line(closeX + padding, closeY + padding, closeX + CLOSE_BUTTON_SIZE - padding,
-        closeY + CLOSE_BUTTON_SIZE - padding)
-    love.graphics.line(closeX + CLOSE_BUTTON_SIZE - padding, closeY + padding, closeX + padding,
-        closeY + CLOSE_BUTTON_SIZE - padding)
+    local panelX = layout.panelX
+    local panelY = layout.panelY
 
     -- Grid area
     local gridStartX = panelX + PANEL_PADDING
-    local gridStartY = panelY + TOP_BAR_HEIGHT + PANEL_PADDING
+    local gridStartY = layout.contentY + PANEL_PADDING
 
     -- Cargo contents
     local cargo = player.cargo or {}
@@ -271,6 +166,7 @@ function hud_cargo.draw(player, colors)
         { id = "mithril", label = "Mithril", drawIcon = drawMithrilIcon },
 
         -- remaining slots are empty placeholders (show slot frame only)
+        { id = nil, label = nil, drawIcon = nil },
         { id = nil, label = nil, drawIcon = nil },
         { id = nil, label = nil, drawIcon = nil },
         { id = nil, label = nil, drawIcon = nil },
@@ -322,12 +218,7 @@ function hud_cargo.draw(player, colors)
         end
     end
 
-    -- Bottom bar hint
-    love.graphics.setColor(colors.uiText[1], colors.uiText[2], colors.uiText[3], 0.4)
-    local hint = "TAB to close  •  Drag title bar to move"
-    local hintWidth = font:getWidth(hint)
-    love.graphics.print(hint, panelX + (PANEL_WIDTH - hintWidth) / 2,
-        panelY + PANEL_HEIGHT - BOTTOM_BAR_HEIGHT + (BOTTOM_BAR_HEIGHT - font:getHeight()) / 2)
+    -- Bottom bar hint is handled by window_frame.draw via the shared HUD theme.
 end
 
 return hud_cargo

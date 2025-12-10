@@ -64,8 +64,12 @@ function enemy.spawn(world, safeRadius)
     
     -- Get collision vertices from the ship's hull
     local collisionVertices = nil
-    if ship and ship.hull and ship.hull.points then
-        collisionVertices = ship_generator.getBaseOutline(ship)
+    if ship then
+        if ship.collisionVertices and #ship.collisionVertices >= 6 then
+            collisionVertices = ship.collisionVertices
+        elseif ship.hull and ship.hull.points then
+            collisionVertices = ship_generator.getBaseOutline(ship)
+        end
     end
     
     -- Create the enemy entity first (so we can pass it to physics)
