@@ -1,67 +1,133 @@
 <!doctype html>
 <html lang="en-us">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Spacescape</title>
-    <style>
-      body {
-        margin: 0;
-        background: #1a1a2e;
-        color: #eee;
-        font-family: Arial, sans-serif;
-        text-align: center;
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spacescape</title>
+  <style>
+    body {
+      margin: 0;
+      background: #1a1a2e;
+      color: #eee;
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+
+    h1 {
+      color: #8ec3e3;
+      margin: 20px 0 10px;
+    }
+
+    #canvas {
+      display: none;
+    }
+
+    #status {
+      margin: 20px;
+      font-size: 1.2em;
+      color: #8ec3e3;
+    }
+
+    footer {
+      margin-top: 20px;
+      font-size: 0.9em;
+      color: #888;
+    }
+
+    footer a {
+      color: #8ec3e3;
+    }
+
+    button {
+      padding: 8px 16px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Spacescape</h1>
+  <div id="status">Loading...</div>
+  <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+
+  <script type="text/javascript">
+    function setStatus(text) {
+      document.getElementById('status').innerText = text || '';
+      if (!text) {
+        document.getElementById('status').style.display = 'none';
+        document.getElementById('canvas').style.display = 'block';
       }
-      h1 { color: #8ec3e3; margin: 20px 0 10px; }
-      #canvas { display: none; }
-      #status { margin: 20px; font-size: 1.2em; color: #8ec3e3; }
-      footer { margin-top: 20px; font-size: 0.9em; color: #888; }
-      footer a { color: #8ec3e3; }
-      button { padding: 8px 16px; cursor: pointer; }
-    </style>
-  </head>
-  <body>
-    <h1>Spacescape</h1>
-    <div id="status">Loading...</div>
-    <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+    }
 
-    <script type="text/javascript">
-      var Module = {
-        arguments: ['Novus.love'],
-        INITIAL_MEMORY: 268435456,
-        print: console.log.bind(console),
-        printErr: console.error.bind(console),
-        canvas: document.getElementById('canvas'),
-        setStatus: function(text) {
-          document.getElementById('status').innerText = text || '';
-          if (!text) {
-            document.getElementById('status').style.display = 'none';
-            document.getElementById('canvas').style.display = 'block';
-          }
-        },
-        totalDependencies: 0,
-        monitorRunDependencies: function(left) {
-          this.totalDependencies = Math.max(this.totalDependencies, left);
-          Module.setStatus(left ? 'Loading... (' + (this.totalDependencies - left) + '/' + this.totalDependencies + ')' : '');
-        }
-      };
+    setStatus('Downloading game...');
 
-      Module.setStatus('Downloading...');
+    // Fetch the .love file first, then start love.js
+    fetch('Novus.love')
+      .then(function (response) {
+        if (!response.ok) throw new Error('Failed to fetch game');
+        return response.arrayBuffer();
+      })
+      .then(function (buffer) {
+        setStatus('Starting game engine...');
 
-      window.onerror = function() {
-        Module.setStatus('Error! Check console.');
-      };
+        // Store the game data for later
+        window.gameData = new Uint8Array(buffer);
 
-      // Prevent arrow/space scrolling
-      window.addEventListener("keydown", function(e) {
-        if ([32, 37, 38, 39, 40].indexOf(e.keyCode) > -1) e.preventDefault();
-      }, false);
-    </script>
-    <script src="love.js"></script>
+        // Now load love.js
+        var script = document.createElement('script');
+        script.src = 'love.js';
+        script.onload = function () {
+          // Configure and start Love
+          var Module = {
+            arguments: ['./Novus.love'],
+            print: console.log.bind(console),
+            printErr: console.error.bind(console),
+            canvas: document.getElementById('canvas'),
 
-    <footer>
-      <button onclick="document.getElementById('canvas').requestFullscreen()">Fullscreen</button>
-      <p>Built with <a href="https://github.com/Davidobot/love.js">love.js</a></p>
-    </footer>
-  </body>
+            setStatus: setStatus,
+
+            totalDependencies: 0,
+            monitorRunDependencies: function (left) {
+              this.totalDependencies = Math.max(this.totalDependencies, left);
+              setStatus(left ? 'Loading... (' + (this.totalDependencies - left) + '/' + this.totalDependencies + ')' : '');
+            },
+
+            preRun: [function () {
+              console.log('Running preRun');
+              // Write the preloaded game data to the virtual filesystem
+              if (Module.FS) {
+                console.log('Module.FS found. Writing game file...');
+                Module.FS.writeFile('/Novus.love', window.gameData);
+              } else if (typeof FS !== 'undefined') {
+                console.log('Global FS found. Writing game file...');
+                FS.writeFile('/Novus.love', window.gameData);
+              } else {
+                console.error('FS is not available. love.js patch might have failed.');
+                alert('Critical Error: Filesystem not initialized. Please refresh cleanly.');
+              }
+            }]
+          };
+
+          Love(Module);
+        };
+        document.body.appendChild(script);
+      })
+      .catch(function (err) {
+        setStatus('Error loading game: ' + err.message);
+        console.error(err);
+      });
+
+    // Prevent arrow/space scrolling
+    window.addEventListener("keydown", function (e) {
+      if ([32, 37, 38, 39, 40].indexOf(e.keyCode) > -1) e.preventDefault();
+    }, false);
+  </script>
+
+  <footer>
+    <button onclick="document.getElementById('canvas').requestFullscreen()">Fullscreen</button>
+    <p>Built with <a href="https://github.com/Davidobot/love.js">love.js</a></p>
+  </footer>
+</body>
+
 </html>

@@ -126,7 +126,7 @@ local function applyPickupEffect(pickup, player)
                     riseSpeed = 26,
                     scale = 0.8,
                     alpha = 1.0,
-                    bgColor = {0, 0, 0, 0},
+                    bgColor = { 0, 0, 0, 0 },
                     textColor = textColor,
                     stackKey = text,
                     stackCountIncrement = 1,
@@ -141,7 +141,7 @@ local function applyPickupEffect(pickup, player)
                     riseSpeed = 20,
                     scale = 0.75,
                     alpha = 1.0,
-                    bgColor = {0, 0, 0, 0.4},
+                    bgColor = { 0, 0, 0, 0.4 },
                     textColor = textColor,
                 })
             end
@@ -162,7 +162,7 @@ local function applyPickupEffect(pickup, player)
                 riseSpeed = 26,
                 scale = leveledUp and 0.95 or 0.8,
                 alpha = 1.0,
-                bgColor = {0, 0, 0, 0},
+                bgColor = { 0, 0, 0, 0 },
                 textColor = textColor,
                 stackKey = text,
                 stackCountIncrement = 1,
@@ -216,97 +216,93 @@ function item.update(dt, player, world)
         it.age = (it.age or 0) + dt
         if maxLifetime > 0 and it.age >= maxLifetime then
             table.remove(item.list, i)
-            goto continue
-        end
-
-        local dx = player.x - it.x
-        local dy = player.y - it.y
-        local distanceSq = dx * dx + dy * dy
-        local distance = math.sqrt(distanceSq)
-
-        -- Effective pickup radius: ship pickup radius plus a bit of padding so
-        -- orbs are collected just before they visually overlap the hull.
-        local effectivePickupRadius = pickupRadius + (it.radius or 0)
-
-        -- Immediate pickup when the item reaches the ship.
-        if distance <= effectivePickupRadius then
-            applyPickupEffect(it, player)
-            table.remove(item.list, i)
-            goto continue
-        end
-
-        -- Apply magnet attraction when within radius.
-        if distance > 0 and distance <= magnetRadius then
-            local invDist = 1.0 / distance
-            local dirX = dx * invDist
-            local dirY = dy * invDist
-
-            -- Falloff curve: items accelerate more strongly when closer to the
-            -- ship, making the final approach feel snappy while distant
-            -- pickups drift in more gently.
-            local t = 1.0 - (distance / magnetRadius)
-            if t < 0 then t = 0 end
-            local accel = magnetForce * (t * t)
-
-            local ax = dirX * accel
-            local ay = dirY * accel
-
-            it.vx = (it.vx or 0) + ax * dt
-            it.vy = (it.vy or 0) + ay * dt
-
-            -- Clamp overall speed so items do not streak past the ship.
-            local vx = it.vx or 0
-            local vy = it.vy or 0
-            local speedSq = vx * vx + vy * vy
-            local maxSpeedSq = magnetMaxSpeed * magnetMaxSpeed
-            if speedSq > maxSpeedSq and speedSq > 0 then
-                local factor = magnetMaxSpeed / math.sqrt(speedSq)
-                it.vx = vx * factor
-                it.vy = vy * factor
-            end
         else
-            -- Outside magnet radius: apply gentle damping so items eventually
-            -- slow down instead of drifting forever with full speed.
-            local vx = it.vx or 0
-            local vy = it.vy or 0
-            if vx ~= 0 or vy ~= 0 then
-                local factor = 1.0 - idleDamping * dt
-                if factor < 0 then factor = 0 end
-                it.vx = vx * factor
-                it.vy = vy * factor
-            end
-        end
+            local dx = player.x - it.x
+            local dy = player.y - it.y
+            local distanceSq = dx * dx + dy * dy
+            local distance = math.sqrt(distanceSq)
 
-        -- Integrate velocity to update position.
-        it.x = it.x + (it.vx or 0) * dt
-        it.y = it.y + (it.vy or 0) * dt
+            -- Effective pickup radius: ship pickup radius plus a bit of padding so
+            -- orbs are collected just before they visually overlap the hull.
+            local effectivePickupRadius = pickupRadius + (it.radius or 0)
 
-        -- Keep items inside the playable world so they do not disappear beyond
-        -- the camera. We use a small margin based on the item radius.
-        if world then
-            local margin = (it.radius or 0) + 4
-            if world.minX and world.maxX then
-                if it.x < world.minX + margin then
-                    it.x = world.minX + margin
-                    it.vx = 0
-                elseif it.x > world.maxX - margin then
-                    it.x = world.maxX - margin
-                    it.vx = 0
+            -- Immediate pickup when the item reaches the ship.
+            if distance <= effectivePickupRadius then
+                applyPickupEffect(it, player)
+                table.remove(item.list, i)
+            else
+                -- Apply magnet attraction when within radius.
+                if distance > 0 and distance <= magnetRadius then
+                    local invDist = 1.0 / distance
+                    local dirX = dx * invDist
+                    local dirY = dy * invDist
+
+                    -- Falloff curve: items accelerate more strongly when closer to the
+                    -- ship, making the final approach feel snappy while distant
+                    -- pickups drift in more gently.
+                    local t = 1.0 - (distance / magnetRadius)
+                    if t < 0 then t = 0 end
+                    local accel = magnetForce * (t * t)
+
+                    local ax = dirX * accel
+                    local ay = dirY * accel
+
+                    it.vx = (it.vx or 0) + ax * dt
+                    it.vy = (it.vy or 0) + ay * dt
+
+                    -- Clamp overall speed so items do not streak past the ship.
+                    local vx = it.vx or 0
+                    local vy = it.vy or 0
+                    local speedSq = vx * vx + vy * vy
+                    local maxSpeedSq = magnetMaxSpeed * magnetMaxSpeed
+                    if speedSq > maxSpeedSq and speedSq > 0 then
+                        local factor = magnetMaxSpeed / math.sqrt(speedSq)
+                        it.vx = vx * factor
+                        it.vy = vy * factor
+                    end
+                else
+                    -- Outside magnet radius: apply gentle damping so items eventually
+                    -- slow down instead of drifting forever with full speed.
+                    local vx = it.vx or 0
+                    local vy = it.vy or 0
+                    if vx ~= 0 or vy ~= 0 then
+                        local factor = 1.0 - idleDamping * dt
+                        if factor < 0 then factor = 0 end
+                        it.vx = vx * factor
+                        it.vy = vy * factor
+                    end
+                end
+
+                -- Integrate velocity to update position.
+                it.x = it.x + (it.vx or 0) * dt
+                it.y = it.y + (it.vy or 0) * dt
+
+                -- Keep items inside the playable world so they do not disappear beyond
+                -- the camera. We use a small margin based on the item radius.
+                if world then
+                    local margin = (it.radius or 0) + 4
+                    if world.minX and world.maxX then
+                        if it.x < world.minX + margin then
+                            it.x = world.minX + margin
+                            it.vx = 0
+                        elseif it.x > world.maxX - margin then
+                            it.x = world.maxX - margin
+                            it.vx = 0
+                        end
+                    end
+
+                    if world.minY and world.maxY then
+                        if it.y < world.minY + margin then
+                            it.y = world.minY + margin
+                            it.vy = 0
+                        elseif it.y > world.maxY - margin then
+                            it.y = world.maxY - margin
+                            it.vy = 0
+                        end
+                    end
                 end
             end
-
-            if world.minY and world.maxY then
-                if it.y < world.minY + margin then
-                    it.y = world.minY + margin
-                    it.vy = 0
-                elseif it.y > world.maxY - margin then
-                    it.y = world.maxY - margin
-                    it.vy = 0
-                end
-            end
         end
-
-        ::continue::
     end
 end
 
