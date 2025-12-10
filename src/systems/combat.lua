@@ -234,6 +234,55 @@ function combat.getCurrentHudTarget()
     return currentTarget, isLocked, isLocking, progress
 end
 
+-- Returns the current primary weapon cooldown state so HUD code can render a
+-- simple progress bar. This mirrors the interval logic used in
+-- updateAutoShoot(), but is read-only and side-effect free.
+--
+-- Returns:
+--   progress  : 0..1, how "ready" the weapon is (0 = just fired, 1 = fully ready)
+--   remaining : time relative to the weapon being ready, in seconds.
+--               > 0  : seconds left until the weapon is ready (still cooling)
+--               <= 0 : seconds since the weapon became ready (idle/ready time)
+--   interval  : the effective cooldown duration in seconds for the current weapon
+function combat.getWeaponCooldownState(player)
+    -- Derive the same effective interval that updateAutoShoot() uses, taking
+    -- the base config, the equipped weapon, and any temporary attack-speed
+    -- bonuses into account.
+    local interval = fireInterval
+
+    if player and player.weapon and player.weapon.fireInterval then
+        interval = player.weapon.fireInterval
+    end
+
+    local bonus = 0
+    if player and player.attackSpeedBonus then
+        bonus = player.attackSpeedBonus
+    end
+
+    if bonus > 0 then
+        interval = interval / (1 + bonus)
+    end
+
+    -- A non-positive interval would mean "no cooldown"; treat this as always
+    -- ready so the HUD does not try to draw anything misleading.
+    if not interval or interval <= 0 then
+        return 1, 0, 0
+    end
+
+    -- fireTimer measures time since the last projectile was fired. Clamp it to
+    -- the interval so we always hand 0..1 to the UI for progress, but keep the
+    -- raw timing for the HUD so it can fade the bar out after a short period
+    -- of inactivity.
+    local clampedTimer = math.max(0, math.min(fireTimer, interval))
+    local progress = clampedTimer / interval
+    -- Remaining is intentionally *not* clamped at 0 here: once the weapon is
+    -- ready, this value becomes negative and effectively represents "time
+    -- since ready" so HUD code can implement an idle fade-out.
+    local remaining = interval - fireTimer
+
+    return progress, remaining, interval
+end
+
 function combat.reset()
     targetEnemy = nil
     fireTimer = 0

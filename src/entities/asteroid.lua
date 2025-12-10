@@ -1,4 +1,5 @@
 local colors = require("src.core.colors")
+local config = require("src.core.config")
 
 local asteroid = {}
 
@@ -7,11 +8,6 @@ asteroid.shader = nil
 
 local asteroid_generator = require("src.utils.procedural_asteroid_generator")
 local physics = require("src.core.physics")
-
-local MIN_SIZE = 20
-local MAX_SIZE = 70
-local MIN_HEALTH = 10
-local MAX_HEALTH = 40
 
 local function clamp01(x)
     if x < 0 then return 0 end
@@ -74,15 +70,15 @@ function asteroid.populate(world, count)
     for i = 1, count do
         local x = math.random(world.minX + margin, world.maxX - margin)
         local y = math.random(world.minY + margin, world.maxY - margin)
-        local size = MIN_SIZE + math.random() * (MAX_SIZE - MIN_SIZE)
+        local size = config.asteroid.minSize + math.random() * (config.asteroid.maxSize - config.asteroid.minSize)
 
         local data = asteroid_generator.generate(size)
         local collisionRadius = (data and data.shape and data.shape.boundingRadius) or size
 
-        local t = (size - MIN_SIZE) / (MAX_SIZE - MIN_SIZE)
+        local t = (size - config.asteroid.minSize) / (config.asteroid.maxSize - config.asteroid.minSize)
         t = math.max(0, math.min(1, t))
-        local maxHealth = MIN_HEALTH + t * (MAX_HEALTH - MIN_HEALTH)
-        
+        local maxHealth = config.asteroid.minHealth + t * (config.asteroid.maxHealth - config.asteroid.minHealth)
+
         -- Zero-g drift velocity (asteroids drift slowly through space)
         local consts = physics.constants
         local driftSpeed = consts.asteroidMinDrift + math.random() * (consts.asteroidMaxDrift - consts.asteroidMinDrift)
@@ -93,7 +89,7 @@ function asteroid.populate(world, count)
         if data and data.shape and data.shape.flatPoints then
             collisionVertices = data.shape.flatPoints
         end
-        
+
         -- Create the asteroid entity first (so we can pass it to physics).
         -- The composition text is derived from the generator's
         -- stone/ice/mithril mix so HUD and gameplay stay consistent.
@@ -106,7 +102,7 @@ function asteroid.populate(world, count)
             vy = math.sin(driftAngle) * driftSpeed,
             size = size,
             angle = math.random() * math.pi * 2,
-            rotationSpeed = (math.random() - 0.5) * 0.3,  -- Slower rotation
+            rotationSpeed = (math.random() - 0.5) * 0.3, -- Slower rotation
             data = data,
             collisionRadius = collisionRadius,
             collisionVertices = collisionVertices,
@@ -115,10 +111,10 @@ function asteroid.populate(world, count)
             -- Mining / flavor stats
             composition = composition,
             body = nil,
-            shapes = nil,   -- Table of shapes (polygon body may have multiple)
-            fixtures = nil  -- Table of fixtures
+            shapes = nil,  -- Table of shapes (polygon body may have multiple)
+            fixtures = nil -- Table of fixtures
         }
-        
+
         -- Create physics body with polygon collision from asteroid shape
         if collisionVertices and #collisionVertices >= 6 then
             newAsteroid.body, newAsteroid.shapes, newAsteroid.fixtures = physics.createPolygonBody(
@@ -138,10 +134,10 @@ function asteroid.populate(world, count)
                 {}
             )
             newAsteroid.body = body
-            newAsteroid.shapes = shape and {shape} or nil
-            newAsteroid.fixtures = fixture and {fixture} or nil
+            newAsteroid.shapes = shape and { shape } or nil
+            newAsteroid.fixtures = fixture and { fixture } or nil
         end
-        
+
         table.insert(asteroid.list, newAsteroid)
     end
 end
@@ -150,12 +146,12 @@ function asteroid.update(dt, world)
     for _, a in ipairs(asteroid.list) do
         -- Update rotation
         a.angle = a.angle + (a.rotationSpeed or 0) * dt
-        
+
         -- Update position based on drift velocity (zero-g momentum)
         if a.vx and a.vy then
             a.x = a.x + a.vx * dt
             a.y = a.y + a.vy * dt
-            
+
             -- Wrap around world boundaries (asteroids drift endlessly)
             if world then
                 local margin = a.collisionRadius or a.size
@@ -170,7 +166,7 @@ function asteroid.update(dt, world)
                     a.y = world.minY - margin
                 end
             end
-            
+
             -- Sync physics body position
             if a.body then
                 a.body:setPosition(a.x, a.y)
@@ -199,7 +195,8 @@ function asteroid.draw(camera)
             local outlinePad = 1
 
             love.graphics.setColor(0, 0, 0, 1)
-            love.graphics.rectangle("fill", barX - outlinePad, barY - outlinePad, barWidth * 2 + outlinePad * 2, barHeight + outlinePad * 2)
+            love.graphics.rectangle("fill", barX - outlinePad, barY - outlinePad, barWidth * 2 + outlinePad * 2,
+                barHeight + outlinePad * 2)
 
             love.graphics.setColor(colors.asteroidHealthBg)
             love.graphics.rectangle("fill", barX, barY, barWidth * 2, barHeight)

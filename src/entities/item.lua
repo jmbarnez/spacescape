@@ -119,17 +119,18 @@ local function applyPickupEffect(pickup, player)
                 -- not require changes here.
                 local def = getResourceDef(resourceType)
                 local label = def.displayName or def.name or tostring(resourceType)
-                local text = string.format("+%d %s", math.floor(added + 0.5), label)
+                local baseText = string.format("Picked up %s", label)
                 local textColor = colors.health or colors.white
-                floatingText.spawn(text, player.x, player.y, nil, {
+                floatingText.spawn(baseText, player.x, player.y, nil, {
                     duration = 1.1,
                     riseSpeed = 26,
                     scale = 0.8,
                     alpha = 1.0,
                     bgColor = { 0, 0, 0, 0 },
                     textColor = textColor,
-                    stackKey = text,
-                    stackCountIncrement = 1,
+                    stackKey = "resource:" .. tostring(resourceType),
+                    stackValueIncrement = math.floor(added + 0.5),
+                    stackBaseText = baseText,
                 })
             else
                 -- Cargo is full: provide minimal feedback so the player understands

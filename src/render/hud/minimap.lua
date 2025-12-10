@@ -39,8 +39,8 @@ function hud_minimap.draw(player, colors, enemyList, asteroidList)
     -- which currently lives around (screenW - margin, 20). We start the panel
     -- a bit lower so both elements remain readable.
     --------------------------------------------------------------------------
-    local panelMarginRight = 20   -- Distance from right screen edge
-    local panelMarginTop = 52     -- Distance from top; > FPS Y so they do not overlap
+    local panelMarginRight = 12   -- Distance from right screen edge
+    local panelMarginTop = 12     -- Distance from top; > FPS Y so they do not overlap
     local panelWidth = 200        -- Overall minimap panel width (including padding)
     local panelHeight = 150       -- Overall minimap panel height (map only; coords sit below)
 
@@ -50,18 +50,6 @@ function hud_minimap.draw(player, colors, enemyList, asteroidList)
     --------------------------------------------------------------------------
     -- Panel background + border
     --------------------------------------------------------------------------
-    love.graphics.setColor(
-        hudPanelStyle.background[1],
-        hudPanelStyle.background[2],
-        hudPanelStyle.background[3],
-        hudPanelStyle.background[4]
-    )
-    love.graphics.rectangle("fill", panelX, panelY, panelWidth, panelHeight, 8, 8)
-
-    local borderColor = hudPanelStyle.border or colors.uiPanelBorder or { 1, 1, 1, 0.5 }
-    love.graphics.setColor(borderColor[1], borderColor[2], borderColor[3], borderColor[4] or 0.5)
-    love.graphics.setLineWidth(2)
-    love.graphics.rectangle("line", panelX, panelY, panelWidth, panelHeight, 8, 8)
 
     --------------------------------------------------------------------------
     -- World-to-minimap projection setup
@@ -95,8 +83,8 @@ function hud_minimap.draw(player, colors, enemyList, asteroidList)
     local worldMinY = world.minY or 0
 
     -- Center the scaled world rectangle inside the map area.
-    local worldRectX = mapX + (mapWidth - scaledWorldWidth) * 0.5
-    local worldRectY = mapY + (mapHeight - scaledWorldHeight) * 0.5
+    local worldRectX = mapX + (mapWidth - scaledWorldWidth)
+    local worldRectY = mapY
 
     -- Helper: project a world-space point into minimap coordinates.
     local function worldToMinimap(wx, wy)
@@ -233,7 +221,8 @@ function hud_minimap.draw(player, colors, enemyList, asteroidList)
 
     local textWidth = font:getWidth(coordText)
     local textX = panelX + panelWidth / 2 - textWidth / 2
-    local textY = panelY + panelHeight + 6
+    local lineHeight = font:getHeight()
+    local textY = panelY + panelHeight + 4 + lineHeight + 4
 
     love.graphics.setColor(colors.uiText[1], colors.uiText[2], colors.uiText[3], 0.9)
     love.graphics.print(coordText, textX, textY)

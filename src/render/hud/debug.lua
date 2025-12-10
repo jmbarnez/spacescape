@@ -7,13 +7,26 @@ function hud_debug.draw(player, colors)
     local screenW = love.graphics.getWidth()
     local screenH = love.graphics.getHeight()
 
-    -- FPS (top-right, subtle)
+    -- FPS (stacked under minimap)
     local fps = love.timer.getFPS()
     local fpsText = fps .. " FPS"
     local fpsWidth = font:getWidth(fpsText)
     local fpsColor = ui_theme.debug.fps or colors.uiFps
     love.graphics.setColor(fpsColor[1], fpsColor[2], fpsColor[3], fpsColor[4] or 0.7)
-    love.graphics.print(fpsText, screenW - fpsWidth - 20, 20)
+
+    -- Match minimap layout so FPS can sit directly underneath it
+    local panelMarginRight = 12
+    local panelMarginTop = 12
+    local panelWidth = 200
+    local panelHeight = 150
+
+    local panelX = screenW - panelWidth - panelMarginRight
+    local panelY = panelMarginTop
+
+    local fpsX = panelX + panelWidth / 2 - fpsWidth / 2
+    local fpsY = panelY + panelHeight + 4
+
+    love.graphics.print(fpsText, fpsX, fpsY)
 
     -- Controls hint (bottom-left, very subtle)
     local hintColor = ui_theme.debug.hint or {1, 1, 1, 0.3}

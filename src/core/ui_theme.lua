@@ -65,7 +65,7 @@ ui_theme.abilityBar = {
 
 ui_theme.debug = {
     -- Minimal, low-contrast debug text
-    fps = {0.50, 0.60, 0.70, 0.6},
+    fps = {1.0, 1.0, 0.0, 0.9},
     hint = {0.40, 0.50, 0.60, 0.3},
 }
 

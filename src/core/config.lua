@@ -124,6 +124,21 @@ local config = {
         xpShardMinPerAsteroid = 2,
         xpShardMaxPerAsteroid = 4,
     },
+    engineTrail = {
+        bubbleSizeMin = 3,
+        bubbleSizeMax = 8,
+        bubblesPerSpawn = 2,
+        intensity = 1.0,
+        spawnInterval = 0.035,
+        maxPoints = 400,
+        lifetime = 0.9,
+    },
+    asteroid = {
+        minSize = 20,
+        maxSize = 70,
+        minHealth = 10,
+        maxHealth = 40,
+    },
 }
 
 return config

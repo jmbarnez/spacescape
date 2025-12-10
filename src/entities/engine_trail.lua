@@ -1,4 +1,5 @@
 local colors = require("src.core.colors")
+local config = require("src.core.config")
 
 local engine_trail = {}
 
@@ -7,40 +8,17 @@ local engine_trail = {}
 -- Uses QUAD-BASED rendering to bypass OpenGL point size limits
 -- ###########################################################################
 
--- Bubble sizes in pixels (very small bubbles)
-local BUBBLE_SIZE_MIN = 3
-local BUBBLE_SIZE_MAX = 8
-
--- Spawn per entity per interval
-local BUBBLES_PER_SPAWN = 2
-
--- Glow intensity (1.0 = no extra glow)
-local TRAIL_INTENSITY = 1.0
-
 -- All bubble particles (from any entity)
 engine_trail.points = {}
 engine_trail.shader = nil
 
--- Spawn rate
-engine_trail.spawnInterval = 0.035
-
--- Per-entity spawn timers (keyed by entity)
-engine_trail.entityTimers = {}
-
--- Max bubbles in memory
-engine_trail.maxPoints = 400
-
--- How long each bubble lives
-engine_trail.trailLifetime = 0.9
+-- Per-entity spawn timers (weak keys to auto-clean when entities are removed)
+engine_trail.entityTimers = setmetatable({}, { __mode = "k" })
 
 engine_trail.time = 0
 
 -- Create a simple 1x1 white image for the shader to work with
 local bubbleImage = nil
-
--- Red color palette for enemies
-local ENEMY_COLOR_A = { 1.0, 0.3, 0.2 }
-local ENEMY_COLOR_B = { 0.8, 0.1, 0.1 }
 
 function engine_trail.load()
     local ok, shader = pcall(love.graphics.newShader, "assets/shaders/engine_trail.glsl")
@@ -82,14 +60,13 @@ local function spawnBubblesForEntity(entity, colorA, colorB)
         return
     end
 
-    -- Get or create timer for this entity
-    local entityId = tostring(entity)
-    engine_trail.entityTimers[entityId] = (engine_trail.entityTimers[entityId] or 0)
+    -- Get or create timer for this entity (use entity table as key for weak ref)
+    engine_trail.entityTimers[entity] = (engine_trail.entityTimers[entity] or 0)
 
-    if engine_trail.entityTimers[entityId] < engine_trail.spawnInterval then
+    if engine_trail.entityTimers[entity] < config.engineTrail.spawnInterval then
         return
     end
-    engine_trail.entityTimers[entityId] = 0
+    engine_trail.entityTimers[entity] = 0
 
     -- Spawn behind the entity
     local size = entity.size or 15
@@ -105,7 +82,7 @@ local function spawnBubblesForEntity(entity, colorA, colorB)
     local speedJitter = 40
     local dirJitter = 0.8
 
-    for n = 1, BUBBLES_PER_SPAWN do
+    for n = 1, config.engineTrail.bubblesPerSpawn do
         -- Spread bubbles across exhaust width (thin focused stream)
         local lateral = (math.random() - 0.5) * size * 0.4
 
@@ -116,15 +93,16 @@ local function spawnBubblesForEntity(entity, colorA, colorB)
         local speed = baseSpeed + math.random() * speedJitter
 
         -- Random size within range
-        local bubbleSize = BUBBLE_SIZE_MIN + math.random() * (BUBBLE_SIZE_MAX - BUBBLE_SIZE_MIN)
+        local bubbleSize = config.engineTrail.bubbleSizeMin +
+        math.random() * (config.engineTrail.bubbleSizeMax - config.engineTrail.bubbleSizeMin)
 
         table.insert(engine_trail.points, 1, {
             x = entity.x + ox,
             y = entity.y + oy,
             vx = math.cos(dir) * speed,
             vy = math.sin(dir) * speed,
-            life = engine_trail.trailLifetime,
-            maxLife = engine_trail.trailLifetime,
+            life = config.engineTrail.lifetime,
+            maxLife = config.engineTrail.lifetime,
             noiseOffset = math.random() * math.pi * 2,
             spawnTime = engine_trail.time,
             size = bubbleSize,
@@ -137,8 +115,8 @@ end
 
 -- Update entity timers
 local function updateEntityTimers(dt)
-    for entityId, timer in pairs(engine_trail.entityTimers) do
-        engine_trail.entityTimers[entityId] = timer + dt
+    for entity, timer in pairs(engine_trail.entityTimers) do
+        engine_trail.entityTimers[entity] = timer + dt
     end
 end
 
@@ -155,13 +133,13 @@ function engine_trail.update(dt, player, enemies)
     if enemies then
         for _, enemy in ipairs(enemies) do
             if not enemy._removed then
-                spawnBubblesForEntity(enemy, ENEMY_COLOR_A, ENEMY_COLOR_B)
+                spawnBubblesForEntity(enemy, colors.enemyEngineTrailA, colors.enemyEngineTrailB)
             end
         end
     end
 
     -- Cap total particles
-    while #engine_trail.points > engine_trail.maxPoints do
+    while #engine_trail.points > config.engineTrail.maxPoints do
         table.remove(engine_trail.points)
     end
 
@@ -209,14 +187,14 @@ function engine_trail.draw()
     -- Send common uniforms
     engine_trail.shader:send("u_time", engine_trail.time)
     engine_trail.shader:send("u_colorMode", 2.0)
-    engine_trail.shader:send("u_intensity", TRAIL_INTENSITY)
+    engine_trail.shader:send("u_intensity", config.engineTrail.intensity)
 
     love.graphics.setColor(1, 1, 1, 1)
 
     -- Draw each bubble as a QUAD (bypasses gl_PointSize limit!)
     for i, p in ipairs(engine_trail.points) do
         local age = engine_trail.time - p.spawnTime
-        local life01 = math.min(age / engine_trail.trailLifetime, 1.0)
+        local life01 = math.min(age / config.engineTrail.lifetime, 1.0)
 
         -- Calculate size with shrink and pulse
         local sizeMult = 1.0 - (life01 ^ 1.2) * 0.6

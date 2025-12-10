@@ -14,19 +14,32 @@ function floating_text.spawn(text, x, y, color, options)
 
     local stackKey = options.stackKey
     local stackCountIncrement = options.stackCountIncrement or 1
+    local stackValueIncrement = options.stackValueIncrement
     local baseText = tostring(text)
+    local stackBaseText = options.stackBaseText
 
     if stackKey then
         for i = #floating_text.list, 1, -1 do
             local f = floating_text.list[i]
             if f.stackKey == stackKey then
-                f.stackCount = (f.stackCount or 1) + stackCountIncrement
-                f.baseText = f.baseText or f.text or baseText
-
-                if f.stackCount > 1 then
-                    f.text = f.baseText .. " x" .. f.stackCount
+                if stackValueIncrement ~= nil then
+                    f.stackValue = (f.stackValue or 0) + stackValueIncrement
+                    local labelText = stackBaseText or f.baseText or baseText
+                    local value = f.stackValue
+                    if value and value > 0 then
+                        f.text = labelText .. " x" .. value
+                    else
+                        f.text = labelText
+                    end
                 else
-                    f.text = f.baseText
+                    f.stackCount = (f.stackCount or 1) + stackCountIncrement
+                    f.baseText = f.baseText or f.text or baseText
+
+                    if f.stackCount > 1 then
+                        f.text = f.baseText .. " x" .. f.stackCount
+                    else
+                        f.text = f.baseText
+                    end
                 end
 
                 f.t = 0
@@ -48,26 +61,54 @@ function floating_text.spawn(text, x, y, color, options)
     local bgColor = options.bgColor or colors.floatingBg
     local textColor = options.textColor or colors.floatingText
 
-    -- Add random offset to prevent text stacking
     local offsetX = (math.random() - 0.5) * 80
     local offsetY = (math.random() - 0.5) * 60
 
-    table.insert(floating_text.list, {
-        text = baseText,
-        x = x + offsetX,
-        y = y + offsetY,
-        vx = vx,
-        vy = vy,
-        t = 0,
-        life = life,
-        alphaStart = alphaStart,
-        scale = scale,
-        bgColor = bgColor,
-        textColor = textColor,
-        stackKey = stackKey,
-        stackCount = stackKey and stackCountIncrement or nil,
-        baseText = baseText,
-    })
+    if stackKey and stackValueIncrement ~= nil then
+        local labelText = stackBaseText or baseText
+        local value = stackValueIncrement
+        local initialText
+        if value and value > 0 then
+            initialText = labelText .. " x" .. value
+        else
+            initialText = labelText
+        end
+
+        table.insert(floating_text.list, {
+            text = initialText,
+            x = x + offsetX,
+            y = y + offsetY,
+            vx = vx,
+            vy = vy,
+            t = 0,
+            life = life,
+            alphaStart = alphaStart,
+            scale = scale,
+            bgColor = bgColor,
+            textColor = textColor,
+            stackKey = stackKey,
+            stackCount = nil,
+            stackValue = value,
+            baseText = labelText,
+        })
+    else
+        table.insert(floating_text.list, {
+            text = baseText,
+            x = x + offsetX,
+            y = y + offsetY,
+            vx = vx,
+            vy = vy,
+            t = 0,
+            life = life,
+            alphaStart = alphaStart,
+            scale = scale,
+            bgColor = bgColor,
+            textColor = textColor,
+            stackKey = stackKey,
+            stackCount = stackKey and stackCountIncrement or nil,
+            baseText = baseText,
+        })
+    end
 end
 
 --------------------------------------------------------------------------------
