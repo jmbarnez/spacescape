@@ -5,19 +5,20 @@ rem ============================================================================
 rem  build_web.bat
 rem  --------------------------------------------------------------------------
 rem  Purpose:
-rem    Helper script to prepare a web-ready .love package for use with love.js.
+rem    Build a web-ready version of the game using love.js.
 rem
 rem  What this does:
 rem    1. Ensures the standard desktop .love build exists by calling build.bat.
-rem    2. Creates a dedicated "web" folder (if it does not already exist).
-rem    3. Copies the .love file into the web folder for hosting / embedding.
+rem    2. Uses love.js (npm package) to create a complete web build.
+rem    3. Outputs to the "web" folder with all necessary files.
+rem
+rem  Requirements:
+rem    - Node.js and npm must be installed
+rem    - love.js package (will be installed if not present)
 rem
 rem  Notes:
-rem    - This script does NOT download or manage love.js / love.wasm.
-rem    - You are expected to place love.js, love.wasm and index.html into the
-rem      web folder yourself and configure index.html to load this .love file.
-rem    - Keeping the web build in its own folder keeps the project modular and
-rem      organized so desktop and web builds stay separate.
+rem    - Uses -c (compatibility mode) for broader browser support
+rem    - The web folder will contain a complete, ready-to-deploy web build
 rem ============================================================================
 
 rem ---------------------------------------------------------------------------
@@ -33,8 +34,11 @@ set "LOVE_FILE=%GAME_NAME%.love"
 rem Desktop build output directory (used by build.bat)
 set "DIST_DIR=dist"
 
-rem Target directory for web-specific artifacts (for love.js, index.html, etc.)
+rem Target directory for web build
 set "WEB_DIR=web"
+
+rem Game title for the web page
+set "GAME_TITLE=Spacescape"
 
 rem ---------------------------------------------------------------------------
 rem INITIAL SETUP
@@ -45,7 +49,7 @@ cd /d "%~dp0"
 
 rem Echo a small header so it is clear in the console what is happening.
 echo.
-echo [build_web] Preparing web build for %LOVE_FILE% ...
+echo [build_web] Building web version of %LOVE_FILE% ...
 echo.
 
 rem ---------------------------------------------------------------------------
@@ -73,36 +77,39 @@ if not exist "%DIST_DIR%\%LOVE_FILE%" (
 )
 
 rem ---------------------------------------------------------------------------
-rem STEP 2: Ensure the web output directory exists
+rem STEP 2: Check for Node.js and npm
 rem ---------------------------------------------------------------------------
 
-if not exist "%WEB_DIR%" (
-    echo [build_web] Creating web output directory "%WEB_DIR%" ...
-    mkdir "%WEB_DIR%"
-) else (
-    echo [build_web] Web output directory "%WEB_DIR%" already exists.
-)
-
-rem ---------------------------------------------------------------------------
-rem STEP 3: Copy the .love file into the web directory
-rem ---------------------------------------------------------------------------
-
-rem Remove any previous copy of the .love file in the web directory to avoid
-rem confusion or stale builds.
-if exist "%WEB_DIR%\%LOVE_FILE%" (
-    echo [build_web] Removing existing "%WEB_DIR%\%LOVE_FILE%" ...
-    del /f /q "%WEB_DIR%\%LOVE_FILE%"
-)
-
-rem Copy the freshly built .love file from dist into the web folder.
-echo [build_web] Copying "%DIST_DIR%\%LOVE_FILE%" -> "%WEB_DIR%\%LOVE_FILE%" ...
-copy /Y "%DIST_DIR%\%LOVE_FILE%" "%WEB_DIR%\%LOVE_FILE%" >nul
-
-rem Check the result of the copy operation and report any error.
+where node >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo.
-    echo [build_web] ERROR: Failed to copy .love into "%WEB_DIR%".
-    echo [build_web]        Verify that %DIST_DIR% and %WEB_DIR% are accessible.
+    echo [build_web] ERROR: Node.js is not installed or not in PATH.
+    echo [build_web]        Please install Node.js from https://nodejs.org/
+    echo.
+    pause
+    exit /b 1
+)
+
+echo [build_web] Node.js found.
+
+rem ---------------------------------------------------------------------------
+rem STEP 3: Build the web version using love.js
+rem ---------------------------------------------------------------------------
+
+echo [build_web] Running love.js to create web build...
+echo [build_web] This may take a moment...
+echo.
+
+rem Use npx to run love.js (will download if not cached)
+rem -t sets the title, -c enables compatibility mode for broader browser support
+rem On Windows, must use love.js.cmd instead of love.js
+npx love.js.cmd "%DIST_DIR%\%LOVE_FILE%" "%WEB_DIR%" -t "%GAME_TITLE%" -c
+
+rem Check the result
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo [build_web] ERROR: love.js build failed.
+    echo [build_web]        Make sure you have internet access for npm packages.
     echo.
     pause
     exit /b 1
@@ -113,11 +120,15 @@ rem FINAL MESSAGE / NEXT STEPS
 rem ---------------------------------------------------------------------------
 
 echo.
-echo [build_web] Done. Web build is ready at "%WEB_DIR%\%LOVE_FILE%".
+echo [build_web] Done! Web build is ready in the "%WEB_DIR%" folder.
 echo.
-echo [build_web] Next steps (for running in a browser):
-echo    1. Place love.js, love.wasm and index.html into the "%WEB_DIR%" folder.
-echo    2. Configure index.html to pass "%LOVE_FILE%" as the argument to love.js.
-echo    3. Serve the "%WEB_DIR%" folder using a local HTTP server (not file://).
+echo [build_web] To test locally:
+echo    1. cd %WEB_DIR%
+echo    2. python -m http.server 8000
+echo    3. Open http://localhost:8000 in your browser
+echo.
+echo [build_web] Or use serve_web.bat for a server with proper headers.
 echo.
 pause
+</CodeContent>
+<parameter name="Complexity">4

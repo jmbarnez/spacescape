@@ -62,7 +62,7 @@
 
     setStatus('Downloading game...');
 
-    // Fetch the .love file first, then start love.js
+    // Fetch the .love file first
     fetch('Novus.love')
       .then(function (response) {
         if (!response.ok) throw new Error('Failed to fetch game');
@@ -71,16 +71,18 @@
       .then(function (buffer) {
         setStatus('Starting game engine...');
 
-        // Store the game data for later
+        // Store the game data globally
         window.gameData = new Uint8Array(buffer);
 
-        // Now load love.js
+        // Load love.js script
         var script = document.createElement('script');
         script.src = 'love.js';
         script.onload = function () {
-          // Configure and start Love
+          // Track if we've written the file
+          var fileWritten = false;
+
           var Module = {
-            arguments: ['./Novus.love'],
+            arguments: ['/Novus.love'],
             print: console.log.bind(console),
             printErr: console.error.bind(console),
             canvas: document.getElementById('canvas'),
@@ -93,23 +95,47 @@
               setStatus(left ? 'Loading... (' + (this.totalDependencies - left) + '/' + this.totalDependencies + ')' : '');
             },
 
-            preRun: [function () {
-              console.log('Running preRun');
-              // Write the preloaded game data to the virtual filesystem
-              if (Module.FS) {
-                console.log('Module.FS found. Writing game file...');
-                Module.FS.writeFile('/Novus.love', window.gameData);
-              } else if (typeof FS !== 'undefined') {
-                console.log('Global FS found. Writing game file...');
+            locateFile: function (file) {
+              return file;
+            },
+
+            // Called after runtime is initialized but BEFORE main() runs
+            onRuntimeInitialized: function () {
+              console.log('onRuntimeInitialized called');
+              console.log('this.FS:', this.FS);
+              console.log('Module.FS:', Module.FS);
+
+              var FS = this.FS || Module.FS;
+              if (FS && window.gameData && !fileWritten) {
+                console.log('Writing Novus.love to virtual filesystem...');
                 FS.writeFile('/Novus.love', window.gameData);
-              } else {
-                console.error('FS is not available. love.js patch might have failed.');
-                alert('Critical Error: Filesystem not initialized. Please refresh cleanly.');
+                fileWritten = true;
+                console.log('Game file written successfully!');
+              } else if (!FS) {
+                console.error('FS still not available in onRuntimeInitialized!');
               }
+            },
+
+            // Also try in preRun as backup
+            preRun: [function () {
+              console.log('preRun called');
             }]
           };
 
+          // Start Love with the configured Module
           Love(Module);
+
+          // Also try accessing FS after Love() returns
+          console.log('After Love() - Module.FS:', Module.FS);
+          if (Module.FS && window.gameData && !fileWritten) {
+            console.log('Writing from post-Love() context...');
+            Module.FS.writeFile('/Novus.love', window.gameData);
+            fileWritten = true;
+            console.log('Game file written successfully!');
+          }
+        };
+        script.onerror = function () {
+          setStatus('Error: Failed to load love.js');
         };
         document.body.appendChild(script);
       })
@@ -131,3 +157,5 @@
 </body>
 
 </html>
+</CodeContent>
+<parameter name="Complexity">7
