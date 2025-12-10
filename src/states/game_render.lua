@@ -311,6 +311,10 @@ local function drawWorldObjects(ctx)
     if itemModule and itemModule.draw then
         itemModule.draw(colors)
     end
+    local wreckModule = ctx.wreckModule
+    if wreckModule and wreckModule.draw then
+        wreckModule.draw()
+    end
     projectileModule.draw(colors)
     projectileShards.draw()
     enemyModule.draw(colors)

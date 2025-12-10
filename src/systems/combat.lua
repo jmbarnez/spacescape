@@ -1,6 +1,7 @@
 local enemyModule = require("src.entities.enemy")
 local asteroidModule = require("src.entities.asteroid")
 local projectileModule = require("src.entities.projectile")
+local wreckModule = require("src.entities.wreck")
 local config = require("src.core.config")
 
 local combat = {}
@@ -88,6 +89,20 @@ local function findEnemyAtPosition(x, y, maxRadius)
     end
 
     return closestEnemy
+end
+
+--- Find a wreck at the given position for loot interaction
+--- @param x number World X position
+--- @param y number World Y position
+--- @param maxRadius number Selection padding radius
+--- @return table|nil The wreck at position, or nil
+local function findWreckAtPosition(x, y, maxRadius)
+    return wreckModule.findAtPosition(x, y, maxRadius)
+end
+
+--- Public function to check for wreck at position (used by input system)
+function combat.findWreckAtPosition(x, y, maxRadius)
+    return findWreckAtPosition(x, y, maxRadius)
 end
 
 function combat.updateAutoShoot(dt, player)

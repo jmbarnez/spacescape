@@ -12,6 +12,7 @@ local particlesModule = require("src.entities.particles")
 local projectileShards = require("src.entities.projectile_shards")
 local itemModule = require("src.entities.item")
 local starfield = require("src.render.starfield")
+local wreckModule = require("src.entities.wreck")
 local world = require("src.core.world")
 local camera = require("src.core.camera")
 local physics = require("src.core.physics")
@@ -134,6 +135,10 @@ local function registerUpdateSystems()
 	systems.registerUpdate("items", function(dt, ctx)
 		itemModule.update(dt, ctx.player, ctx.world)
 	end, 95)
+
+	systems.registerUpdate("wrecks", function(dt, ctx)
+		wreckModule.update(dt, ctx.world)
+	end, 96)
 end
 --------------------------------------------------------------------------------
 -- Initialization
@@ -366,6 +371,7 @@ function game.restartGame()
 	asteroidModule.clear()
 	particlesModule.clear()
 	itemModule.clear()
+	wreckModule.clear()
 	engineTrail.reset()
 	explosionFx.clear()
 	shieldImpactFx.clear()
@@ -393,6 +399,7 @@ function game.draw()
 		playerModule = playerModule,
 		asteroidModule = asteroidModule,
 		itemModule = itemModule,
+		wreckModule = wreckModule,
 		projectileModule = projectileModule,
 		projectileShards = projectileShards,
 		enemyModule = enemyModule,

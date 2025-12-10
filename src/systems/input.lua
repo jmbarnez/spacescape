@@ -27,7 +27,13 @@ function input.mousepressed(x, y, button, player, world, camera)
     if button == 2 then
         playerModule.setTarget(worldX, worldY)
     elseif button == 1 then
-        combatSystem.handleLeftClick(worldX, worldY, config.input.selectionRadius)
+        -- Check for wreck first (loot interaction takes priority)
+        local wreck = combatSystem.findWreckAtPosition(worldX, worldY, config.input.selectionRadius)
+        if wreck then
+            playerModule.setLootTarget(wreck)
+        else
+            combatSystem.handleLeftClick(worldX, worldY, config.input.selectionRadius)
+        end
     end
 end
 
