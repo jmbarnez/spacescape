@@ -1,195 +1,150 @@
 // =====================================
-// Vertex Shader (LÖVE VERTEX section)
+// BUBBLY INTENSE CYAN GLOW TRAIL SHADER
+// For QUAD-based rendering (no point sprites)
 // =====================================
+
 #ifdef VERTEX
 
-attribute vec4 VertexUserData; // x = lifetime (spawn time), y = size, z = seed, w = unused
-
-varying float v_alpha;
-varying float v_lifePhase;
-varying float v_seed;
-
-extern highp float u_time;
-extern mediump float u_trailLifetime;
-extern mediump float u_colorMode;  // Changed from int to float for WebGL compat
+varying vec2 v_texCoord;
 
 vec4 position(mat4 transform_projection, vec4 vertex_position) {
-    float a_lifetime = VertexUserData.x;
-    float a_size = VertexUserData.y;
-    float a_seed = VertexUserData.z;
-
-    float age = max(u_time - a_lifetime, 0.0);
-    float life01 = clamp(age / max(u_trailLifetime, 0.0001), 0.0, 1.0);
-    v_lifePhase = life01;
-    v_seed = a_seed;
-
-    // Fade over life; still bright when fresh, then quickly softens as
-    // particles drift away and dissipate.
-    v_alpha = pow(1.0 - life01, 1.1);
-
-    // Slight expansion over lifetime; particles stay fairly compact so they
-    // read as distinct points rather than a solid blade.
-    float expansion = mix(1.0, 1.6, life01);
-
-    // Gentle pulsing to keep the particles feeling alive without wobbling too much
-    float pulse = 1.0 + sin(a_seed * 18.0 + u_time * 4.0) * 0.12;
-
-    // Global scale factor tuned for thicker, chunkier particles while still
-    // keeping them visually separate.
-    gl_PointSize = a_size * expansion * pulse * 1.8;
-
+    v_texCoord = VertexTexCoord.xy;
     return transform_projection * vertex_position;
 }
 
 #endif
 
 // =====================================
-// Fragment Shader (LÖVE PIXEL section)
+// Fragment Shader
 // =====================================
 #ifdef PIXEL
 
-varying float v_alpha;
-varying float v_lifePhase;
-varying float v_seed;
 varying vec2 v_texCoord;
 
 extern mediump vec3 u_colorA;
 extern mediump vec3 u_colorB;
-extern mediump float u_colorMode;  // Changed from int to float for WebGL compat
+extern mediump float u_colorMode;
 extern mediump float u_intensity;
 extern highp float u_time;
 
-// Noise functions for smoke/plume variation
-float hash(vec2 p) {
-    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-}
-
-float noise(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    
-    float a = hash(i);
-    float b = hash(i + vec2(1.0, 0.0));
-    float c = hash(i + vec2(0.0, 1.0));
-    float d = hash(i + vec2(1.0, 1.0));
-    
-    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-}
-
-float fbm(vec2 p, float seed) {
-    float value = 0.0;
-    float amplitude = 0.5;
-    p += seed * 100.0;
-    
-    for (int i = 0; i < 5; i++) {
-        value += amplitude * noise(p);
-        p *= 2.0;
-        amplitude *= 0.5;
-    }
-    return value;
-}
-
-// Billowing smoke shape function
-float billow(vec2 p, float seed) {
-    float n = fbm(p * 3.0, seed);
-    return abs(n * 2.0 - 1.0);
-}
+// Per-bubble uniforms
+extern mediump float u_bubbleLifePhase;
+extern mediump float u_bubbleSeed;
+extern mediump float u_bubbleAlpha;
 
 vec4 effect(vec4 color, Image texture, vec2 texcoord, vec2 screen_coords) {
-    // Centered UV inside point-sprite space: gl_PointCoord is [0, 1] each axis
-    vec2 uv = gl_PointCoord - vec2(0.5);
+    // texcoord is 0-1 across the quad, convert to centered coords
+    vec2 uv = texcoord - vec2(0.5);
     float dist = length(uv);
 
-    // Soft cut-off radius; slightly larger so each particle has a meatier core
-    // and halo without needing huge point sizes.
-    float maxRadius = 0.7;
-    if (dist > maxRadius) {
+    // Hard circular cutoff
+    if (dist > 0.5) {
         discard;
     }
 
-    float life = v_lifePhase;
+    float life = u_bubbleLifePhase;
+    float seed = u_bubbleSeed;
 
-    // ------------------------------------------------------------
-    // Radial structure: bright core + soft halo + slightly stretched body
-    // ------------------------------------------------------------
+    // ============================================
+    // BUBBLE SHAPE - soft glowing orb
+    // ============================================
+    
+    // Super bright core
+    float coreSize = 0.08;
+    float core = 1.0 - smoothstep(0.0, coreSize, dist);
+    core = pow(core, 0.4);
+    
+    // Main bubble body - soft gradient
+    float bodyFalloff = 0.45;
+    float body = 1.0 - smoothstep(0.0, bodyFalloff, dist);
+    body = pow(body, 0.8);
+    
+    // Bright rim/edge glow
+    float rimStart = 0.35;
+    float rimEnd = 0.5;
+    float rim = smoothstep(rimStart, rimEnd - 0.05, dist) * (1.0 - smoothstep(rimEnd - 0.05, rimEnd, dist));
+    rim = pow(rim, 0.6) * 0.8;
+    
+    // Outer glow halo
+    float halo = 1.0 - smoothstep(0.3, 0.5, dist);
+    halo = pow(halo, 2.0) * 0.5;
 
-    // Inner core radius controls how tight the central glow is.
-    // Fixed radius keeps each particle visually similar as it moves and fades.
-    float coreRadius = maxRadius * 0.3;
-    float glowRadius = maxRadius;
+    // Specular highlight - makes it look like a shiny bubble
+    vec2 specPos = vec2(-0.12, -0.1);
+    float specDist = length(uv - specPos);
+    float spec = 1.0 - smoothstep(0.0, 0.1, specDist);
+    spec = pow(spec, 1.2) * 0.9;
 
-    // Very bright center
-    float core = 1.0 - smoothstep(0.0, coreRadius, dist);
+    // ============================================
+    // INTENSE CYAN COLORS
+    // ============================================
+    
+    vec3 cyanHot = vec3(0.6, 1.0, 1.0);       // Hot white-cyan
+    vec3 cyanBright = vec3(0.0, 1.0, 1.0);    // Pure bright cyan
+    vec3 cyanMid = vec3(0.0, 0.85, 1.0);      // Slightly blue-shifted
+    vec3 cyanDeep = vec3(0.0, 0.6, 0.9);      // Deeper blue-cyan
+    vec3 white = vec3(1.0, 1.0, 1.0);
 
-    // Softer surrounding glow that keeps the disc visible even when thin
-    float glow = 1.0 - smoothstep(coreRadius, glowRadius, dist);
-
-    // A subtle directional stretch to suggest forward motion
-    float stretch = mix(1.35, 1.0, life);
-    vec2 stretchedUV = vec2(uv.x * stretch, uv.y);
-    float stretchedDist = length(stretchedUV);
-    float trail = 1.0 - smoothstep(coreRadius * 0.8, glowRadius, stretchedDist);
-
-    // ------------------------------------------------------------
-    // Stylized turbulence: gentle energy ripples instead of heavy smoke
-    // ------------------------------------------------------------
-
-    float swirl = fbm(uv * 6.0 + vec2(u_time * 0.9, v_seed * 3.5), v_seed + 1.0);
-    float swirl2 = fbm(uv * 3.0 + vec2(-u_time * 0.5, v_seed * 6.0), v_seed + 4.0);
-    float swirlCombined = mix(swirl, swirl2, 0.5);
-
-    float density = core * 1.0 + glow * 0.6 + trail * 0.3;
-    // Slightly narrower modulation range keeps the particles from looking
-    // too smoky while still giving some internal variation.
-    density *= mix(0.9, 1.2, swirlCombined);
-    density *= (1.0 - life * 0.6);
-    density = clamp(density, 0.0, 1.0);
-
-    // ------------------------------------------------------------
-    // Color styling
-    // ------------------------------------------------------------
-
-    vec3 trailColor;
+    vec3 bubbleColor;
     if (u_colorMode < 0.5) {
-        trailColor = u_colorA;
+        bubbleColor = u_colorA;
     } else if (u_colorMode < 1.5) {
-        trailColor = mix(u_colorA, u_colorB, life);
-    } else if (u_colorMode < 2.5) {
-        // Neon exhaust: bright cyan/white core with cooler outer halo
-        float hueShift = clamp(life * 0.55 + swirlCombined * 0.25, 0.0, 1.0);
-        vec3 mixed = mix(u_colorA, u_colorB, hueShift);
-
-        // Fresh particles burn hotter; older ones cool off into softer smoke
-        float coreHeat = pow(core, 1.4) * (1.0 - life * 0.7);
-        vec3 hotCore = vec3(0.9, 1.0, 1.0);
-        trailColor = mix(mixed, hotCore, coreHeat);
-
-        // Slightly tinted outer halo that gives the trail a soft edge
-        float outerGlow = smoothstep(coreRadius * 1.4, glowRadius, dist);
-        vec3 outerTint = vec3(0.6, 0.9, 1.0);
-        trailColor = mix(trailColor, outerTint, outerGlow * 0.35);
+        bubbleColor = mix(u_colorA, u_colorB, life);
     } else {
-        trailColor = mix(u_colorA, u_colorB, life);
+        // Bubbly cyan mode
+        
+        // Start with body gradient
+        bubbleColor = mix(cyanBright, cyanMid, smoothstep(0.0, 0.4, dist));
+        
+        // Hot core
+        bubbleColor = mix(bubbleColor, cyanHot, core * 0.9);
+        
+        // Bright rim
+        bubbleColor = mix(bubbleColor, cyanBright * 1.2, rim);
+        
+        // White specular
+        bubbleColor = mix(bubbleColor, white, spec);
+        
+        // Age: older bubbles get deeper/cooler
+        bubbleColor = mix(bubbleColor, cyanDeep, life * 0.3);
+        
+        // Shimmer animation
+        float shimmer = 0.9 + 0.1 * sin(u_time * 8.0 + seed * 20.0);
+        bubbleColor *= shimmer;
     }
 
-    trailColor *= u_intensity;
+    bubbleColor *= u_intensity;
 
-    // ------------------------------------------------------------
-    // Alpha / glow
-    // ------------------------------------------------------------
-
-    // Base opacity from lifetime and radial density
-    float alpha = v_alpha * density;
-
-    // Extra halo that keeps a visible outline even as the core fades
-    float halo = smoothstep(glowRadius, coreRadius * 0.6, dist);
-    halo *= 0.25 * (1.0 - life * 0.4);
-    alpha += halo * v_alpha;
-
+    // ============================================
+    // ALPHA COMPOSITING
+    // ============================================
+    
+    float alpha = 0.0;
+    
+    // Core is solid
+    alpha += core * 1.0;
+    
+    // Body fill
+    alpha += body * 0.7;
+    
+    // Rim adds brightness
+    alpha += rim * 0.6;
+    
+    // Halo extends glow
+    alpha += halo * 0.3;
+    
+    // Specular pop
+    alpha += spec * 0.4;
+    
+    // Apply lifetime fade
+    alpha *= u_bubbleAlpha;
+    
+    // Fresh bubbles glow brighter
+    alpha *= 1.0 + (1.0 - life) * 0.4;
+    
     alpha = clamp(alpha, 0.0, 1.0);
 
-    return vec4(trailColor, alpha);
+    return vec4(bubbleColor, alpha);
 }
 
 #endif

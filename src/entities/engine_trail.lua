@@ -3,67 +3,51 @@ local colors = require("src.core.colors")
 local engine_trail = {}
 
 -- ###########################################################################
--- Engine trail visual tuning constants
--- These are the primary knobs to tweak the look / feel of the exhaust.
+-- BUBBLY INTENSE CYAN GLOW TRAIL
+-- Uses QUAD-BASED rendering to bypass OpenGL point size limits
 -- ###########################################################################
 
--- Radius range used to derive the base sprite size for the shader.
--- Slightly larger again so each particle has more visual "body" on screen.
-local TRAIL_RADIUS_MIN = 4  -- smallest visual radius near the end of life
-local TRAIL_RADIUS_MAX = 10 -- largest visual radius when freshly spawned
+-- Bubble sizes in pixels (tiny bubbles)
+local BUBBLE_SIZE_MIN = 8
+local BUBBLE_SIZE_MAX = 20
 
--- How many trail points to spawn per emission step while thrusting.
--- Lowered a bit so the trail feels less like a solid fog and more like
--- distinct chunky particles.
-local TRAIL_SPAWN_PER_STEP = 4
+-- Spawn fewer but bigger bubbles
+local BUBBLES_PER_SPAWN = 2
 
--- Base visual size used by the shader (in pixels); tuned from the radius range.
--- Slightly bigger to give each particle more thickness without needing as
--- many overlapping neighbors.
-local TRAIL_BASE_SIZE = (TRAIL_RADIUS_MIN + TRAIL_RADIUS_MAX) * 2.4
-
--- Overall brightness multiplier for the shader trail.
--- The shader also applies its own glow/halo, so this should stay moderate.
-local TRAIL_INTENSITY = 4.5
+-- Glow intensity (1.0 = no extra glow)
+local TRAIL_INTENSITY = 1.0
 
 engine_trail.points = {}
 engine_trail.shader = nil
-engine_trail.mesh = nil
 
--- How frequently we emit a batch of points while thrusting.
--- Slightly slower so the trail is less dense overall.
-engine_trail.spawnInterval = 0.012
+-- Spawn rate
+engine_trail.spawnInterval = 0.035
 
 engine_trail.timeSinceLast = 0
 
--- Safety cap on the number of live trail points in the mesh.
-engine_trail.maxPoints = 700
+-- Max bubbles in memory
+engine_trail.maxPoints = 200
 
--- Lifetime (seconds) of each spawned trail point.
--- Slightly shorter so the plume does not stretch too far behind the ship.
-engine_trail.trailLifetime = 0.7
+-- How long each bubble lives
+engine_trail.trailLifetime = 0.9
 
 engine_trail.time = 0
+
+-- Create a simple 1x1 white image for the shader to work with
+local bubbleImage = nil
 
 function engine_trail.load()
     local ok, shader = pcall(love.graphics.newShader, "assets/shaders/engine_trail.glsl")
     if ok and shader then
-        -- Store the compiled shader so we can use it as the default trail renderer
         engine_trail.shader = shader
-
-        -- GPU-backed point mesh: each vertex carries position + custom user data
-        local format = {
-            { "VertexPosition", "float", 2 }, -- world position
-            { "VertexUserData", "float", 4 }, -- spawn time, base size, seed, unused
-        }
-
-        -- Preallocate a dynamic point mesh for the maximum number of trail points
-        engine_trail.mesh = love.graphics.newMesh(format, engine_trail.maxPoints, "points", "dynamic")
     else
-        -- If the shader fails to compile, disable GPU trail rendering entirely
         engine_trail.shader = nil
-        engine_trail.mesh = nil
     end
+
+    -- Create a 1x1 white pixel image as a base for the shader
+    local imageData = love.image.newImageData(1, 1)
+    imageData:setPixel(0, 0, 1, 1, 1, 1)
+    bubbleImage = love.graphics.newImage(imageData)
 end
 
 function engine_trail.reset()
@@ -78,30 +62,31 @@ function engine_trail.update(dt, player)
 
     if player.isThrusting and engine_trail.timeSinceLast >= engine_trail.spawnInterval then
         engine_trail.timeSinceLast = 0
-        -- Offset the spawn position slightly behind the ship based on its size.
-        local offset = player.size * 0.9
+
+        -- Spawn behind the ship
+        local offset = player.size * 0.85
         local baseDirX = math.cos(player.angle + math.pi)
         local baseDirY = math.sin(player.angle + math.pi)
         local rightX = -baseDirY
         local rightY = baseDirX
 
-        -- Per-particle initial velocity controls how fast the plume drifts away
-        -- from the ship. We still allow a cone, but tighten it and reduce
-        -- variation so the plume is less smoky and more directional.
-        local baseSpeed = 140  -- forward/back drift speed for the exhaust
-        local speedJitter = 55 -- random variation around baseSpeed
-        local dirJitter = 0.6  -- angular spread; smaller = tighter cone
+        -- Bubble drift speed
+        local baseSpeed = 80
+        local speedJitter = 40
+        local dirJitter = 0.8
 
-        for n = 1, TRAIL_SPAWN_PER_STEP do
-            -- Lateral offset spreads points across the ship width to avoid a
-            -- perfectly razor-thin line, but still keep it fairly tight.
-            local lateral = (math.random() - 0.5) * player.size * 0.9
+        for n = 1, BUBBLES_PER_SPAWN do
+            -- Spread bubbles across exhaust width
+            local lateral = (math.random() - 0.5) * player.size * 1.2
 
             local ox = baseDirX * offset + rightX * lateral
             local oy = baseDirY * offset + rightY * lateral
 
             local dir = player.angle + math.pi + (math.random() - 0.5) * dirJitter
             local speed = baseSpeed + math.random() * speedJitter
+
+            -- Random size within range
+            local bubbleSize = BUBBLE_SIZE_MIN + math.random() * (BUBBLE_SIZE_MAX - BUBBLE_SIZE_MIN)
 
             table.insert(engine_trail.points, 1, {
                 x = player.x + ox,
@@ -112,9 +97,7 @@ function engine_trail.update(dt, player)
                 maxLife = engine_trail.trailLifetime,
                 noiseOffset = math.random() * math.pi * 2,
                 spawnTime = engine_trail.time,
-                -- Per-particle size variation so the plume feels like a cloud of
-                -- distinct cyan particles instead of uniformly sized sprites.
-                size = TRAIL_BASE_SIZE * (0.8 + math.random() * 0.5),
+                size = bubbleSize,
                 seed = math.random()
             })
         end
@@ -124,11 +107,9 @@ function engine_trail.update(dt, player)
         end
     end
 
-    -- Motion tuning: drag pulls velocities down over time, turbulence adds
-    -- some curl so particles feel alive, but is toned down so the trail is
-    -- less "pluemy" and more of a controlled spray.
-    local drag = 0.90
-    local turbulenceStrength = 30
+    -- Gentle motion - bubbles float and wobble
+    local drag = 0.92
+    local wobbleStrength = 25
 
     for i = #engine_trail.points, 1, -1 do
         local p = engine_trail.points[i]
@@ -137,16 +118,16 @@ function engine_trail.update(dt, player)
         if p.life <= 0 then
             table.remove(engine_trail.points, i)
         else
-            -- Time-based noise phase for gentle wobble / curl in the exhaust.
-            local t = engine_trail.time * 1.1 + p.noiseOffset
+            -- Gentle wobble for floating feel
+            local t = engine_trail.time * 1.5 + p.noiseOffset
 
             local nx = math.cos(t)
-            local ny = math.sin(t * 1.1)
+            local ny = math.sin(t * 1.3)
 
-            p.vx = p.vx + nx * turbulenceStrength * dt
-            p.vy = p.vy + ny * turbulenceStrength * dt
+            p.vx = p.vx + nx * wobbleStrength * dt
+            p.vy = p.vy + ny * wobbleStrength * dt
 
-            local dragFactor = (1 - (1 - drag) * dt * 4)
+            local dragFactor = (1 - (1 - drag) * dt * 3)
             p.vx = p.vx * dragFactor
             p.vy = p.vy * dragFactor
 
@@ -154,48 +135,54 @@ function engine_trail.update(dt, player)
             p.y = p.y + p.vy * dt
         end
     end
-
-    if engine_trail.mesh then
-        -- Upload engine trail points into the GPU mesh for shader-based rendering
-        local count = #engine_trail.points
-        if count > 0 then
-            for i = 1, count do
-                local p = engine_trail.points[i]
-                local spawn = p.spawnTime or
-                (engine_trail.time - (p.maxLife or engine_trail.trailLifetime) + (p.life or 0))
-                local size = p.size or 4
-                local seed = p.seed or 0
-                engine_trail.mesh:setVertex(i, p.x, p.y, spawn, size, seed, 0)
-            end
-            engine_trail.mesh:setDrawRange(1, count)
-        end
-    end
 end
 
 function engine_trail.draw()
-    -- Do nothing if there is no trail data or the shader path is unavailable
-    if #engine_trail.points == 0 or not engine_trail.shader or not engine_trail.mesh then
+    if #engine_trail.points == 0 or not engine_trail.shader then
         return
     end
 
     local previousShader = love.graphics.getShader()
     local prevBlend, prevAlpha = love.graphics.getBlendMode()
 
-    -- Use the GPU shader path as the only rendering mode for the engine trail
     love.graphics.setShader(engine_trail.shader)
     love.graphics.setBlendMode("add", "alphamultiply")
 
-    -- Feed timing + color information into the shader every frame
+    -- Send uniforms
     engine_trail.shader:send("u_time", engine_trail.time)
-    engine_trail.shader:send("u_trailLifetime", engine_trail.trailLifetime)
-    engine_trail.shader:send("u_colorMode", 2.0) -- Use float for WebGL compatibility
+    engine_trail.shader:send("u_colorMode", 2.0)
     engine_trail.shader:send("u_colorA", colors.engineTrailA)
     engine_trail.shader:send("u_colorB", colors.engineTrailB)
     engine_trail.shader:send("u_intensity", TRAIL_INTENSITY)
 
-    -- Mesh already has world-space positions; draw as point sprites
-    love.graphics.setColor(colors.white)
-    love.graphics.draw(engine_trail.mesh)
+    love.graphics.setColor(1, 1, 1, 1)
+
+    -- Draw each bubble as a QUAD (bypasses gl_PointSize limit!)
+    for i, p in ipairs(engine_trail.points) do
+        local age = engine_trail.time - p.spawnTime
+        local life01 = math.min(age / engine_trail.trailLifetime, 1.0)
+
+        -- Calculate size with shrink and pulse
+        local sizeMult = 1.0 - (life01 ^ 1.2) * 0.6
+        local pulse = 1.0 + math.sin(p.seed * 25.0 + engine_trail.time * 10.0) * 0.2
+        local size = p.size * sizeMult * pulse
+
+        -- Send per-bubble data to shader
+        engine_trail.shader:send("u_bubbleLifePhase", life01)
+        engine_trail.shader:send("u_bubbleSeed", p.seed)
+
+        -- Calculate alpha
+        local fadeStart = 0.6
+        local alpha = 1.0
+        if life01 >= fadeStart then
+            alpha = 1.0 - ((life01 - fadeStart) / (1.0 - fadeStart)) ^ 0.5
+        end
+        engine_trail.shader:send("u_bubbleAlpha", alpha)
+
+        -- Draw as a scaled quad centered on the bubble position
+        local halfSize = size / 2
+        love.graphics.draw(bubbleImage, p.x, p.y, 0, size, size, 0.5, 0.5)
+    end
 
     love.graphics.setBlendMode(prevBlend, prevAlpha)
     love.graphics.setShader(previousShader)

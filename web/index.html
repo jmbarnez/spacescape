@@ -1,161 +1,111 @@
 <!doctype html>
 <html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, minimum-scale=1, maximum-scale=1">
+    <title>Spacescape</title>
 
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Spacescape</title>
-  <style>
-    body {
-      margin: 0;
-      background: #1a1a2e;
-      color: #eee;
-      font-family: Arial, sans-serif;
-      text-align: center;
-    }
+    <!-- Load custom style sheet -->
+    <link rel="stylesheet" type="text/css" href="theme/love.css">
+  </head>
+  <body>
+    <center>
+      <div>
+        <h1>Spacescape</h1>
+        <canvas id="loadingCanvas" oncontextmenu="event.preventDefault()" width="800" height="600"></canvas>
+        <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+      </div>
+    </center>
 
-    h1 {
-      color: #8ec3e3;
-      margin: 20px 0 10px;
-    }
-
-    #canvas {
-      display: none;
-    }
-
-    #status {
-      margin: 20px;
-      font-size: 1.2em;
-      color: #8ec3e3;
-    }
-
-    footer {
-      margin-top: 20px;
-      font-size: 0.9em;
-      color: #888;
-    }
-
-    footer a {
-      color: #8ec3e3;
-    }
-
-    button {
-      padding: 8px 16px;
-      cursor: pointer;
-    }
-  </style>
-</head>
-
-<body>
-  <h1>Spacescape</h1>
-  <div id="status">Loading...</div>
-  <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
-
-  <script type="text/javascript">
-    function setStatus(text) {
-      document.getElementById('status').innerText = text || '';
-      if (!text) {
-        document.getElementById('status').style.display = 'none';
-        document.getElementById('canvas').style.display = 'block';
+    <script type='text/javascript'>
+      function goFullScreen(){
+            var canvas = document.getElementById("canvas");
+            if(canvas.requestFullScreen)
+                canvas.requestFullScreen();
+            else if(canvas.webkitRequestFullScreen)
+                canvas.webkitRequestFullScreen();
+            else if(canvas.mozRequestFullScreen)
+                canvas.mozRequestFullScreen();
       }
-    }
+      function FullScreenHook(){
+        var canvas = document.getElementById("canvas");
+        canvas.width = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
+        canvas.height = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
+      }
+      var loadingContext = document.getElementById('loadingCanvas').getContext('2d');
+      function drawLoadingText(text) {
+        var canvas = loadingContext.canvas;
 
-    setStatus('Downloading game...');
+        loadingContext.fillStyle = "rgb(142, 195, 227)";
+        loadingContext.fillRect(0, 0, canvas.scrollWidth, canvas.scrollHeight);
 
-    // Fetch the .love file first
-    fetch('Novus.love')
-      .then(function (response) {
-        if (!response.ok) throw new Error('Failed to fetch game');
-        return response.arrayBuffer();
-      })
-      .then(function (buffer) {
-        setStatus('Starting game engine...');
+        loadingContext.font = '2em arial';
+        loadingContext.textAlign = 'center'
+        loadingContext.fillStyle = "rgb( 11, 86, 117 )";
+        loadingContext.fillText(text, canvas.scrollWidth / 2, canvas.scrollHeight / 2);
 
-        // Store the game data globally
-        window.gameData = new Uint8Array(buffer);
+        loadingContext.fillText("Powered By Emscripten.", canvas.scrollWidth / 2, canvas.scrollHeight / 4);
+        loadingContext.fillText("Powered By LÖVE.", canvas.scrollWidth / 2, canvas.scrollHeight / 4 * 3);
+      }
 
-        // Load love.js script
-        var script = document.createElement('script');
-        script.src = 'love.js';
-        script.onload = function () {
-          // Track if we've written the file
-          var fileWritten = false;
+      window.onload = function () { window.focus(); };
+      window.onclick = function () { window.focus(); };
 
-          var Module = {
-            arguments: ['/Novus.love'],
-            print: console.log.bind(console),
-            printErr: console.error.bind(console),
-            canvas: document.getElementById('canvas'),
+      window.addEventListener("keydown", function(e) {
+        // space and arrow keys
+        if([32, 37, 38, 39, 40].indexOf(e.keyCode) > -1) {
+          e.preventDefault();
+        }
+      }, false);
 
-            setStatus: setStatus,
+      var Module = {
+        arguments: ["./game.love"],
+        INITIAL_MEMORY: 67108864,
+        printErr: console.error.bind(console),
+        canvas: (function() {
+          var canvas = document.getElementById('canvas');
 
-            totalDependencies: 0,
-            monitorRunDependencies: function (left) {
-              this.totalDependencies = Math.max(this.totalDependencies, left);
-              setStatus(left ? 'Loading... (' + (this.totalDependencies - left) + '/' + this.totalDependencies + ')' : '');
-            },
+          // As a default initial behavior, pop up an alert when webgl context is lost. To make your
+          // application robust, you may want to override this behavior before shipping!
+          // See http://www.khronos.org/registry/webgl/specs/latest/1.0/#5.15.2
+          canvas.addEventListener("webglcontextlost", function(e) { alert('WebGL context lost. You will need to reload the page.'); e.preventDefault(); }, false);
 
-            locateFile: function (file) {
-              return file;
-            },
-
-            // Called after runtime is initialized but BEFORE main() runs
-            onRuntimeInitialized: function () {
-              console.log('onRuntimeInitialized called');
-              console.log('this.FS:', this.FS);
-              console.log('Module.FS:', Module.FS);
-
-              var FS = this.FS || Module.FS;
-              if (FS && window.gameData && !fileWritten) {
-                console.log('Writing Novus.love to virtual filesystem...');
-                FS.writeFile('/Novus.love', window.gameData);
-                fileWritten = true;
-                console.log('Game file written successfully!');
-              } else if (!FS) {
-                console.error('FS still not available in onRuntimeInitialized!');
-              }
-            },
-
-            // Also try in preRun as backup
-            preRun: [function () {
-              console.log('preRun called');
-            }]
-          };
-
-          // Start Love with the configured Module
-          Love(Module);
-
-          // Also try accessing FS after Love() returns
-          console.log('After Love() - Module.FS:', Module.FS);
-          if (Module.FS && window.gameData && !fileWritten) {
-            console.log('Writing from post-Love() context...');
-            Module.FS.writeFile('/Novus.love', window.gameData);
-            fileWritten = true;
-            console.log('Game file written successfully!');
+          return canvas;
+        })(),
+        setStatus: function(text) {
+          if (text) {
+            drawLoadingText(text);
+          } else if (Module.remainingDependencies === 0) {
+            document.getElementById('loadingCanvas').style.display = 'none';
+            document.getElementById('canvas').style.visibility = 'visible';
           }
+        },
+        totalDependencies: 0,
+        remainingDependencies: 0,
+        monitorRunDependencies: function(left) {
+          this.remainingDependencies = left;
+          this.totalDependencies = Math.max(this.totalDependencies, left);
+          Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
+        }
+      };
+      Module.setStatus('Downloading...');
+      window.onerror = function(event) {
+        // TODO: do not warn on ok events like simulating an infinite loop or exitStatus
+        Module.setStatus('Exception thrown, see JavaScript console');
+        Module.setStatus = function(text) {
+          if (text) Module.printErr('[post-exception status] ' + text);
         };
-        script.onerror = function () {
-          setStatus('Error: Failed to load love.js');
-        };
-        document.body.appendChild(script);
-      })
-      .catch(function (err) {
-        setStatus('Error loading game: ' + err.message);
-        console.error(err);
-      });
+      };
 
-    // Prevent arrow/space scrolling
-    window.addEventListener("keydown", function (e) {
-      if ([32, 37, 38, 39, 40].indexOf(e.keyCode) > -1) e.preventDefault();
-    }, false);
-  </script>
-
-  <footer>
-    <button onclick="document.getElementById('canvas').requestFullscreen()">Fullscreen</button>
-    <p>Built with <a href="https://github.com/Davidobot/love.js">love.js</a></p>
-  </footer>
-</body>
-
+      var applicationLoad = function(e) {
+        Love(Module);
+      }
+    </script>
+    <script type="text/javascript" src="game.js"></script>
+    <script async type="text/javascript" src="love.js" onload="applicationLoad(this)"></script>
+    <footer>
+      <p>Built with <a href="https://github.com/Davidobot/love.js">love.js</a> <button onclick="goFullScreen();">Go Fullscreen</button><br>Hint: Reload the page if screen is blank</p>
+    </footer>
+  </body>
 </html>
-</CodeContent>
-<parameter name="Complexity">7
