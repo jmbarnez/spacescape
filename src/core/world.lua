@@ -12,8 +12,20 @@ local world = {
 }
 
 function world.initFromPlayer(player)
-    world.centerX = player.x
-    world.centerY = player.y
+    local px, py
+    if player then
+        px = player.x or 0
+        py = player.y or 0
+    end
+
+    if not px or not py then
+        local w, h = love.graphics.getWidth(), love.graphics.getHeight()
+        px = w / 2
+        py = h / 2
+    end
+
+    world.centerX = px
+    world.centerY = py
     world.minX = world.centerX - world.width / 2
     world.maxX = world.centerX + world.width / 2
     world.minY = world.centerY - world.height / 2

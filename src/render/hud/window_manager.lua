@@ -173,22 +173,6 @@ function window_manager.mousepressed(uiCtx, x, y, button)
     -- interpret the result here in terms of game-level actions.
     --------------------------------------------------------------------------
     if uiCtx.gameState == "paused" then
-        -- First, delegate to the pause window_frame hit test. This handles the
-        -- close button, top-bar dragging, and generic "inside window" hits.
-        local result = hud_pause.mousepressed(uiCtx.pauseMenu, x, y, button)
-
-        if result == "close" then
-            -- Clicking the pause window close button is equivalent to pressing
-            -- Esc: resume gameplay but otherwise leave the run untouched.
-            uiCtx.gameState = "playing"
-            return true, nil
-        elseif result == "drag" or result == true then
-            -- Either a drag started on the title bar or the click landed
-            -- somewhere in the window content area. In both cases we fully
-            -- consume the click so it does not affect gameplay.
-            return true, nil
-        end
-
         -- If the frame did not consume the click, see if it landed on one of
         -- the pause menu buttons (Resume / Restart / Quit).
         local index, item = hud_pause.hitTestPauseMenu(uiCtx.pauseMenu, x, y)
@@ -208,6 +192,22 @@ function window_manager.mousepressed(uiCtx, x, y, button)
                 -- of the HUD layer.
                 return true, "quit_to_desktop"
             end
+        end
+
+        -- First, delegate to the pause window_frame hit test. This handles the
+        -- close button, top-bar dragging, and generic "inside window" hits.
+        local result = hud_pause.mousepressed(uiCtx.pauseMenu, x, y, button)
+
+        if result == "close" then
+            -- Clicking the pause window close button is equivalent to pressing
+            -- Esc: resume gameplay but otherwise leave the run untouched.
+            uiCtx.gameState = "playing"
+            return true, nil
+        elseif result == "drag" or result == true then
+            -- Either a drag started on the title bar or the click landed
+            -- somewhere in the window content area. In both cases we fully
+            -- consume the click so it does not affect gameplay.
+            return true, nil
         end
 
         -- Click was somewhere outside the pause window and its buttons. We do

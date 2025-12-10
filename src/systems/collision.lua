@@ -41,6 +41,8 @@ local enemies = enemyModule.list
 local bullets = projectileModule.list
 local asteroids = asteroidModule.list
 
+local ENABLE_CONTINUOUS_SHIP_ASTEROID_RESOLVE = false
+
 --- CONFIGURATION
 -- Colors and settings for visual feedback
 --------------------------------------------------------------------------------
@@ -563,20 +565,44 @@ end
 --- Resolve a generic ship colliding with an asteroid (push ship away, no damage)
 --- @param ship table The ship entity (player or enemy)
 --- @param asteroid table The asteroid entity
-local function resolveShipVsAsteroid(ship, asteroid)
+--- @param contactX number|nil Contact point X from Box2D (optional)
+--- @param contactY number|nil Contact point Y from Box2D (optional)
+local function resolveShipVsAsteroid(ship, asteroid, contactX, contactY)
     if not ship or not asteroid then
         return
     end
 
-    local shipRadius = getBoundingRadius(ship)
-    local asteroidRadius = getBoundingRadius(asteroid)
     local dx = ship.x - asteroid.x
     local dy = ship.y - asteroid.y
     local distance = math.sqrt(dx * dx + dy * dy)
+    if distance <= 0 then
+        return
+    end
+
+    local shipRadius
+    local asteroidRadius
+
+    if contactX and contactY then
+        local sx = contactX - ship.x
+        local sy = contactY - ship.y
+        shipRadius = math.sqrt(sx * sx + sy * sy)
+
+        local ax = contactX - asteroid.x
+        local ay = contactY - asteroid.y
+        asteroidRadius = math.sqrt(ax * ax + ay * ay)
+    else
+        shipRadius = getBoundingRadius(ship)
+        asteroidRadius = getBoundingRadius(asteroid)
+    end
+
+    if not shipRadius or not asteroidRadius or shipRadius <= 0 or asteroidRadius <= 0 then
+        return
+    end
+
     local minDistance = shipRadius + asteroidRadius
     
     -- Push ship away from asteroid
-    if distance > 0 and distance < minDistance then
+    if distance < minDistance then
         local overlap = minDistance - distance
         local invDist = 1.0 / distance
         ship.x = ship.x + dx * invDist * overlap
@@ -587,11 +613,15 @@ local function resolveShipVsAsteroid(ship, asteroid)
             ship.body:setPosition(ship.x, ship.y)
         end
         
-        -- Subtle spark effect
-        local contactX = asteroid.x + dx * invDist * asteroidRadius
-        local contactY = asteroid.y + dy * invDist * asteroidRadius
-        if currentParticles then
-            currentParticles.spark(contactX, contactY, baseColors.asteroidSpark, 2)
+        -- Subtle spark effect at the true contact point when available
+        local sparkX, sparkY = contactX, contactY
+        if not sparkX or not sparkY then
+            sparkX = asteroid.x + dx * invDist * asteroidRadius
+            sparkY = asteroid.y + dy * invDist * asteroidRadius
+        end
+
+        if sparkX and sparkY and currentParticles then
+            currentParticles.spark(sparkX, sparkY, baseColors.asteroidSpark, 2)
         end
     end
 end
@@ -599,8 +629,14 @@ end
 --- Handle player colliding with an asteroid (Box2D event wrapper)
 --- @param player table The player entity
 --- @param asteroid table The asteroid entity
-local function handlePlayerVsAsteroid(player, asteroid)
-    resolveShipVsAsteroid(player, asteroid)
+--- @param contactX number|nil Contact point X (optional)
+--- @param contactY number|nil Contact point Y (optional)
+local function handlePlayerVsAsteroid(player, asteroid, contactX, contactY)
+    resolveShipVsAsteroid(player, asteroid, contactX, contactY)
+end
+
+local function handleEnemyVsAsteroid(enemy, asteroid, contactX, contactY)
+    resolveShipVsAsteroid(enemy, asteroid, contactX, contactY)
 end
 
 --------------------------------------------------------------------------------
@@ -627,6 +663,7 @@ registerHandler("playerprojectile", "asteroid", handleProjectileVsAsteroid)
 registerHandler("enemyprojectile", "asteroid", handleProjectileVsAsteroid)
 registerHandler("player", "enemy", handlePlayerVsEnemy)
 registerHandler("player", "asteroid", handlePlayerVsAsteroid)
+registerHandler("enemy", "asteroid", handleEnemyVsAsteroid)
 
 --------------------------------------------------------------------------------
 -- BOX2D CALLBACK HANDLER
@@ -793,7 +830,7 @@ function collision.update(player, particlesModule, colors, damagePerHit)
     -- out of asteroid overlap. This ensures a consistent "bump" behaviour
     -- even if the contact event is missed or only fires once.
     ------------------------------------------------------------------------
-    if asteroids and #asteroids > 0 then
+    if ENABLE_CONTINUOUS_SHIP_ASTEROID_RESOLVE and asteroids and #asteroids > 0 then
         -- Player vs asteroids
         if player then
             for i = 1, #asteroids do

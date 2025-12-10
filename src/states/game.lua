@@ -30,20 +30,29 @@ local gameRender = require("src.states.game_render")
 -- Module definition
 local game = {}
 
--- Local references for performance
-local player = playerModule.state
-local enemies = enemyModule.list
-
 -- Game state
-local gameState = "playing" -- "playing", "gameover"
+local gameState = "playing" -- "playing", "gameover", "paused"
 
 local pauseMenu = {
 	items = {
-		{ id = "resume",  label = "Resume" },
-		{ id = "restart", label = "Restart" },
-		{ id = "quit",    label = "Quit to Desktop" },
+		{ id = "resume", label = "Resume" },
+		{ id = "quit",   label = "Quit to Desktop" },
 	},
 }
+
+-- Helper to create UI context for window manager calls
+local function createUiContext()
+	return {
+		gameState = gameState,
+		pauseMenu = pauseMenu,
+	}
+end
+
+-- Helper to apply UI context changes from window manager
+local function applyUiContext(uiCtx)
+	gameState = uiCtx.gameState
+	pauseMenu = uiCtx.pauseMenu
+end
 
 -- Color palette used for rendering
 local colors = require("src.core.colors")
@@ -135,8 +144,8 @@ function game.load()
 	physics.init()
 	collisionSystem.init() -- Register collision callbacks with physics
 	playerModule.reset()
-	world.initFromPlayer(player)
-	camera.centerOnPlayer(player)
+	world.initFromPlayer(playerModule.state)
+	camera.centerOnPlayer(playerModule.state)
 	starfield.generate()
 	spawnSystem.reset()
 	combatSystem.reset()
@@ -145,7 +154,7 @@ function game.load()
 	engineTrail.reset()
 	explosionFx.load()
 	floatingText.clear()
-	abilitiesSystem.load(player)
+	abilitiesSystem.load(playerModule.state)
 	asteroidModule.load()
 	gameRender.load()
 	registerUpdateSystems()
@@ -161,7 +170,7 @@ function game.update(dt)
 	end
 
 	local updateCtx = {
-		player = player,
+		player = playerModule.state,
 		world = world,
 		camera = camera,
 		inputSystem = inputSystem,
@@ -172,7 +181,7 @@ function game.update(dt)
 end
 
 function game.checkCollisions()
-	local playerDied = collisionSystem.update(player, particlesModule, colors, DAMAGE_PER_HIT)
+	local playerDied = collisionSystem.update(playerModule.state, particlesModule, colors, DAMAGE_PER_HIT)
 	if playerDied then
 		gameState = "gameover"
 	end
@@ -192,21 +201,14 @@ function game.mousepressed(x, y, button)
 
 	-- Route all HUD window-style input through the centralized window manager so
 	-- the game state no longer needs to know per-window frame details.
-	local uiCtx = {
-		gameState = gameState,
-		pauseMenu = pauseMenu,
-	}
+	local uiCtx = createUiContext()
 
 	local handled, action = windowManager.mousepressed(uiCtx, x, y, button)
 
 	-- Persist any changes the window manager made to the HUD-related state.
-	gameState = uiCtx.gameState
-	pauseMenu = uiCtx.pauseMenu
+	applyUiContext(uiCtx)
 
-	if action == "restart" then
-		game.restartGame()
-		return
-	elseif action == "quit_to_desktop" then
+	if action == "quit_to_desktop" then
 		love.event.quit()
 		return
 	end
@@ -219,7 +221,7 @@ function game.mousepressed(x, y, button)
 		return
 	end
 
-	inputSystem.mousepressed(x, y, button, player, world, camera)
+	inputSystem.mousepressed(x, y, button, playerModule.state, world, camera)
 end
 
 function game.mousereleased(x, y, button)
@@ -227,15 +229,11 @@ function game.mousereleased(x, y, button)
 		return
 	end
 
-	local uiCtx = {
-		gameState = gameState,
-		pauseMenu = pauseMenu,
-	}
+	local uiCtx = createUiContext()
 
 	local handled = windowManager.mousereleased(uiCtx, x, y, button)
 
-	gameState = uiCtx.gameState
-	pauseMenu = uiCtx.pauseMenu
+	applyUiContext(uiCtx)
 
 	if handled then
 		return
@@ -247,15 +245,11 @@ function game.mousemoved(x, y, dx, dy)
 		return
 	end
 
-	local uiCtx = {
-		gameState = gameState,
-		pauseMenu = pauseMenu,
-	}
+	local uiCtx = createUiContext()
 
 	local handled = windowManager.mousemoved(uiCtx, x, y, dx, dy)
 
-	gameState = uiCtx.gameState
-	pauseMenu = uiCtx.pauseMenu
+	applyUiContext(uiCtx)
 
 	if handled then
 		return
@@ -321,8 +315,6 @@ function game.keypressed(key)
 
 			if item.id == "resume" then
 				gameState = "playing"
-			elseif item.id == "restart" then
-				game.restartGame()
 			elseif item.id == "quit" then
 				love.event.quit()
 			end
@@ -335,7 +327,7 @@ function game.keypressed(key)
 		return
 	end
 
-	abilitiesSystem.keypressed(key, player, world, camera)
+	abilitiesSystem.keypressed(key, playerModule.state, world, camera)
 end
 
 function game.resize(w, h)
@@ -348,8 +340,8 @@ end
 
 function game.restartGame()
 	playerModule.reset()
-	world.initFromPlayer(player)
-	camera.centerOnPlayer(player)
+	world.initFromPlayer(playerModule.state)
+	camera.centerOnPlayer(playerModule.state)
 
 	projectileModule.clear()
 	projectileShards.clear()
@@ -364,7 +356,7 @@ function game.restartGame()
 
 	spawnSystem.reset()
 	combatSystem.reset()
-	abilitiesSystem.reset(player)
+	abilitiesSystem.reset(playerModule.state)
 	gameState = "playing"
 	windowManager.setWindowOpen("cargo", false)
 	windowManager.setWindowOpen("map", false)
@@ -379,7 +371,7 @@ function game.draw()
 	local renderCtx = {
 		camera = camera,
 		ui = ui,
-		player = player,
+		player = playerModule.state,
 		playerModule = playerModule,
 		asteroidModule = asteroidModule,
 		itemModule = itemModule,
