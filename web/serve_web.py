@@ -51,6 +51,8 @@ class IsolatedHTTPRequestHandler(SimpleHTTPRequestHandler):
         #     same-origin, which our local files are.
         self.send_header("Cross-Origin-Opener-Policy", "same-origin")
         self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
+        # Allow eval() for Emscripten/love.js
+        self.send_header("Content-Security-Policy", "script-src 'self' 'unsafe-inline' 'unsafe-eval'; worker-src 'self' blob:;")
         super().end_headers()
 
 
