@@ -112,8 +112,8 @@ function hud_world_map.draw(player, colors, enemyList, asteroidList)
     --------------------------------------------------------------------------
     -- Entities: player, enemies, asteroids
     --------------------------------------------------------------------------
-    local px = player.x
-    local py = player.y
+    local px = player.position and player.position.x or player.x
+    local py = player.position and player.position.y or player.y
 
     if px and py then
         local mx, my = worldToMap(px, py)
@@ -128,8 +128,8 @@ function hud_world_map.draw(player, colors, enemyList, asteroidList)
         love.graphics.setLineWidth(1)
         for i = 1, #enemyList do
             local e = enemyList[i]
-            local ex = e and e.x
-            local ey = e and e.y
+            local ex = e and (e.position and e.position.x or e.x)
+            local ey = e and (e.position and e.position.y or e.y)
             if ex and ey then
                 local mx, my = worldToMap(ex, ey)
                 love.graphics.setColor(colors.enemy[1], colors.enemy[2], colors.enemy[3], 0.95)
@@ -142,8 +142,8 @@ function hud_world_map.draw(player, colors, enemyList, asteroidList)
         love.graphics.setLineWidth(1)
         for i = 1, #asteroidList do
             local a = asteroidList[i]
-            local ax = a and a.x
-            local ay = a and a.y
+            local ax = a and (a.position and a.position.x or a.x)
+            local ay = a and (a.position and a.position.y or a.y)
             if ax and ay then
                 local mx, my = worldToMap(ax, ay)
                 love.graphics.setColor(0.7, 0.7, 0.7, 0.9)

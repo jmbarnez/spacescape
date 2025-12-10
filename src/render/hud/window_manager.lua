@@ -17,6 +17,7 @@ local window_manager = {}
 local hud_pause = require("src.render.hud.pause")
 local hud_cargo = require("src.render.hud.cargo")
 local hud_world_map = require("src.render.hud.world_map")
+local hud_loot_panel = require("src.render.hud.loot_panel")
 
 --------------------------------------------------------------------------------
 -- INTERNAL HELPERS / REGISTRY
@@ -65,11 +66,33 @@ local windows = {
             hud_cargo.mousemoved(x, y)
         end,
     },
+
+    loot = {
+        id = "loot",
+        zIndex = 150, -- Above cargo, below map
+        -- isOpen is dynamically determined by player.isLooting
+        isOpen = false,
+        mousepressed = function(x, y, button)
+            return hud_loot_panel.mousepressed(x, y, button)
+        end,
+        mousereleased = function(x, y, button)
+            hud_loot_panel.mousereleased(x, y, button)
+        end,
+        mousemoved = function(x, y)
+            hud_loot_panel.mousemoved(x, y)
+        end,
+    },
 }
 
 --- Build a temporary array of registered windows sorted by descending z-index
 -- so that input is always offered to the visually top-most window first.
 local function getWindowsInZOrderDescending()
+    -- Sync loot window isOpen with player looting state
+    local lootWin = windows.loot
+    if lootWin then
+        lootWin.isOpen = hud_loot_panel.isOpen()
+    end
+
     local ordered = {}
     for _, win in pairs(windows) do
         ordered[#ordered + 1] = win

@@ -32,22 +32,23 @@ function damage.applyDamage(entity, damageAmount)
     local shieldDamage = 0
     local hullDamage = 0
 
-    local shield = entity.shield or 0
+    local shield = utils.getShield(entity)
     if shield > 0 then
         if damageAmount <= shield then
-            entity.shield = shield - damageAmount
+            utils.setShield(entity, shield - damageAmount)
             shieldDamage = damageAmount
             return false, shieldDamage, hullDamage
         else
-            entity.shield = 0
+            utils.setShield(entity, 0)
             shieldDamage = shield
             damageAmount = damageAmount - shield
         end
     end
 
-    entity.health = (entity.health or 0) - damageAmount
+    local health = utils.getHealth(entity)
+    utils.setHealth(entity, health - damageAmount)
     hullDamage = damageAmount
-    return entity.health <= 0, shieldDamage, hullDamage
+    return utils.getHealth(entity) <= 0, shieldDamage, hullDamage
 end
 
 --------------------------------------------------------------------------------
@@ -135,7 +136,11 @@ end
 --- @param radius number Approximate asteroid radius (for scaling yield)
 --- @return table Resource amounts { stone = n, ice = n, mithril = n }
 function damage.computeAsteroidResourceYield(asteroid, radius)
-    local size = asteroid and asteroid.size or radius or 20
+    -- Handle ECS size component (table with .value) or legacy number
+    local size = radius or 20
+    if asteroid and asteroid.size then
+        size = type(asteroid.size) == "table" and asteroid.size.value or asteroid.size
+    end
     local baseChunks = math.max(1, math.floor((size or 20) / 10))
     local data = asteroid and asteroid.data
     local comp = data and data.composition
@@ -293,10 +298,10 @@ function damage.spawnProjectileShards(projectile, target, contactX, contactY, ra
         return
     end
 
-    local px = projectile.x or (projectile.body and projectile.body:getX())
-    local py = projectile.y or (projectile.body and projectile.body:getY())
-    local tx = target and target.x or contactX or px
-    local ty = target and target.y or contactY or py
+    local px = utils.getX(projectile)
+    local py = utils.getY(projectile)
+    local tx = target and utils.getX(target) or contactX or px
+    local ty = target and utils.getY(target) or contactY or py
     local ix = contactX or tx or px
     local iy = contactY or ty or py
 
@@ -306,11 +311,22 @@ function damage.spawnProjectileShards(projectile, target, contactX, contactY, ra
 
     local dirX = px - tx
     local dirY = py - ty
+    local angle = 0
+    if projectile.rotation then
+        angle = projectile.rotation.angle
+    elseif projectile.angle then
+        angle = projectile.angle
+    end
     if dirX == 0 and dirY == 0 then
-        dirX, dirY = math.cos(projectile.angle or 0), math.sin(projectile.angle or 0)
+        dirX, dirY = math.cos(angle), math.sin(angle)
     end
 
-    local baseSpeed = projectile.speed or (physics.constants and physics.constants.projectileSpeed) or 350
+    local baseSpeed = utils.getDamage(projectile) or (physics.constants and physics.constants.projectileSpeed) or 350
+    if projectile.projectileData and projectile.projectileData.speed then
+        baseSpeed = projectile.projectileData.speed
+    elseif projectile.speed then
+        baseSpeed = projectile.speed
+    end
 
     -- Scale shard count based on projectile size (subtle: 3-5 shards max)
     local projectileRadius = 4 -- Default projectile radius
@@ -342,8 +358,8 @@ function damage.spawnShieldImpactVisual(target, projectile, contactX, contactY, 
         return
     end
 
-    local cx = target.x or contactX or (projectile and projectile.x)
-    local cy = target.y or contactY or (projectile and projectile.y)
+    local cx = utils.getX(target) or contactX or (projectile and utils.getX(projectile))
+    local cy = utils.getY(target) or contactY or (projectile and utils.getY(projectile))
     local ix = contactX or cx
     local iy = contactY or cy
     local shieldRadius = radius or utils.getBoundingRadius(target)

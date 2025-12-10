@@ -39,10 +39,10 @@ function hud_minimap.draw(player, colors, enemyList, asteroidList)
     -- which currently lives around (screenW - margin, 20). We start the panel
     -- a bit lower so both elements remain readable.
     --------------------------------------------------------------------------
-    local panelMarginRight = 12   -- Distance from right screen edge
-    local panelMarginTop = 12     -- Distance from top; > FPS Y so they do not overlap
-    local panelWidth = 200        -- Overall minimap panel width (including padding)
-    local panelHeight = 150       -- Overall minimap panel height (map only; coords sit below)
+    local panelMarginRight = 12 -- Distance from right screen edge
+    local panelMarginTop = 12   -- Distance from top; > FPS Y so they do not overlap
+    local panelWidth = 200      -- Overall minimap panel width (including padding)
+    local panelHeight = 150     -- Overall minimap panel height (map only; coords sit below)
 
     local panelX = screenW - panelWidth - panelMarginRight
     local panelY = panelMarginTop
@@ -154,8 +154,8 @@ function hud_minimap.draw(player, colors, enemyList, asteroidList)
     --------------------------------------------------------------------------
     -- Player marker
     --------------------------------------------------------------------------
-    local px = player.x
-    local py = player.y
+    local px = player.position and player.position.x or player.x
+    local py = player.position and player.position.y or player.y
 
     if px and py then
         local mx, my = worldToMinimap(px, py)
@@ -182,8 +182,8 @@ function hud_minimap.draw(player, colors, enemyList, asteroidList)
         love.graphics.setLineWidth(1)
         for i = 1, #enemyList do
             local e = enemyList[i]
-            local ex = e and e.x
-            local ey = e and e.y
+            local ex = e and (e.position and e.position.x or e.x)
+            local ey = e and (e.position and e.position.y or e.y)
             if ex and ey then
                 local mx, my = worldToMinimap(ex, ey)
                 love.graphics.setColor(colors.enemy[1], colors.enemy[2], colors.enemy[3], 0.9)
@@ -196,8 +196,8 @@ function hud_minimap.draw(player, colors, enemyList, asteroidList)
         love.graphics.setLineWidth(1)
         for i = 1, #asteroidList do
             local a = asteroidList[i]
-            local ax = a and a.x
-            local ay = a and a.y
+            local ax = a and (a.position and a.position.x or a.x)
+            local ay = a and (a.position and a.position.y or a.y)
             if ax and ay then
                 local mx, my = worldToMinimap(ax, ay)
                 -- Slightly dimmer, neutral tone so enemies remain visually

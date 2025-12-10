@@ -6,9 +6,6 @@ local config = require("src.core.config")
 
 local combat = {}
 
-local enemies = enemyModule.list
-local asteroids = asteroidModule.list
-
 local targetEnemy = nil
 local fireTimer = 0
 local fireInterval = config.combat.fireInterval
@@ -16,17 +13,28 @@ local lockTarget = nil
 local lockTimer = 0
 local lockDuration = config.combat.lockDuration
 
+-- Helper to get current enemy/asteroid lists dynamically
+local function getEnemies()
+    return enemyModule.getList and enemyModule.getList() or enemyModule.list or {}
+end
+
+local function getAsteroids()
+    return asteroidModule.getList and asteroidModule.getList() or asteroidModule.list or {}
+end
+
 local function isEnemyValid(e)
     if not e then
         return false
     end
 
+    local enemies = getEnemies()
     for i = 1, #enemies do
         if enemies[i] == e then
             return true
         end
     end
 
+    local asteroids = getAsteroids()
     for i = 1, #asteroids do
         if asteroids[i] == e then
             return true
@@ -49,14 +57,24 @@ local function findEnemyAtPosition(x, y, maxRadius)
     local closestDistSq = nil
 
     local function considerEntity(e)
-        local dx = e.x - x
-        local dy = e.y - y
+        -- Get position from ECS component or legacy property
+        local ex = e.position and e.position.x or e.x
+        local ey = e.position and e.position.y or e.y
+        if not ex or not ey then return end
+
+        local dx = ex - x
+        local dy = ey - y
         local distSq = dx * dx + dy * dy
 
         -- Derive an approximate radius for the entity. This prefers
         -- collisionRadius (physics / hitbox) but falls back to size if
         -- needed. If both are nil/zero we will only use the padding radius.
-        local entityRadius = e.collisionRadius or e.size or 0
+        local entityRadius = 0
+        if e.collisionRadius then
+            entityRadius = type(e.collisionRadius) == "table" and e.collisionRadius.radius or e.collisionRadius
+        elseif e.size then
+            entityRadius = type(e.size) == "table" and e.size.value or e.size
+        end
 
         -- Config-driven padding radius. This is the "selectionRadius" that
         -- input.lua passes in, used as a buffer so you don't have to click
@@ -80,11 +98,11 @@ local function findEnemyAtPosition(x, y, maxRadius)
         end
     end
 
-    for _, e in ipairs(enemies) do
+    for _, e in ipairs(getEnemies()) do
         considerEntity(e)
     end
 
-    for _, a in ipairs(asteroids) do
+    for _, a in ipairs(getAsteroids()) do
         considerEntity(a)
     end
 
@@ -152,7 +170,9 @@ function combat.updateAutoShoot(dt, player)
             -- unless the weapon is still on cooldown.
             if isEnemyValid(targetEnemy) and fireTimer >= interval then
                 fireTimer = 0
-                projectileModule.spawn(player, targetEnemy.x, targetEnemy.y, targetEnemy)
+                local tx = targetEnemy.position and targetEnemy.position.x or targetEnemy.x
+                local ty = targetEnemy.position and targetEnemy.position.y or targetEnemy.y
+                projectileModule.spawn(player, tx, ty, targetEnemy)
                 -- We fired this frame; skip the generic auto-fire logic below
                 -- to avoid double shots.
                 return
@@ -170,7 +190,9 @@ function combat.updateAutoShoot(dt, player)
     -- interval, fire and reset the timer.
     if fireTimer >= interval then
         fireTimer = 0
-        projectileModule.spawn(player, targetEnemy.x, targetEnemy.y, targetEnemy)
+        local tx = targetEnemy.position and targetEnemy.position.x or targetEnemy.x
+        local ty = targetEnemy.position and targetEnemy.position.y or targetEnemy.y
+        projectileModule.spawn(player, tx, ty, targetEnemy)
     end
 end
 

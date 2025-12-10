@@ -1,25 +1,24 @@
-local colors = require("src.core.colors")
-local config = require("src.core.config")
+--------------------------------------------------------------------------------
+-- ASTEROID MODULE (ECS-BACKED)
+-- Spawns asteroids as ECS entities, provides legacy API compatibility
+--------------------------------------------------------------------------------
 
 local asteroid = {}
 
-asteroid.list = {}
+local ecsWorld = require("src.ecs.world")
+local Concord = require("lib.concord")
+local physics = require("src.core.physics")
+local config = require("src.core.config")
+local colors = require("src.core.colors")
+local asteroid_generator = require("src.utils.procedural_asteroid_generator")
+
 asteroid.shader = nil
 
-local asteroid_generator = require("src.utils.procedural_asteroid_generator")
-local physics = require("src.core.physics")
+--------------------------------------------------------------------------------
+-- HELPERS
+--------------------------------------------------------------------------------
 
-local function clamp01(x)
-    if x < 0 then return 0 end
-    if x > 1 then return 1 end
-    return x
-end
-
--- Build a readable composition label (for the HUD target panel) from the
--- underlying numeric composition on the asteroid's generated data.
 local function buildCompositionText(asteroidData)
-    -- Defensive fallback: if the generator did not provide composition data,
-    -- we still return a reasonable generic description.
     if not asteroidData or not asteroidData.composition then
         return 'Stone and ice'
     end
@@ -42,27 +41,47 @@ local function buildCompositionText(asteroidData)
     local icePercent = math.floor(ice * 100 + 0.5)
     local mithrilPercent = math.floor(mithril * 100 + 0.5)
 
-    -- If mithril is present in meaningful amounts, always call it out.
     if mithrilPercent >= 10 then
         return string.format('Stone %d%%, Ice %d%%, Mithril %d%%', stonePercent, icePercent, mithrilPercent)
     elseif mithrilPercent > 0 then
         return string.format('Stone %d%%, Ice %d%%, traces of Mithril', stonePercent, icePercent)
     end
 
-    -- No mithril: keep the label compact but still informative.
     return string.format('Stone %d%%, Ice %d%%', stonePercent, icePercent)
 end
+
+--------------------------------------------------------------------------------
+-- LEGACY LIST (computed from ECS world)
+--------------------------------------------------------------------------------
+
+function asteroid.getList()
+    return ecsWorld:query({ "asteroid", "position" }) or {}
+end
+
+setmetatable(asteroid, {
+    __index = function(t, k)
+        if k == "list" then
+            return asteroid.getList()
+        end
+        return rawget(t, k)
+    end
+})
+
+--------------------------------------------------------------------------------
+-- LOAD
+--------------------------------------------------------------------------------
 
 function asteroid.load()
     asteroid.shader = nil
 end
 
+--------------------------------------------------------------------------------
+-- POPULATE
+--------------------------------------------------------------------------------
+
 function asteroid.populate(world, count)
     asteroid.clear()
-
-    if not world then
-        return
-    end
+    if not world then return end
 
     count = count or 80
     local margin = 80
@@ -79,142 +98,159 @@ function asteroid.populate(world, count)
         t = math.max(0, math.min(1, t))
         local maxHealth = config.asteroid.minHealth + t * (config.asteroid.maxHealth - config.asteroid.minHealth)
 
-        -- Zero-g drift velocity (asteroids drift slowly through space)
         local consts = physics.constants
         local driftSpeed = consts.asteroidMinDrift + math.random() * (consts.asteroidMaxDrift - consts.asteroidMinDrift)
         local driftAngle = math.random() * math.pi * 2
+        local composition = buildCompositionText(data)
 
-        -- Get collision vertices from the asteroid's shape
+        -- Create ECS entity
+        local e = Concord.entity(ecsWorld)
+        e:give("position", x, y)
+            :give("velocity", math.cos(driftAngle) * driftSpeed, math.sin(driftAngle) * driftSpeed)
+            :give("rotation", math.random() * math.pi * 2)
+            :give("asteroid")
+            :give("damageable")
+            :give("health", maxHealth, maxHealth)
+            :give("size", size)
+            :give("collisionRadius", collisionRadius)
+            :give("asteroidVisual", data)
+
+        -- Resource yield from composition
+        if data and data.composition then
+            e:give("resourceYield", data.composition)
+        end
+
+        -- Extra data for rendering/mining
+        e.rotationSpeed = (math.random() - 0.5) * 0.3
+        e.composition = composition
+        e.data = data
+
+        -- Create physics body
         local collisionVertices = nil
         if data and data.shape and data.shape.flatPoints then
             collisionVertices = data.shape.flatPoints
         end
 
-        -- Create the asteroid entity first (so we can pass it to physics).
-        -- The composition text is derived from the generator's
-        -- stone/ice/mithril mix so HUD and gameplay stay consistent.
-        local composition = buildCompositionText(data)
-        local newAsteroid = {
-            x = x,
-            y = y,
-            -- Drift velocity for zero-g feel
-            vx = math.cos(driftAngle) * driftSpeed,
-            vy = math.sin(driftAngle) * driftSpeed,
-            size = size,
-            angle = math.random() * math.pi * 2,
-            rotationSpeed = (math.random() - 0.5) * 0.3, -- Slower rotation
-            data = data,
-            collisionRadius = collisionRadius,
-            collisionVertices = collisionVertices,
-            health = maxHealth,
-            maxHealth = maxHealth,
-            -- Mining / flavor stats
-            composition = composition,
-            body = nil,
-            shapes = nil,  -- Table of shapes (polygon body may have multiple)
-            fixtures = nil -- Table of fixtures
-        }
-
-        -- Create physics body with polygon collision from asteroid shape
+        local body, shapes, fixtures
         if collisionVertices and #collisionVertices >= 6 then
-            newAsteroid.body, newAsteroid.shapes, newAsteroid.fixtures = physics.createPolygonBody(
-                x, y,
-                collisionVertices,
-                "ASTEROID",
-                newAsteroid,
-                {}
-            )
+            body, shapes, fixtures = physics.createPolygonBody(x, y, collisionVertices, "ASTEROID", e, {})
         else
-            -- Fallback to circle if no valid shape vertices
-            local body, shape, fixture = physics.createCircleBody(
-                x, y,
-                collisionRadius,
-                "ASTEROID",
-                newAsteroid,
-                {}
-            )
-            newAsteroid.body = body
-            newAsteroid.shapes = shape and { shape } or nil
-            newAsteroid.fixtures = fixture and { fixture } or nil
+            local b, s, f = physics.createCircleBody(x, y, collisionRadius, "ASTEROID", e, {})
+            body = b
+            shapes = s and { s } or nil
+            fixtures = f and { f } or nil
         end
 
-        table.insert(asteroid.list, newAsteroid)
+        if body then
+            e:give("physics", body, shapes, fixtures)
+        end
     end
 end
+
+--------------------------------------------------------------------------------
+-- UPDATE
+--------------------------------------------------------------------------------
 
 function asteroid.update(dt, world)
-    for _, a in ipairs(asteroid.list) do
+    local asteroids = asteroid.getList()
+
+    for _, a in ipairs(asteroids) do
         -- Update rotation
-        a.angle = a.angle + (a.rotationSpeed or 0) * dt
+        local rot = a.rotation
+        if rot and a.rotationSpeed then
+            rot.angle = rot.angle + a.rotationSpeed * dt
+        end
 
-        -- Update position based on drift velocity (zero-g momentum)
-        if a.vx and a.vy then
-            a.x = a.x + a.vx * dt
-            a.y = a.y + a.vy * dt
+        -- Update position from velocity
+        local pos = a.position
+        local vel = a.velocity
+        if pos and vel then
+            pos.x = pos.x + vel.vx * dt
+            pos.y = pos.y + vel.vy * dt
 
-            -- Wrap around world boundaries (asteroids drift endlessly)
+            -- Wrap around world boundaries
             if world then
-                local margin = a.collisionRadius or a.size
-                if a.x < world.minX - margin then
-                    a.x = world.maxX + margin
-                elseif a.x > world.maxX + margin then
-                    a.x = world.minX - margin
+                local radius = a.collisionRadius and a.collisionRadius.radius or 20
+                if pos.x < world.minX - radius then
+                    pos.x = world.maxX + radius
+                elseif pos.x > world.maxX + radius then
+                    pos.x = world.minX - radius
                 end
-                if a.y < world.minY - margin then
-                    a.y = world.maxY + margin
-                elseif a.y > world.maxY + margin then
-                    a.y = world.minY - margin
+                if pos.y < world.minY - radius then
+                    pos.y = world.maxY + radius
+                elseif pos.y > world.maxY + radius then
+                    pos.y = world.minY - radius
                 end
             end
 
-            -- Sync physics body position
-            if a.body then
-                a.body:setPosition(a.x, a.y)
+            -- Sync physics body
+            if a.physics and a.physics.body and not a.physics.body:isDestroyed() then
+                a.physics.body:setPosition(pos.x, pos.y)
             end
         end
     end
 end
 
--- Draw asteroids with shader; camera supplies screen-to-world info so noise stays static
--- @param camera table optional camera {x, y, scale}
-function asteroid.draw(camera)
-    for _, a in ipairs(asteroid.list) do
-        love.graphics.push()
-        love.graphics.translate(a.x, a.y)
-        love.graphics.rotate(a.angle)
+--------------------------------------------------------------------------------
+-- DRAW
+--------------------------------------------------------------------------------
 
-        asteroid_generator.draw(a.data)
+function asteroid.draw(camera)
+    local asteroids = asteroid.getList()
+
+    for _, a in ipairs(asteroids) do
+        local px = a.position.x
+        local py = a.position.y
+        local angle = a.rotation and a.rotation.angle or 0
+        local data = a.asteroidVisual and a.asteroidVisual.data or a.data
+
+        love.graphics.push()
+        love.graphics.translate(px, py)
+        love.graphics.rotate(angle)
+
+        if data then
+            asteroid_generator.draw(data)
+        end
         love.graphics.pop()
 
-        if a.maxHealth and a.health and a.health < a.maxHealth then
-            local radius = a.collisionRadius or a.size or 10
+        -- Health bar (ECS component)
+        local healthComp = a.health
+        local healthCurrent = healthComp and healthComp.current or 0
+        local healthMax = healthComp and healthComp.max or 0
+
+        if healthCurrent and healthMax and healthCurrent < healthMax then
+            local radius = (type(a.collisionRadius) == "table" and a.collisionRadius.radius) or a.collisionRadius or 10
             local barWidth = radius * 0.9
             local barHeight = 4
-            local barX = a.x - barWidth
-            local barY = a.y - radius - 18
-            local outlinePad = 1
+            local barX = px - barWidth
+            local barY = py - radius - 18
 
             love.graphics.setColor(0, 0, 0, 1)
-            love.graphics.rectangle("fill", barX - outlinePad, barY - outlinePad, barWidth * 2 + outlinePad * 2,
-                barHeight + outlinePad * 2)
+            love.graphics.rectangle("fill", barX - 1, barY - 1, barWidth * 2 + 2, barHeight + 2)
 
             love.graphics.setColor(colors.asteroidHealthBg)
             love.graphics.rectangle("fill", barX, barY, barWidth * 2, barHeight)
 
-            local ratio = math.max(0, math.min(1, a.health / a.maxHealth))
+            local ratio = math.max(0, math.min(1, healthCurrent / healthMax))
             love.graphics.setColor(colors.asteroidHealth)
             love.graphics.rectangle("fill", barX, barY, barWidth * 2 * ratio, barHeight)
         end
     end
 end
 
+--------------------------------------------------------------------------------
+-- CLEAR
+--------------------------------------------------------------------------------
+
 function asteroid.clear()
-    for i = #asteroid.list, 1, -1 do
-        local a = asteroid.list[i]
-        if a.body then
-            a.body:destroy()
+    local asteroids = asteroid.getList()
+
+    for i = #asteroids, 1, -1 do
+        local a = asteroids[i]
+        if a.physics and a.physics.body then
+            a.physics.body:destroy()
         end
-        table.remove(asteroid.list, i)
+        a:destroy()
     end
 end
 

@@ -52,10 +52,12 @@ function handlers.resolveProjectileHit(projectile, target, contactX, contactY, r
     local bullets = context.bullets
 
     -- Derive contact point if not provided
-    if (not contactX or not contactY) and projectile.x and projectile.y and target.x and target.y then
+    local projX, projY = utils.getX(projectile), utils.getY(projectile)
+    local targX, targY = utils.getX(target), utils.getY(target)
+    if (not contactX or not contactY) and projX and projY and targX and targY then
         contactX, contactY = utils.getContactPoint(
-            projectile.x, projectile.y,
-            target.x, target.y,
+            projX, projY,
+            targX, targY,
             radius
         )
     end
@@ -64,7 +66,7 @@ function handlers.resolveProjectileHit(projectile, target, contactX, contactY, r
     if cfg.canMiss and not utils.rollHitChance(projectile) then
         damageModule.spawnProjectileShards(projectile, target, contactX, contactY, radius, 0.6, currentColors)
 
-        if target and target.shield and target.shield > 0 then
+        if target and utils.getShield(target) > 0 then
             damageModule.spawnShieldImpactVisual(target, projectile, contactX, contactY, radius)
         end
 
@@ -75,22 +77,22 @@ function handlers.resolveProjectileHit(projectile, target, contactX, contactY, r
     damageModule.spawnProjectileShards(projectile, target, contactX, contactY, radius, 1.0, currentColors)
 
     -- Apply damage and spawn floating numbers for shield vs hull
-    local damage = projectile.damage or currentDamagePerHit
+    local damageAmt = utils.getDamage(projectile) or currentDamagePerHit
 
-    local died, shieldDamage, hullDamage = damageModule.applyDamage(target, damage)
+    local died, shieldDamage, hullDamage = damageModule.applyDamage(target, damageAmt)
 
     -- Shield damage (bright blue)
     if shieldDamage and shieldDamage > 0 then
         local shieldColor = baseColors.shieldDamage or baseColors.projectile or
             (currentColors and currentColors.projectile) or baseColors.white
-        damageModule.spawnDamageText(shieldDamage, target.x, target.y, radius, shieldColor, nil)
+        damageModule.spawnDamageText(shieldDamage, targX, targY, radius, shieldColor, nil)
         damageModule.spawnShieldImpactVisual(target, projectile, contactX, contactY, radius)
     end
 
     -- Hull damage (use configured damage text color)
     if hullDamage and hullDamage > 0 then
         local hullColor = cfg.damageTextColor or DAMAGE_COLOR_ENEMY
-        damageModule.spawnDamageText(hullDamage, target.x, target.y, radius, hullColor, nil)
+        damageModule.spawnDamageText(hullDamage, targX, targY, radius, hullColor, nil)
     end
 
     -- Remove the projectile on any resolved hit
@@ -98,7 +100,7 @@ function handlers.resolveProjectileHit(projectile, target, contactX, contactY, r
 
     -- Death handling
     if died and cfg.onKill then
-        cfg.onKill(target, radius, damage)
+        cfg.onKill(target, radius, damageAmt)
     end
 end
 
@@ -128,18 +130,20 @@ function handlers.handlePlayerProjectileVsEnemy(projectile, enemy, contactX, con
         impactColor = context.currentColors and context.currentColors.projectile or nil,
         impactCount = 10,
         onKill = function(target, radius)
-            explosionFx.spawn(target.x, target.y, context.currentColors.enemy, radius * 1.4)
+            local tx, ty = utils.getX(target), utils.getY(target)
+            explosionFx.spawn(tx, ty, context.currentColors.enemy, radius * 1.4)
             utils.cleanupProjectilesForTarget(context.bullets, target)
             utils.removeEntity(context.enemies, target)
-            local owner = projectile.owner
-            if owner and owner.faction ~= "enemy" then
+            local owner = projectile.owner or (projectile.projectileData and projectile.projectileData.owner)
+            local ownerFaction = owner and utils.getFaction(owner) or "player"
+            if ownerFaction ~= "enemy" then
                 local xp = config.player.xpPerEnemy or 0
                 local tokens = config.player.tokensPerEnemy or 0
                 damageModule.awardXpAndTokensOnKill(xp, tokens)
                 local resources = damageModule.computeEnemyResourceYield(target, radius)
-                damageModule.spawnResourceChunksAt(target.x, target.y, resources)
+                damageModule.spawnResourceChunksAt(tx, ty, resources)
                 -- Spawn cargo wreck for looting
-                damageModule.spawnEnemyWreck(target.x, target.y, target, radius)
+                damageModule.spawnEnemyWreck(tx, ty, target, radius)
             end
         end,
     }, context)
@@ -165,7 +169,8 @@ function handlers.handleEnemyProjectileVsPlayer(projectile, player, contactX, co
         impactColor = context.currentColors and context.currentColors.projectile or nil,
         impactCount = 10,
         onKill = function(target, radius)
-            explosionFx.spawn(target.x, target.y, context.currentColors.ship, radius * 2.2)
+            local tx, ty = utils.getX(target), utils.getY(target)
+            explosionFx.spawn(tx, ty, context.currentColors.ship, radius * 2.2)
             context.playerDiedThisFrame = true
         end,
     }, context)
@@ -195,18 +200,20 @@ function handlers.handleProjectileVsAsteroid(projectile, asteroid, contactX, con
         impactColor = context.currentColors and context.currentColors.projectile or nil,
         impactCount = 14,
         onKill = function(target, radius)
+            local tx, ty = utils.getX(target), utils.getY(target)
             if context.currentParticles then
-                context.currentParticles.explosion(target.x, target.y, asteroidColor)
+                context.currentParticles.explosion(tx, ty, asteroidColor)
             end
             utils.cleanupProjectilesForTarget(context.bullets, target)
             utils.removeEntity(context.asteroids, target)
-            local owner = projectile.owner
-            if owner and owner.faction ~= "enemy" then
+            local owner = projectile.owner or (projectile.projectileData and projectile.projectileData.owner)
+            local ownerFaction = owner and utils.getFaction(owner) or "player"
+            if ownerFaction ~= "enemy" then
                 local xp = config.player.xpPerAsteroid or 0
                 local tokens = config.player.tokensPerAsteroid or 0
                 damageModule.awardXpAndTokensOnKill(xp, tokens)
                 local resources = damageModule.computeAsteroidResourceYield(target, radius)
-                damageModule.spawnResourceChunksAt(target.x, target.y, resources)
+                damageModule.spawnResourceChunksAt(tx, ty, resources)
             end
         end,
     }, context)
@@ -224,35 +231,36 @@ end
 --- @param context table Runtime context
 function handlers.handlePlayerVsEnemy(player, enemy, contactX, contactY, context)
     local enemyRadius = utils.getBoundingRadius(enemy)
+    local ex, ey = utils.getX(enemy), utils.getY(enemy)
+    local px, py = utils.getX(player), utils.getY(player)
+    local playerSize = utils.getSize(player)
 
     -- Destroy the enemy on contact
-    explosionFx.spawn(enemy.x, enemy.y, context.currentColors.enemy, enemyRadius * 1.4)
+    explosionFx.spawn(ex, ey, context.currentColors.enemy, enemyRadius * 1.4)
     utils.cleanupProjectilesForTarget(context.bullets, enemy)
     utils.removeEntity(context.enemies, enemy)
     local xp = config.player.xpPerEnemy or 0
     local tokens = config.player.tokensPerEnemy or 0
     damageModule.awardXpAndTokensOnKill(xp, tokens)
     local resources = damageModule.computeEnemyResourceYield(enemy, enemyRadius)
-    damageModule.spawnResourceChunksAt(enemy.x, enemy.y, resources)
+    damageModule.spawnResourceChunksAt(ex, ey, resources)
     -- Spawn cargo wreck for looting
-    damageModule.spawnEnemyWreck(enemy.x, enemy.y, enemy, enemyRadius)
+    damageModule.spawnEnemyWreck(ex, ey, enemy, enemyRadius)
 
     -- Damage the player; shields absorb before hull
-    local damage = context.currentDamagePerHit
-    local died, shieldDamage, hullDamage = damageModule.applyDamage(player, damage)
+    local damageAmt = context.currentDamagePerHit
+    local died, shieldDamage, hullDamage = damageModule.applyDamage(player, damageAmt)
 
     -- Shield damage text (bright blue)
     if shieldDamage and shieldDamage > 0 then
         local shieldColor = baseColors.shieldDamage or baseColors.projectile or
             (context.currentColors and context.currentColors.projectile) or baseColors.white
-        damageModule.spawnDamageText(shieldDamage, player.x, player.y, player.size, shieldColor, nil)
+        damageModule.spawnDamageText(shieldDamage, px, py, playerSize, shieldColor, nil)
     end
 
     if shieldDamage and shieldDamage > 0 and shieldImpactFx and shieldImpactFx.spawn then
-        local px = player.x
-        local py = player.y
-        local ix = contactX or (enemy and enemy.x) or px
-        local iy = contactY or (enemy and enemy.y) or py
+        local ix = contactX or ex or px
+        local iy = contactY or ey or py
         local radius = utils.getBoundingRadius(player)
         if radius and radius > 0 and px and py and ix and iy then
             ------------------------------------------------------------------
@@ -291,8 +299,11 @@ function handlers.resolveShipVsAsteroid(ship, asteroid, contactX, contactY, cont
         return
     end
 
-    local dx = ship.x - asteroid.x
-    local dy = ship.y - asteroid.y
+    local shipX, shipY = utils.getX(ship), utils.getY(ship)
+    local astX, astY = utils.getX(asteroid), utils.getY(asteroid)
+
+    local dx = shipX - astX
+    local dy = shipY - astY
     local distance = math.sqrt(dx * dx + dy * dy)
     if distance <= 0 then
         return
@@ -302,12 +313,12 @@ function handlers.resolveShipVsAsteroid(ship, asteroid, contactX, contactY, cont
     local asteroidRadius
 
     if contactX and contactY then
-        local sx = contactX - ship.x
-        local sy = contactY - ship.y
+        local sx = contactX - shipX
+        local sy = contactY - shipY
         shipRadius = math.sqrt(sx * sx + sy * sy)
 
-        local ax = contactX - asteroid.x
-        local ay = contactY - asteroid.y
+        local ax = contactX - astX
+        local ay = contactY - astY
         asteroidRadius = math.sqrt(ax * ax + ay * ay)
     else
         shipRadius = utils.getBoundingRadius(ship)
@@ -326,26 +337,33 @@ function handlers.resolveShipVsAsteroid(ship, asteroid, contactX, contactY, cont
         local invDist = 1.0 / distance
 
         ------------------------------------------------------------------
-        -- Positional resolve: push the ship out of the asteroid so that the
-        -- two shapes no longer overlap. This keeps the physics stable and
-        -- avoids jitter at the contact point.
+        -- Positional resolve: push the ship out of the asteroid
         ------------------------------------------------------------------
-        ship.x = ship.x + dx * invDist * overlap
-        ship.y = ship.y + dy * invDist * overlap
+        local newX = shipX + dx * invDist * overlap
+        local newY = shipY + dy * invDist * overlap
+
+        -- Update ECS position component
+        if ship.position then
+            ship.position.x = newX
+            ship.position.y = newY
+        else
+            ship.x = newX
+            ship.y = newY
+        end
 
         -- Sync physics body position
-        if ship.body then
-            ship.body:setPosition(ship.x, ship.y)
+        local body = utils.getBody(ship)
+        if body then
+            body:setPosition(newX, newY)
         end
 
         ------------------------------------------------------------------
-        -- Visual sparks at the contact point; reused for both player and
-        -- enemy ships so asteroid impacts always feel physical.
+        -- Visual sparks at the contact point
         ------------------------------------------------------------------
         local sparkX, sparkY = contactX, contactY
         if not sparkX or not sparkY then
-            sparkX = asteroid.x + dx * invDist * asteroidRadius
-            sparkY = asteroid.y + dy * invDist * asteroidRadius
+            sparkX = astX + dx * invDist * asteroidRadius
+            sparkY = astY + dy * invDist * asteroidRadius
         end
 
         if sparkX and sparkY and context.currentParticles then

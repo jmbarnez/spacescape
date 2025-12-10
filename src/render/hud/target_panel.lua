@@ -37,7 +37,7 @@ function target_panel.draw(colors)
     love.graphics.rectangle("fill", panelX, panelY, panelWidth, panelHeight, 8, 8)
 
     -- Border
-    local borderColor = hudPanelStyle.border or colors.uiPanelBorder or {1, 1, 1, 0.6}
+    local borderColor = hudPanelStyle.border or colors.uiPanelBorder or { 1, 1, 1, 0.6 }
     love.graphics.setColor(borderColor[1], borderColor[2], borderColor[3], borderColor[4] or 0.6)
     love.graphics.setLineWidth(2)
     love.graphics.rectangle("line", panelX, panelY, panelWidth, panelHeight, 8, 8)
@@ -47,9 +47,18 @@ function target_panel.draw(colors)
     local typeLabel = "Unknown"
 
     -- Distinguish enemies vs asteroids using simple heuristics
-    if target.faction == "enemy" then
+    -- Handle ECS faction component (table with .name) or legacy string
+    local factionName = nil
+    if target.faction then
+        factionName = type(target.faction) == "table" and target.faction.name or target.faction
+    end
+
+    -- Get ship data from ECS component or legacy property
+    local shipData = target.shipVisual and target.shipVisual.ship or target.ship
+
+    if factionName == "enemy" then
         typeLabel = "Enemy Ship"
-    elseif target.collisionRadius and not target.ship then
+    elseif target.collisionRadius and not shipData then
         -- Asteroids have collisionRadius and no ship field in this project
         typeLabel = "Asteroid"
     end
@@ -62,7 +71,13 @@ function target_panel.draw(colors)
     end
 
     -- Basic size info for flavor (use radius or size)
-    local radius = target.collisionRadius or target.size or 0
+    -- Handle ECS components (tables) or legacy number values
+    local radius = 0
+    if target.collisionRadius then
+        radius = type(target.collisionRadius) == "table" and target.collisionRadius.radius or target.collisionRadius
+    elseif target.size then
+        radius = type(target.size) == "table" and target.size.value or target.size
+    end
     if radius > 0 then
         table.insert(nameParts, string.format("R%.0f", radius))
     end
@@ -121,7 +136,7 @@ function target_panel.draw(colors)
     if statusText then
         local statusWidth = font:getWidth(statusText)
         local statusX = panelX + panelWidth - statusWidth - 12
-        love.graphics.setColor(colors.targetRingLocked or colors.targetRing or {1, 0, 0, 0.9})
+        love.graphics.setColor(colors.targetRingLocked or colors.targetRing or { 1, 0, 0, 0.9 })
         love.graphics.print(statusText, statusX, lineY)
     end
 end

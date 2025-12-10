@@ -28,6 +28,7 @@ local explosionFx = require("src.entities.explosion_fx")
 local shieldImpactFx = require("src.entities.shield_impact_fx")
 local floatingText = require("src.entities.floating_text")
 local gameRender = require("src.states.game_render")
+local ecsWorld = require("src.ecs.world")
 
 -- Module definition
 local game = {}
@@ -188,6 +189,10 @@ function game.update(dt)
 	}
 
 	systems.runUpdate(dt, updateCtx)
+
+	-- ECS world update (emits update to all systems)
+	ecsWorld:emit("update", dt, playerModule.state)
+
 	game.checkCollisions()
 end
 
@@ -377,6 +382,7 @@ function game.restartGame()
 	shieldImpactFx.clear()
 	floatingText.clear()
 	collisionSystem.clear()
+	ecsWorld:clear()
 
 	spawnSystem.reset()
 	combatSystem.reset()

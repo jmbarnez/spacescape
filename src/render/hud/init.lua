@@ -5,6 +5,7 @@ local hud_pause = require("src.render.hud.pause")
 local hud_gameover = require("src.render.hud.gameover")
 local hud_cargo = require("src.render.hud.cargo")
 local hud_world_map = require("src.render.hud.world_map")
+local hud_loot_panel = require("src.render.hud.loot_panel")
 
 function hud.drawHUD(player, colors, enemyList, asteroidList)
     -- Pass through the optional enemy / asteroid lists so in-game HUD widgets
@@ -29,6 +30,10 @@ end
 
 function hud.drawCargo(player, colors)
     hud_cargo.draw(player, colors)
+end
+
+function hud.drawLootPanel(player, colors)
+    hud_loot_panel.draw(player, colors)
 end
 
 -- NOTE: Mouse handlers and reset functions have been moved to window_manager.lua

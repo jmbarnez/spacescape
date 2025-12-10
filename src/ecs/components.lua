@@ -1,0 +1,189 @@
+--------------------------------------------------------------------------------
+-- ECS COMPONENTS
+-- All component definitions for the Concord ECS system
+--------------------------------------------------------------------------------
+
+local Concord = require("lib.concord")
+
+--------------------------------------------------------------------------------
+-- IDENTITY / TAGS
+--------------------------------------------------------------------------------
+
+-- Faction: player, enemy, neutral
+Concord.component("faction", function(c, name)
+    c.name = name or "neutral"
+end)
+
+-- Entity type tags
+Concord.component("projectile")
+Concord.component("ship")
+Concord.component("asteroid")
+Concord.component("item")
+Concord.component("wreck")
+
+--------------------------------------------------------------------------------
+-- TRANSFORM / PHYSICS
+--------------------------------------------------------------------------------
+
+Concord.component("position", function(c, x, y)
+    c.x = x or 0
+    c.y = y or 0
+end)
+
+Concord.component("velocity", function(c, vx, vy)
+    c.vx = vx or 0
+    c.vy = vy or 0
+end)
+
+Concord.component("rotation", function(c, angle, targetAngle)
+    c.angle = angle or 0
+    c.targetAngle = targetAngle or angle or 0
+end)
+
+Concord.component("physics", function(c, body, shapes, fixtures)
+    c.body = body
+    c.shapes = shapes
+    c.fixtures = fixtures
+end)
+
+Concord.component("collisionRadius", function(c, radius)
+    c.radius = radius or 10
+end)
+
+Concord.component("thrust", function(c, power, maxSpeed)
+    c.power = power or 200
+    c.maxSpeed = maxSpeed or 300
+    c.isThrusting = false
+end)
+
+--------------------------------------------------------------------------------
+-- COMBAT
+--------------------------------------------------------------------------------
+
+Concord.component("health", function(c, current, max)
+    c.current = current or 100
+    c.max = max or current or 100
+end)
+
+Concord.component("shield", function(c, current, max)
+    c.current = current or 0
+    c.max = max or current or 0
+end)
+
+Concord.component("damage", function(c, amount)
+    c.amount = amount or 10
+end)
+
+Concord.component("damageable")
+
+Concord.component("weapon", function(c, data)
+    c.data = data
+    c.fireTimer = 0
+end)
+
+Concord.component("projectileData", function(c, owner, target, weapon, distanceTraveled)
+    c.owner = owner
+    c.target = target
+    c.weapon = weapon
+    c.distanceTraveled = distanceTraveled or 0
+end)
+
+--------------------------------------------------------------------------------
+-- RENDERING
+--------------------------------------------------------------------------------
+
+Concord.component("shipVisual", function(c, shipData)
+    c.ship = shipData
+end)
+
+Concord.component("asteroidVisual", function(c, data)
+    c.data = data
+end)
+
+Concord.component("projectileVisual", function(c, config)
+    c.config = config
+end)
+
+Concord.component("size", function(c, value)
+    c.value = value or 10
+end)
+
+--------------------------------------------------------------------------------
+-- REWARDS / LOOT
+--------------------------------------------------------------------------------
+
+Concord.component("xpReward", function(c, amount)
+    c.amount = amount or 0
+end)
+
+Concord.component("tokenReward", function(c, amount)
+    c.amount = amount or 0
+end)
+
+Concord.component("loot", function(c, cargo, coins)
+    c.cargo = cargo or {}
+    c.coins = coins or 0
+end)
+
+Concord.component("resourceYield", function(c, resources)
+    c.resources = resources or {}
+end)
+
+--------------------------------------------------------------------------------
+-- AI / BEHAVIOR
+--------------------------------------------------------------------------------
+
+Concord.component("aiState", function(c, state)
+    c.state = state or "idle"
+    c.detectionRange = 400
+    c.attackRange = 250
+end)
+
+Concord.component("wanderBehavior", function(c, angle, timer, radius)
+    c.angle = angle or math.random() * math.pi * 2
+    c.timer = timer or 0
+    c.radius = radius or 300
+end)
+
+Concord.component("spawnPosition", function(c, x, y)
+    c.x = x or 0
+    c.y = y or 0
+end)
+
+--------------------------------------------------------------------------------
+-- PLAYER-SPECIFIC
+--------------------------------------------------------------------------------
+
+Concord.component("playerControlled")
+
+Concord.component("destination", function(c, x, y)
+    c.x = x
+    c.y = y
+    c.active = (x ~= nil and y ~= nil)
+end)
+
+Concord.component("experience", function(c, current, level)
+    c.current = current or 0
+    c.level = level or 1
+end)
+
+Concord.component("currency", function(c, tokens)
+    c.tokens = tokens or 0
+end)
+
+Concord.component("cargo", function(c, slots, maxSlots)
+    c.slots = slots or {}
+    c.maxSlots = maxSlots or 20
+end)
+
+--------------------------------------------------------------------------------
+-- LIFETIME / CLEANUP
+--------------------------------------------------------------------------------
+
+Concord.component("lifetime", function(c, remaining)
+    c.remaining = remaining or 60
+end)
+
+Concord.component("removed")
+
+return true

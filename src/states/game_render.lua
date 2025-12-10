@@ -117,21 +117,27 @@ local function findHoveredEntity(ctx)
     local closestDistSq = nil
 
     local function considerEntity(e)
-        if not e or not e.x or not e.y then
-            return
-        end
+        if not e then return end
 
-        local dx = e.x - worldX
-        local dy = e.y - worldY
+        -- Get position from ECS component or legacy property
+        local ex = e.position and e.position.x or e.x
+        local ey = e.position and e.position.y or e.y
+        if not ex or not ey then return end
+
+        local dx = ex - worldX
+        local dy = ey - worldY
         local distSq = dx * dx + dy * dy
 
         -- Approximate the entity's physical size. Prefer any explicit
         -- bounding radius (for ships), then collision radius, then size.
         local entityRadius = 0
-        if e.ship and e.ship.boundingRadius then
-            entityRadius = e.ship.boundingRadius
-        else
-            entityRadius = e.collisionRadius or e.size or 0
+        local shipData = e.shipVisual and e.shipVisual.ship or e.ship
+        if shipData and shipData.boundingRadius then
+            entityRadius = shipData.boundingRadius
+        elseif e.collisionRadius then
+            entityRadius = type(e.collisionRadius) == "table" and e.collisionRadius.radius or e.collisionRadius
+        elseif e.size then
+            entityRadius = type(e.size) == "table" and e.size.value or e.size
         end
 
         local hitRadius = entityRadius + paddingRadius
@@ -192,14 +198,23 @@ local function drawTargetIndicator(colors, combatSystem, camera)
     local camX = math.floor(camera.x)
     local camY = math.floor(camera.y)
 
-    local sx = (drawEnemy.x - camX) * scale + halfW
-    local sy = (drawEnemy.y - camY) * scale + halfH
+    -- Get position from ECS component or legacy property
+    local ex = drawEnemy.position and drawEnemy.position.x or drawEnemy.x
+    local ey = drawEnemy.position and drawEnemy.position.y or drawEnemy.y
+    if not ex or not ey then return end
 
-    local radius = drawEnemy.size or 0
-    if drawEnemy.ship and drawEnemy.ship.boundingRadius then
-        radius = drawEnemy.ship.boundingRadius
+    local sx = (ex - camX) * scale + halfW
+    local sy = (ey - camY) * scale + halfH
+
+    local radius = 0
+    local shipData = drawEnemy.shipVisual and drawEnemy.shipVisual.ship or drawEnemy.ship
+    if shipData and shipData.boundingRadius then
+        radius = shipData.boundingRadius
     elseif drawEnemy.collisionRadius then
-        radius = drawEnemy.collisionRadius
+        radius = type(drawEnemy.collisionRadius) == "table" and drawEnemy.collisionRadius.radius or
+        drawEnemy.collisionRadius
+    elseif drawEnemy.size then
+        radius = type(drawEnemy.size) == "table" and drawEnemy.size.value or drawEnemy.size
     end
 
     local screenRadius = (radius + RENDER_CONSTANTS.targetRing.padding) * scale
@@ -337,6 +352,11 @@ local function drawWorldObjects(ctx)
         love.graphics.setColor(outlineColor[1], outlineColor[2], outlineColor[3], outlineColor[4] or 0.95)
         love.graphics.setLineWidth(2)
 
+        -- Get position and angle from ECS components or legacy properties
+        local hx = hoveredEntity.position and hoveredEntity.position.x or hoveredEntity.x
+        local hy = hoveredEntity.position and hoveredEntity.position.y or hoveredEntity.y
+        local hangle = hoveredEntity.rotation and hoveredEntity.rotation.angle or hoveredEntity.angle
+
         local drewPolygon = false
 
         -- Prefer drawing the actual collision/shape outline when available so
@@ -344,17 +364,18 @@ local function drawWorldObjects(ctx)
         -- circle. This uses the same local-space geometry that physics and
         -- renderers share (ship baseOutline, asteroid flatPoints, etc.).
         local verts = hoveredEntity.collisionVertices
-        if not verts and hoveredEntity.ship and hoveredEntity.ship.baseOutline then
-            verts = hoveredEntity.ship.baseOutline
+        local shipData = hoveredEntity.shipVisual and hoveredEntity.shipVisual.ship or hoveredEntity.ship
+        if not verts and shipData and shipData.baseOutline then
+            verts = shipData.baseOutline
         end
         if not verts and hoveredEntity.data and hoveredEntity.data.shape and hoveredEntity.data.shape.flatPoints then
             verts = hoveredEntity.data.shape.flatPoints
         end
 
-        if verts and #verts >= 6 and hoveredEntity.angle then
+        if verts and #verts >= 6 and hangle then
             love.graphics.push()
-            love.graphics.translate(hoveredEntity.x, hoveredEntity.y)
-            love.graphics.rotate(hoveredEntity.angle)
+            love.graphics.translate(hx, hy)
+            love.graphics.rotate(hangle)
             love.graphics.polygon("line", verts)
             love.graphics.pop()
             drewPolygon = true
@@ -364,14 +385,17 @@ local function drawWorldObjects(ctx)
         -- usable polygon data (or for entity types that remain circle-based).
         if not drewPolygon then
             local radius = 0
-            if hoveredEntity.ship and hoveredEntity.ship.boundingRadius then
-                radius = hoveredEntity.ship.boundingRadius
-            else
-                radius = hoveredEntity.collisionRadius or hoveredEntity.size or hoveredEntity.radius or 0
+            if shipData and shipData.boundingRadius then
+                radius = shipData.boundingRadius
+            elseif hoveredEntity.collisionRadius then
+                radius = type(hoveredEntity.collisionRadius) == "table" and hoveredEntity.collisionRadius.radius or
+                    hoveredEntity.collisionRadius
+            elseif hoveredEntity.size then
+                radius = type(hoveredEntity.size) == "table" and hoveredEntity.size.value or hoveredEntity.size
             end
 
-            if radius and radius > 0 then
-                love.graphics.circle("line", hoveredEntity.x, hoveredEntity.y,
+            if radius and radius > 0 and hx and hy then
+                love.graphics.circle("line", hx, hy,
                     radius + RENDER_CONSTANTS.hoverOutline.padding)
             end
         end
@@ -409,6 +433,11 @@ local function drawOverlay(ctx)
     -- Cargo window overlay (shown when Tab is pressed)
     if cargoOpen and gameState == "playing" then
         ui.drawCargo(player, colors)
+    end
+
+    -- Loot panel overlay (shown when player is looting a wreck)
+    if gameState == "playing" and player.isLooting and player.lootTarget then
+        ui.drawLootPanel(player, colors)
     end
 
     -- Full-screen world map overlay (toggled with M). This is rendered after

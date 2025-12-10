@@ -1,8 +1,19 @@
+--------------------------------------------------------------------------------
+-- PROJECTILE MODULE (ECS-BACKED)
+-- Spawns projectiles as ECS entities, provides legacy API compatibility
+--------------------------------------------------------------------------------
+
 local projectile = {}
 
-projectile.list = {}
-
+local ecsWorld = require("src.ecs.world")
+local assemblages = require("src.ecs.assemblages")
+local Concord = require("lib.concord")
 local physics = require("src.core.physics")
+local baseColors = require("src.core.colors")
+
+--------------------------------------------------------------------------------
+-- HIT CHANCE CALCULATION (kept for collision system)
+--------------------------------------------------------------------------------
 
 local function calculateHitChance(weapon, distance)
     local hitMax = weapon.hitMax
@@ -33,181 +44,170 @@ end
 
 projectile.calculateHitChance = calculateHitChance
 
-local function isOffscreen(p, world)
-    if world then
-        local margin = 100
-        return p.x < world.minX - margin or p.x > world.maxX + margin or
-               p.y < world.minY - margin or p.y > world.maxY + margin
-    else
-        local lg = love and love.graphics
-        if lg and lg.getWidth and lg.getHeight then
-            return p.x < -50 or p.x > lg.getWidth() + 50 or
-                   p.y < -50 or p.y > lg.getHeight() + 50
-        else
-            local margin = 10000
-            return p.x < -margin or p.x > margin or
-                   p.y < -margin or p.y > margin
-        end
-    end
+--------------------------------------------------------------------------------
+-- LEGACY LIST (computed from ECS world)
+--------------------------------------------------------------------------------
+
+-- This provides backward compatibility - returns all projectile entities
+function projectile.getList()
+    return ecsWorld:query({ "projectile", "position" }) or {}
 end
+
+-- Legacy .list property (computed on access)
+setmetatable(projectile, {
+    __index = function(t, k)
+        if k == "list" then
+            return projectile.getList()
+        end
+        return rawget(t, k)
+    end
+})
+
+--------------------------------------------------------------------------------
+-- SPAWN
+--------------------------------------------------------------------------------
 
 function projectile.spawn(shooter, targetX, targetY, targetEntity)
+    -- Handle both old-style shooters (with .x, .y) and ECS entities (with .position)
+    local sx, sy, size, weapon, faction
 
-    local dx = targetX - shooter.x
-    local dy = targetY - shooter.y
+    if shooter.position then
+        -- ECS entity
+        sx = shooter.position.x
+        sy = shooter.position.y
+        size = shooter.size and shooter.size.value or 20
+        weapon = shooter.weapon and shooter.weapon.data or {}
+        faction = shooter.faction and shooter.faction.name or "player"
+    else
+        -- Legacy entity
+        sx = shooter.x
+        sy = shooter.y
+        size = shooter.size or 20
+        weapon = shooter.weapon or {}
+        faction = shooter.faction or "player"
+    end
+
+    local dx = targetX - sx
+    local dy = targetY - sy
     local angle = math.atan2(dy, dx)
-
-    local weapon = shooter.weapon or {}
     local speed = weapon.projectileSpeed or 600
     local damage = weapon.damage or 20
-    local faction = shooter.faction or "player"
 
-    local x = shooter.x + math.cos(angle) * shooter.size
-    local y = shooter.y + math.sin(angle) * shooter.size
+    local x = sx + math.cos(angle) * size
+    local y = sy + math.sin(angle) * size
 
-    -- Create projectile entity first (so we can pass it to physics)
-    local newProjectile = {
-        x = x,
-        y = y,
-        angle = angle,
-        speed = speed,
-        damage = damage,
-        faction = faction,
-        owner = shooter,
-        target = targetEntity,
-        weapon = weapon,
-        distanceTraveled = 0,
-        projectileConfig = weapon.projectile,
-        body = nil,
-        shape = nil,
-        fixture = nil
-    }
-    
-    -- Determine collision category based on faction
-    local categoryName = (faction == "enemy") and "ENEMY_PROJECTILE" or "PLAYER_PROJECTILE"
-    
-    -- Create physics body with proper collision filtering
-    newProjectile.body, newProjectile.shape, newProjectile.fixture = physics.createCircleBody(
-        x, y,
-        4,  -- Projectile radius
-        categoryName,
-        newProjectile,
-        { isSensor = true, isBullet = true }  -- Sensors don't cause physical response, bullets have CCD
-    )
-    
-    -- Set velocity if body was created
-    if newProjectile.body then
-        newProjectile.body:setLinearVelocity(math.cos(angle) * speed, math.sin(angle) * speed)
+    -- Create ECS entity
+    local e = Concord.entity(ecsWorld)
+    e:give("position", x, y)
+        :give("velocity", math.cos(angle) * speed, math.sin(angle) * speed)
+        :give("rotation", angle)
+        :give("projectile")
+        :give("damage", damage)
+        :give("faction", faction)
+        :give("projectileData", shooter, targetEntity, weapon, 0)
+        :give("collisionRadius", 4)
+
+    if weapon.projectile then
+        e:give("projectileVisual", weapon.projectile)
     end
 
-    table.insert(projectile.list, newProjectile)
-    shooter.angle = angle
+    -- Create physics body
+    local categoryName = (faction == "enemy") and "ENEMY_PROJECTILE" or "PLAYER_PROJECTILE"
+    local body, shape, fixture = physics.createCircleBody(
+        x, y, 4, categoryName, e,
+        { isSensor = true, isBullet = true }
+    )
+
+    if body then
+        e:give("physics", body, shape and { shape } or nil, fixture and { fixture } or nil)
+        body:setLinearVelocity(math.cos(angle) * speed, math.sin(angle) * speed)
+    end
+
+    -- Update shooter angle
+    if shooter.rotation then
+        shooter.rotation.angle = angle
+    end
+
+    return e
 end
+
+--------------------------------------------------------------------------------
+-- UPDATE (now handled by ECS systems, but keep for offscreen cleanup)
+--------------------------------------------------------------------------------
 
 function projectile.update(dt, world)
-    for i = #projectile.list, 1, -1 do
-        local p = projectile.list[i]
-        local target = p.target
+    local projectiles = ecsWorld:query({ "projectile", "position" }) or {}
 
-        local oldX = p.x
-        local oldY = p.y
+    for i = #projectiles, 1, -1 do
+        local e = projectiles[i]
+        local pos = e.position
 
-        if p.body then
-            p.x, p.y = p.body:getPosition()
-
-            if target and target.x and target.y then
-                local dx = target.x - p.x
-                local dy = target.y - p.y
-                local distSq = dx * dx + dy * dy
-                if distSq > 0 then
-                    local angle = math.atan2(dy, dx)
-                    p.angle = angle
-                    p.body:setLinearVelocity(math.cos(angle) * p.speed, math.sin(angle) * p.speed)
-                end
-            end
-        else
-            if target and target.x and target.y then
-                local dx = target.x - p.x
-                local dy = target.y - p.y
-                local dist = math.sqrt(dx * dx + dy * dy)
-                if dist > 0 then
-                    p.angle = math.atan2(dy, dx)
-                end
-            end
-
-            p.x = p.x + math.cos(p.angle) * p.speed * dt
-            p.y = p.y + math.sin(p.angle) * p.speed * dt
+        -- Offscreen check
+        local margin = 100
+        local offscreen = false
+        if world then
+            offscreen = pos.x < world.minX - margin or pos.x > world.maxX + margin or
+                pos.y < world.minY - margin or pos.y > world.maxY + margin
         end
 
-        if oldX and oldY then
-            local dx = p.x - oldX
-            local dy = p.y - oldY
-            local stepDist = math.sqrt(dx * dx + dy * dy)
-            p.distanceTraveled = (p.distanceTraveled or 0) + stepDist
-        end
-
-        -- Remove projectiles that are off screen
-        if isOffscreen(p, world) then
-            if p.body then
-                p.body:destroy()
+        if offscreen then
+            if e.physics and e.physics.body then
+                e.physics.body:destroy()
             end
-            table.remove(projectile.list, i)
+            e:destroy()
         end
     end
 end
 
-local function drawBeamProjectile(p, colors, config)
-    local length = (config and config.length) or 20
-    local width = (config and config.width) or 2
-    local outerAlpha = (config and config.outerGlowAlpha) or 0.3
-    local tipLength = (config and config.tipLength) or 3
-    local color = (config and config.color) or colors.projectile
-
-    local tailX = p.x - math.cos(p.angle) * length
-    local tailY = p.y - math.sin(p.angle) * length
-
-    -- Outer glow
-    love.graphics.setColor(color[1], color[2], color[3], outerAlpha)
-    love.graphics.setLineWidth(width + 2)
-    love.graphics.line(p.x, p.y, tailX, tailY)
-
-    -- Core beam
-    love.graphics.setColor(color)
-    love.graphics.setLineWidth(width)
-    love.graphics.line(p.x, p.y, tailX, tailY)
-
-    -- Bright tip
-    love.graphics.setColor(color)
-    love.graphics.setLineWidth(width)
-    love.graphics.line(
-        p.x,
-        p.y,
-        p.x + math.cos(p.angle) * tipLength,
-        p.y + math.sin(p.angle) * tipLength
-    )
-end
+--------------------------------------------------------------------------------
+-- DRAW
+--------------------------------------------------------------------------------
 
 function projectile.draw(colors)
-    for _, p in ipairs(projectile.list) do
-        local config = p.projectileConfig
-        local style = (config and config.style) or "beam"
+    colors = colors or baseColors
+    local projectiles = ecsWorld:query({ "projectile", "position" }) or {}
 
-        if style == "beam" then
-            drawBeamProjectile(p, colors, config)
-        else
-            drawBeamProjectile(p, colors, config)
-        end
+    for _, e in ipairs(projectiles) do
+        local px = e.position.x
+        local py = e.position.y
+        local angle = e.rotation and e.rotation.angle or 0
+
+        local config = e.projectileVisual and e.projectileVisual.config or {}
+        local length = config.length or 20
+        local width = config.width or 2
+        local outerAlpha = config.outerGlowAlpha or 0.3
+        local color = config.color or colors.projectile
+
+        local tailX = px - math.cos(angle) * length
+        local tailY = py - math.sin(angle) * length
+
+        -- Outer glow
+        love.graphics.setColor(color[1], color[2], color[3], outerAlpha)
+        love.graphics.setLineWidth(width + 2)
+        love.graphics.line(px, py, tailX, tailY)
+
+        -- Core beam
+        love.graphics.setColor(color)
+        love.graphics.setLineWidth(width)
+        love.graphics.line(px, py, tailX, tailY)
     end
+
     love.graphics.setLineWidth(1)
 end
 
+--------------------------------------------------------------------------------
+-- CLEAR
+--------------------------------------------------------------------------------
+
 function projectile.clear()
-    for i = #projectile.list, 1, -1 do
-        local p = projectile.list[i]
-        if p.body then
-            p.body:destroy()
+    local projectiles = ecsWorld:query({ "projectile" }) or {}
+
+    for i = #projectiles, 1, -1 do
+        local e = projectiles[i]
+        if e.physics and e.physics.body then
+            e.physics.body:destroy()
         end
-        table.remove(projectile.list, i)
+        e:destroy()
     end
 end
 
