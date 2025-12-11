@@ -35,10 +35,11 @@ function MovementSystem:update(dt)
             )
         end
 
-        -- Apply damping
+        -- Apply damping (use entity-specific damping if available, else global default)
+        local damping = e.damping and e.damping.value or consts.linearDamping
         e.velocity.vx, e.velocity.vy = physics.applyDamping(
             e.velocity.vx, e.velocity.vy,
-            consts.linearDamping,
+            damping,
             dt
         )
     end

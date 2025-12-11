@@ -68,66 +68,7 @@ setmetatable(projectile, {
 --------------------------------------------------------------------------------
 
 function projectile.spawn(shooter, targetX, targetY, targetEntity)
-    -- Handle both old-style shooters (with .x, .y) and ECS entities (with .position)
-    local sx, sy, size, weapon, faction
-
-    if shooter.position then
-        -- ECS entity
-        sx = shooter.position.x
-        sy = shooter.position.y
-        size = shooter.size and shooter.size.value or 20
-        weapon = shooter.weapon and shooter.weapon.data or {}
-        faction = shooter.faction and shooter.faction.name or "player"
-    else
-        -- Legacy entity
-        sx = shooter.x
-        sy = shooter.y
-        size = shooter.size or 20
-        weapon = shooter.weapon or {}
-        faction = shooter.faction or "player"
-    end
-
-    local dx = targetX - sx
-    local dy = targetY - sy
-    local angle = math.atan2(dy, dx)
-    local speed = weapon.projectileSpeed or 600
-    local damage = weapon.damage or 20
-
-    local x = sx + math.cos(angle) * size
-    local y = sy + math.sin(angle) * size
-
-    -- Create ECS entity
-    local e = Concord.entity(ecsWorld)
-    e:give("position", x, y)
-        :give("velocity", math.cos(angle) * speed, math.sin(angle) * speed)
-        :give("rotation", angle)
-        :give("projectile")
-        :give("damage", damage)
-        :give("faction", faction)
-        :give("projectileData", shooter, targetEntity, weapon, 0)
-        :give("collisionRadius", 4)
-
-    if weapon.projectile then
-        e:give("projectileVisual", weapon.projectile)
-    end
-
-    -- Create physics body
-    local categoryName = (faction == "enemy") and "ENEMY_PROJECTILE" or "PLAYER_PROJECTILE"
-    local body, shape, fixture = physics.createCircleBody(
-        x, y, 4, categoryName, e,
-        { isSensor = true, isBullet = true }
-    )
-
-    if body then
-        e:give("physics", body, shape and { shape } or nil, fixture and { fixture } or nil)
-        body:setLinearVelocity(math.cos(angle) * speed, math.sin(angle) * speed)
-    end
-
-    -- Update shooter angle
-    if shooter.rotation then
-        shooter.rotation.angle = angle
-    end
-
+    local e = ecsWorld:spawnProjectile(shooter, targetX, targetY, targetEntity)
     return e
 end
 

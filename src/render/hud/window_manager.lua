@@ -200,8 +200,6 @@ function window_manager.mousepressed(uiCtx, x, y, button)
         -- the pause menu buttons (Resume / Restart / Quit).
         local index, item = hud_pause.hitTestPauseMenu(uiCtx.pauseMenu, x, y)
         if item then
-            uiCtx.pauseMenu.selected = index
-
             if item.id == "resume" then
                 uiCtx.gameState = "playing"
                 return true, nil

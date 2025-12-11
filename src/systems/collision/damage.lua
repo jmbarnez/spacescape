@@ -195,7 +195,7 @@ end
 --- Compute cargo contents for an enemy wreck
 --- @param enemy table The enemy entity
 --- @param radius number Approximate enemy radius
---- @return table Cargo slots, number Coins
+--- @return table Cargo slots, number Coins (always 0; tokens are awarded on kill)
 function damage.computeEnemyWreckCargo(enemy, radius)
     local r = radius or utils.getBoundingRadius(enemy)
     local sizeFactor = math.max(1, math.floor((r or 12) / 10))
@@ -212,8 +212,10 @@ function damage.computeEnemyWreckCargo(enemy, radius)
     }
     slotIndex = slotIndex + 1
 
-    -- Galactic coins based on enemy size (using tokens currency)
-    local coinAmount = sizeFactor * 2 + math.random(0, sizeFactor * 2)
+    -- Coins/tokens are now granted directly on kill via
+    -- damage.awardXpAndTokensOnKill, so wrecks no longer carry a separate
+    -- coin payout. We keep the second return value for API compatibility.
+    local coinAmount = 0
 
     return cargo, coinAmount
 end
@@ -335,13 +337,34 @@ function damage.spawnProjectileShards(projectile, target, contactX, contactY, ra
         baseCount = math.max(2, math.floor(baseCount * countScale))
     end
 
-    local projectileConfig = projectile.projectileConfig or (projectile.weapon and projectile.weapon.projectile)
+    local projectileConfig = nil
+
+    if projectile.projectileVisual and projectile.projectileVisual.config then
+        projectileConfig = projectile.projectileVisual.config
+    elseif projectile.projectileData and projectile.projectileData.weapon and projectile.projectileData.weapon.projectile then
+        projectileConfig = projectile.projectileData.weapon.projectile
+    else
+        projectileConfig = projectile.projectileConfig
+        if not projectileConfig and projectile.weapon then
+            local weaponData = projectile.weapon
+            if type(weaponData) == "table" and weaponData.data then
+                weaponData = weaponData.data
+            end
+            if weaponData and weaponData.projectile then
+                projectileConfig = weaponData.projectile
+            end
+        end
+    end
+
     local projectileColor = (projectileConfig and projectileConfig.color)
         or (currentColors and currentColors.projectile)
         or baseColors.projectile
         or baseColors.white
 
-    projectileShards.spawn(ix, iy, dirX, dirY, baseSpeed, baseCount, projectileColor)
+    local projectileLength = projectileConfig and projectileConfig.length or nil
+    local projectileWidth = projectileConfig and projectileConfig.width or nil
+
+    projectileShards.spawn(ix, iy, dirX, dirY, baseSpeed, baseCount, projectileColor, projectileLength, projectileWidth)
 end
 
 --- Spawn shield impact visual effect
@@ -371,7 +394,7 @@ function damage.spawnShieldImpactVisual(target, projectile, contactX, contactY, 
         return
     end
 
-    local color = baseColors.shieldDamage or baseColors.projectile or baseColors.white
+    local color = baseColors.shieldDamage
 
     --------------------------------------------------------------------------
     -- Pass the target through to the FX so the shield ring can track the

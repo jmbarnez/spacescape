@@ -5,10 +5,10 @@ local config = {
     },
     spawn = {
         spawnInterval = 2,
-        initialEnemyCount = 15,
+        initialEnemyCount = 6,
         initialAsteroidCount = 80,
         safeEnemyRadius = 2500,
-        maxEnemies = 40,
+        maxEnemies = 6,
         enemiesPerSpawn = 1,
     },
     combat = {
@@ -62,6 +62,16 @@ local config = {
         avoidanceRadius = 180,    -- How far ahead to scan for obstacles
         avoidanceStrength = 1.5,  -- Multiplier for avoidance steering force
         avoidanceLookahead = 150, -- Look-ahead distance for velocity projection
+
+        -- Level settings: enemies spawn between level 1 and 3.
+        -- Level 1 uses base stats; level 3 is roughly 3x base in key areas.
+        levelMin = 1,
+        levelMax = 3,
+        -- Multipliers per level step for core behaviors
+        detectionRangePerLevel = 0.5,  -- +50% detection per level above 1
+        attackRangePerLevel = 0.3,     -- +30% attack range per level above 1
+        healthPerLevel = 0.8,          -- +80% max health per level above 1
+        weaponDamagePerLevel = 0.6,    -- +60% weapon damage per level above 1
     },
     input = {
         selectionRadius = 40,
@@ -99,8 +109,8 @@ local config = {
         shipRotationSpeed = 3.0,
         enemyThrust = 80,
         enemyMaxSpeed = 150,
-        asteroidMaxDrift = 15,
-        asteroidMinDrift = 2,
+        asteroidMaxDrift = 4.5,
+        asteroidMinDrift = 0.6,
         projectileSpeed = 350,
         linearDamping = 0.1,
         angularDamping = 0.5,
@@ -140,6 +150,7 @@ local config = {
         maxSize = 70,
         minHealth = 10,
         maxHealth = 40,
+        rotationSpeedRange = 0.09,
     },
 }
 

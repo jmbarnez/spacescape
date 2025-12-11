@@ -28,7 +28,7 @@ function shield_impact_fx.spawn(centerX, centerY, impactX, impactY, radius, colo
     end
 
     -- Fallback to standard shield color palette if nothing specific was provided.
-    color = color or colors.shieldDamage or colors.projectile or { 1, 1, 1 }
+    color = color or colors.shieldDamage or { 0, 1, 1 }
 
     --------------------------------------------------------------------------
     -- Precompute the impact direction relative to the shield center.

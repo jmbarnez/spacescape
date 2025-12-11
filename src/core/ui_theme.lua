@@ -10,19 +10,19 @@ local ui_theme = {}
 
 ui_theme.window = {
     -- Main panel background: deep space black with hint of blue
-    background = {0.02, 0.03, 0.05, 0.95},
+    background = {0.02, 0.02, 0.02, 0.95},
     -- Top bar: barely visible separation
-    topBar = {0.04, 0.05, 0.08, 0.95},
+    topBar = {0.05, 0.05, 0.05, 0.95},
     -- Bottom bar: matches top for symmetry
-    bottomBar = {0.03, 0.04, 0.06, 0.95},
+    bottomBar = {0.03, 0.03, 0.03, 0.95},
     -- Shared rounded corner radius
     radius = 6,
     -- Border: thin cyan accent line
-    border = {0.20, 0.60, 0.70, 0.6},
+    border = {0.60, 0.60, 0.60, 0.6},
     -- Close button: minimal, appears on hover
-    closeButtonBg = {0.10, 0.12, 0.15, 0.8},
-    closeButtonBgHover = {0.50, 0.15, 0.18, 0.9},
-    closeButtonX = {0.70, 0.75, 0.80, 0.8},
+    closeButtonBg = {0.12, 0.12, 0.12, 0.8},
+    closeButtonBgHover = {0.30, 0.30, 0.30, 0.9},
+    closeButtonX = {0.80, 0.80, 0.80, 0.8},
     closeButtonXHover = {1.00, 1.00, 1.00, 1.0},
 }
 
@@ -33,11 +33,11 @@ ui_theme.window = {
 
 ui_theme.hudPanel = {
     -- Semi-transparent dark panel
-    background = {0.02, 0.03, 0.05, 0.85},
-    border = {0.20, 0.60, 0.70, 0.4},
+    background = {0.02, 0.02, 0.02, 0.85},
+    border = {0.60, 0.60, 0.60, 0.4},
     -- Bar elements
-    barBackground = {0.01, 0.02, 0.04, 0.9},
-    barOutline = {0.15, 0.20, 0.25, 0.5},
+    barBackground = {0.01, 0.01, 0.01, 0.9},
+    barOutline = {0.30, 0.30, 0.30, 0.5},
 }
 
 --------------------------------------------------------------------------------
@@ -55,8 +55,8 @@ ui_theme.minimap = {
 --------------------------------------------------------------------------------
 
 ui_theme.abilityBar = {
-    slotBackground = {0.02, 0.03, 0.05, 0.85},
-    slotBorderInactive = {0.20, 0.50, 0.60, 0.5},
+    slotBackground = {0.02, 0.02, 0.02, 0.85},
+    slotBorderInactive = {0.50, 0.50, 0.50, 0.5},
 }
 
 --------------------------------------------------------------------------------
@@ -66,7 +66,7 @@ ui_theme.abilityBar = {
 ui_theme.debug = {
     -- Minimal, low-contrast debug text
     fps = {1.0, 1.0, 0.0, 0.9},
-    hint = {0.40, 0.50, 0.60, 0.3},
+    hint = {1.0, 1.0, 1.0, 0.3},
 }
 
 return ui_theme

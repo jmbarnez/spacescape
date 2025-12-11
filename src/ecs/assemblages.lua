@@ -11,23 +11,31 @@ local ship_generator = require("src.utils.procedural_ship_generator")
 
 local assemblages = {}
 
---------------------------------------------------------------------------------
--- PROJECTILE ASSEMBLAGE
+--- PROJECTILE ASSEMBLAGE
 --------------------------------------------------------------------------------
 
 function assemblages.projectile(e, shooter, targetX, targetY, targetEntity)
-    local weapon = shooter.weapon and shooter.weapon.data or {}
-    local speed = weapon.projectileSpeed or 600
-    local damage = weapon.damage or 20
-    local faction = shooter.faction and shooter.faction.name or "player"
+    local sx, sy, size, weapon, faction
 
-    local sx = shooter.position.x
-    local sy = shooter.position.y
-    local size = shooter.size and shooter.size.value or 20
+    if shooter.position then
+        sx = shooter.position.x
+        sy = shooter.position.y
+        size = shooter.size and shooter.size.value or 20
+        weapon = shooter.weapon and shooter.weapon.data or {}
+        faction = shooter.faction and shooter.faction.name or "player"
+    else
+        sx = shooter.x
+        sy = shooter.y
+        size = shooter.size or 20
+        weapon = shooter.weapon or {}
+        faction = shooter.faction or "player"
+    end
 
     local dx = targetX - sx
     local dy = targetY - sy
     local angle = math.atan2(dy, dx)
+    local speed = weapon.projectileSpeed or 600
+    local damage = weapon.damage or 20
 
     local x = sx + math.cos(angle) * size
     local y = sy + math.sin(angle) * size
@@ -44,6 +52,17 @@ function assemblages.projectile(e, shooter, targetX, targetY, targetEntity)
     if weapon.projectile then
         e:give("projectileVisual", weapon.projectile)
     end
+
+    local categoryName = (faction == "enemy") and "ENEMY_PROJECTILE" or "PLAYER_PROJECTILE"
+    local body, shape, fixture = physics.createCircleBody(
+        x, y, 4, categoryName, e,
+        { isSensor = true, isBullet = true }
+    )
+
+    if body then
+        e:give("physics", body, shape and { shape } or nil, fixture and { fixture } or nil)
+        body:setLinearVelocity(math.cos(angle) * speed, math.sin(angle) * speed)
+    end
 end
 
 --------------------------------------------------------------------------------
@@ -51,16 +70,53 @@ end
 --------------------------------------------------------------------------------
 
 function assemblages.enemy(e, x, y, shipSize)
-    local size = shipSize or config.enemy.sizeMin + math.random() * (config.enemy.sizeMax - config.enemy.sizeMin)
+    local enemyConfig = config.enemy
+    local size = shipSize or enemyConfig.sizeMin + math.random() * (enemyConfig.sizeMax - enemyConfig.sizeMin)
     local ship = ship_generator.generate(size)
-    local maxHealth = config.enemy.maxHealth
+    local maxHealth = enemyConfig.maxHealth
     local collisionRadius = (ship and ship.boundingRadius) or size
     local consts = physics.constants
 
+    local levelMin = enemyConfig.levelMin or 1
+    local levelMax = enemyConfig.levelMax or levelMin
+    local level = math.random(levelMin, levelMax)
+    local levelStep = level - 1
+
+    local healthPerLevel = enemyConfig.healthPerLevel or 0
+    if levelStep > 0 and healthPerLevel ~= 0 then
+        maxHealth = maxHealth * (1 + levelStep * healthPerLevel)
+    end
+
+    local detectionRange = enemyConfig.detectionRange
+    local attackRange = enemyConfig.attackRange
+    local detectionPerLevel = enemyConfig.detectionRangePerLevel or 0
+    local attackPerLevel = enemyConfig.attackRangePerLevel or 0
+    if levelStep > 0 then
+        if detectionRange and detectionPerLevel ~= 0 then
+            detectionRange = detectionRange * (1 + levelStep * detectionPerLevel)
+        end
+        if attackRange and attackPerLevel ~= 0 then
+            attackRange = attackRange * (1 + levelStep * attackPerLevel)
+        end
+    end
+
+    local baseWeapon = weapons.enemyPulseLaser
+    local weaponData = {}
+    if baseWeapon then
+        for k, v in pairs(baseWeapon) do
+            weaponData[k] = v
+        end
+        local damagePerLevel = enemyConfig.weaponDamagePerLevel or 0
+        local baseDamage = weaponData.damage or 1
+        if levelStep > 0 and damagePerLevel ~= 0 then
+            weaponData.damage = baseDamage * (1 + levelStep * damagePerLevel)
+        end
+    end
+
     e:give("position", x, y)
         :give("velocity",
-            (math.random() - 0.5) * config.enemy.initialDriftSpeed,
-            (math.random() - 0.5) * config.enemy.initialDriftSpeed)
+            (math.random() - 0.5) * enemyConfig.initialDriftSpeed,
+            (math.random() - 0.5) * enemyConfig.initialDriftSpeed)
         :give("rotation", math.random() * math.pi * 2)
         :give("faction", "enemy")
         :give("ship")
@@ -69,9 +125,10 @@ function assemblages.enemy(e, x, y, shipSize)
         :give("size", size)
         :give("collisionRadius", collisionRadius)
         :give("thrust", consts.enemyThrust, consts.enemyMaxSpeed)
-        :give("weapon", weapons.enemyPulseLaser)
+        :give("weapon", weaponData)
         :give("shipVisual", ship)
-        :give("aiState", "idle")
+        :give("aiState", "idle", detectionRange, attackRange)
+        :give("enemyLevel", level)
         :give("wanderBehavior")
         :give("spawnPosition", x, y)
         :give("xpReward", config.player.xpPerEnemy or 0)

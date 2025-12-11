@@ -48,8 +48,8 @@ end
 
 -- Registry mapping ability IDs to draw functions
 ability_icons.registry = {
-    q_attack_speed = ability_icons.drawOvercharge,
-    e_dash = ability_icons.drawDash,
+    overcharge = ability_icons.drawOvercharge,
+    vector_dash = ability_icons.drawDash,
 }
 
 -- Draw icon by ability ID

@@ -68,7 +68,7 @@ function hud_world_map.draw(player, colors, enemyList, asteroidList)
     local mapHeight = layout.contentHeight - mapPadding * 2
 
     -- Draw a subtle background for the map area
-    love.graphics.setColor(0.05, 0.08, 0.15, 1.0)
+    love.graphics.setColor(0.05, 0.05, 0.05, 1.0)
     love.graphics.rectangle("fill", mapX, mapY, mapWidth, mapHeight, windowStyle.radius or 6, windowStyle.radius or 6)
 
     --------------------------------------------------------------------------

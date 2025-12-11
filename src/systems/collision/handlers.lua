@@ -66,6 +66,68 @@ function handlers.resolveProjectileHit(projectile, target, contactX, contactY, r
     if cfg.canMiss and not utils.rollHitChance(projectile) then
         damageModule.spawnProjectileShards(projectile, target, contactX, contactY, radius, 0.6, currentColors)
 
+        if context.currentParticles then
+            local impactColor = cfg.impactColor
+            if not impactColor then
+                local projectileConfig = nil
+                if projectile.projectileVisual and projectile.projectileVisual.config then
+                    projectileConfig = projectile.projectileVisual.config
+                elseif projectile.projectileData and projectile.projectileData.weapon and projectile.projectileData.weapon.projectile then
+                    projectileConfig = projectile.projectileData.weapon.projectile
+                else
+                    if projectile.weapon then
+                        local weaponData = projectile.weapon
+                        if type(weaponData) == "table" and weaponData.data then
+                            weaponData = weaponData.data
+                        end
+                        if weaponData and weaponData.projectile then
+                            projectileConfig = weaponData.projectile
+                        end
+                    end
+                end
+
+                if projectileConfig and projectileConfig.color then
+                    impactColor = projectileConfig.color
+                elseif currentColors and currentColors.projectile then
+                    impactColor = currentColors.projectile
+                else
+                    impactColor = baseColors.projectile or baseColors.white
+                end
+            end
+
+            local impactCount = cfg.impactCount or 10
+            local ix = contactX or targX or projX
+            local iy = contactY or targY or projY
+            if ix and iy then
+                local nx, ny = 0, 0
+
+                local pvx = utils.getVX(projectile)
+                local pvy = utils.getVY(projectile)
+                local vLen = math.sqrt(pvx * pvx + pvy * pvy)
+                if vLen and vLen > 0 then
+                    nx = -pvx / vLen
+                    ny = -pvy / vLen
+                elseif targX and targY then
+                    local dx = ix - targX
+                    local dy = iy - targY
+                    local dLen = math.sqrt(dx * dx + dy * dy)
+                    if dLen and dLen > 0 then
+                        nx = dx / dLen
+                        ny = dy / dLen
+                    end
+                end
+
+                local spawnX, spawnY = ix, iy
+                if nx ~= 0 or ny ~= 0 then
+                    local outward = math.min((radius or 0) * 0.2, 10)
+                    spawnX = ix + nx * outward
+                    spawnY = iy + ny * outward
+                end
+
+                context.currentParticles.impact(spawnX, spawnY, impactColor, impactCount, nx, ny)
+            end
+        end
+
         if target and utils.getShield(target) > 0 then
             damageModule.spawnShieldImpactVisual(target, projectile, contactX, contactY, radius)
         end
@@ -76,6 +138,68 @@ function handlers.resolveProjectileHit(projectile, target, contactX, contactY, r
 
     damageModule.spawnProjectileShards(projectile, target, contactX, contactY, radius, 1.0, currentColors)
 
+    if context.currentParticles then
+        local impactColor = cfg.impactColor
+        if not impactColor then
+            local projectileConfig = nil
+            if projectile.projectileVisual and projectile.projectileVisual.config then
+                projectileConfig = projectile.projectileVisual.config
+            elseif projectile.projectileData and projectile.projectileData.weapon and projectile.projectileData.weapon.projectile then
+                projectileConfig = projectile.projectileData.weapon.projectile
+            else
+                if projectile.weapon then
+                    local weaponData = projectile.weapon
+                    if type(weaponData) == "table" and weaponData.data then
+                        weaponData = weaponData.data
+                    end
+                    if weaponData and weaponData.projectile then
+                        projectileConfig = weaponData.projectile
+                    end
+                end
+            end
+
+            if projectileConfig and projectileConfig.color then
+                impactColor = projectileConfig.color
+            elseif currentColors and currentColors.projectile then
+                impactColor = currentColors.projectile
+            else
+                impactColor = baseColors.projectile or baseColors.white
+            end
+        end
+
+        local impactCount = cfg.impactCount or 10
+        local ix = contactX or targX or projX
+        local iy = contactY or targY or projY
+        if ix and iy then
+            local nx, ny = 0, 0
+
+            local pvx = utils.getVX(projectile)
+            local pvy = utils.getVY(projectile)
+            local vLen = math.sqrt(pvx * pvx + pvy * pvy)
+            if vLen and vLen > 0 then
+                nx = -pvx / vLen
+                ny = -pvy / vLen
+            elseif targX and targY then
+                local dx = ix - targX
+                local dy = iy - targY
+                local dLen = math.sqrt(dx * dx + dy * dy)
+                if dLen and dLen > 0 then
+                    nx = dx / dLen
+                    ny = dy / dLen
+                end
+            end
+
+            local spawnX, spawnY = ix, iy
+            if nx ~= 0 or ny ~= 0 then
+                local outward = math.min((radius or 0) * 0.2, 10)
+                spawnX = ix + nx * outward
+                spawnY = iy + ny * outward
+            end
+
+            context.currentParticles.impact(spawnX, spawnY, impactColor, impactCount, nx, ny)
+        end
+    end
+
     -- Apply damage and spawn floating numbers for shield vs hull
     local damageAmt = utils.getDamage(projectile) or currentDamagePerHit
 
@@ -83,8 +207,7 @@ function handlers.resolveProjectileHit(projectile, target, contactX, contactY, r
 
     -- Shield damage (bright blue)
     if shieldDamage and shieldDamage > 0 then
-        local shieldColor = baseColors.shieldDamage or baseColors.projectile or
-            (currentColors and currentColors.projectile) or baseColors.white
+        local shieldColor = baseColors.shieldDamage
         damageModule.spawnDamageText(shieldDamage, targX, targY, radius, shieldColor, nil)
         damageModule.spawnShieldImpactVisual(target, projectile, contactX, contactY, radius)
     end
@@ -253,8 +376,7 @@ function handlers.handlePlayerVsEnemy(player, enemy, contactX, contactY, context
 
     -- Shield damage text (bright blue)
     if shieldDamage and shieldDamage > 0 then
-        local shieldColor = baseColors.shieldDamage or baseColors.projectile or
-            (context.currentColors and context.currentColors.projectile) or baseColors.white
+        local shieldColor = baseColors.shieldDamage
         damageModule.spawnDamageText(shieldDamage, px, py, playerSize, shieldColor, nil)
     end
 
@@ -268,7 +390,7 @@ function handlers.handlePlayerVsEnemy(player, enemy, contactX, contactY, context
             -- the ship if it continues to move after the ram impact.
             ------------------------------------------------------------------
             shieldImpactFx.spawn(px, py, ix, iy, radius * 1.15,
-                baseColors.shieldDamage or baseColors.projectile or baseColors.white,
+                baseColors.shieldDamage,
                 player)
         end
     end
@@ -390,7 +512,7 @@ function handlers.resolveShipVsAsteroid(ship, asteroid, contactX, contactY, cont
                     -- bounce animation plays out.
                     ------------------------------------------------------------------
                     shieldImpactFx.spawn(sx, sy, ix, iy, shieldRadius * 1.15,
-                        baseColors.shieldDamage or baseColors.projectile or baseColors.white,
+                        baseColors.shieldDamage,
                         ship)
                 end
             end

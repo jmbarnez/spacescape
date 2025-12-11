@@ -25,7 +25,7 @@ if exist "%TEMP_ZIP%" (
 
 rem Create a temporary .zip using PowerShell (only include game runtime files)
 powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command ^
-"Compress-Archive -Path 'main.lua','conf.lua','assets','src' -DestinationPath '%TEMP_ZIP%' -Force"
+"Compress-Archive -Path 'main.lua','conf.lua','assets','src','lib' -DestinationPath '%TEMP_ZIP%' -Force"
 
 if %ERRORLEVEL% NEQ 0 (
     echo.

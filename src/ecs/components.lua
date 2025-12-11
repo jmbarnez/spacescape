@@ -4,6 +4,7 @@
 --------------------------------------------------------------------------------
 
 local Concord = require("lib.concord")
+local config = require("src.core.config")
 
 --------------------------------------------------------------------------------
 -- IDENTITY / TAGS
@@ -54,6 +55,10 @@ Concord.component("thrust", function(c, power, maxSpeed)
     c.power = power or 200
     c.maxSpeed = maxSpeed or 300
     c.isThrusting = false
+end)
+
+Concord.component("damping", function(c, value)
+    c.value = value or 0.1
 end)
 
 --------------------------------------------------------------------------------
@@ -133,10 +138,14 @@ end)
 -- AI / BEHAVIOR
 --------------------------------------------------------------------------------
 
-Concord.component("aiState", function(c, state)
+Concord.component("aiState", function(c, state, detectionRange, attackRange)
     c.state = state or "idle"
-    c.detectionRange = 400
-    c.attackRange = 250
+    c.detectionRange = detectionRange or config.enemy.detectionRange or 1000
+    c.attackRange = attackRange or config.enemy.attackRange or 350
+end)
+
+Concord.component("enemyLevel", function(c, level)
+    c.level = level or 1
 end)
 
 Concord.component("wanderBehavior", function(c, angle, timer, radius)

@@ -1,4 +1,5 @@
 local abilitiesData = require("src.core.abilities")
+local combatSystem = require("src.systems.combat")
 
 local abilities = {}
 
@@ -48,9 +49,6 @@ function abilities.update(dt, player, world, camera)
         end
         if inst.activeTime > 0 then
             inst.activeTime = math.max(0, inst.activeTime - dt)
-            if inst.activeTime == 0 and id == "q_attack_speed" and player then
-                player.attackSpeedBonus = 0
-            end
         end
     end
 end
@@ -60,14 +58,18 @@ local function tryCastQ(player)
         return
     end
 
-    local inst = instances["q_attack_speed"]
+    local inst = instances["overcharge"]
     if not inst or inst.cooldown > 0 then
         return
     end
 
     inst.cooldown = inst.def.cooldown or 0
-    inst.activeTime = inst.def.duration or 0
-    player.attackSpeedBonus = inst.def.attackSpeedBonus or 0.25
+    inst.activeTime = 0
+
+    local shots = inst.def.extraShots or 1
+    if shots > 0 then
+        combatSystem.castExtraShot(player, shots)
+    end
 end
 
 local function tryCastE(player, world, camera)
@@ -75,7 +77,7 @@ local function tryCastE(player, world, camera)
         return
     end
 
-    local inst = instances["e_dash"]
+    local inst = instances["vector_dash"]
     if not inst or inst.cooldown > 0 then
         return
     end
@@ -131,7 +133,7 @@ end
 function abilities.getUiState()
     initIfNeeded()
 
-    local ordered = { "q_attack_speed", "e_dash" }
+    local ordered = { "overcharge", "vector_dash" }
     local result = {}
 
     for _, id in ipairs(ordered) do

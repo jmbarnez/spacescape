@@ -67,7 +67,7 @@ vec4 effect(vec4 vcolor, Image tex, vec2 texcoord, vec2 screencoord) {
     }
 
     // Slightly push the color toward a cool plasma tone for a sleek shield look.
-    vec3 plasmaTint = vec3(0.7, 0.9, 1.0);
+    vec3 plasmaTint = vec3(0.0, 1.0, 1.0);
     vec3 glowColor = mix(color, plasmaTint, 0.55);
 
     // Final color with intensity baked in; alpha tracks intensity for blending.

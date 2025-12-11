@@ -35,6 +35,7 @@ function particles.load()
         local format = {
             {"VertexPosition", "float", 2},  -- world-space position
             {"VertexUserData", "float", 4},  -- life phase, base size, type, seed
+            {"VertexColor", "float", 3},
         }
 
         particles.mesh = love.graphics.newMesh(format, particles.maxParticles, "points", "dynamic")
@@ -72,25 +73,101 @@ function particles.explosion(x, y, color, count, speedMult, sizeMult)
     end
 end
 
-function particles.impact(x, y, color, count)
+function particles.impact(x, y, color, count, normalX, normalY)
     count = count or 24
     color = color or colors.particleImpact
 
-    for i = 1, count do
-        local angle = math.random() * math.pi * 2
-        local speed = math.random() * 280 + 240
-        local life = math.random() * 0.3 + 0.25
+    ------------------------------------------------------------------
+    -- Interpret the supplied normal (if any) as pointing "out of" the
+    -- surface. We then build a tangent so some fragments skid along the
+    -- surface instead of only blasting straight out.
+    ------------------------------------------------------------------
+    local hasNormal = normalX and normalY and (normalX ~= 0 or normalY ~= 0)
+    local baseAngle = nil
+    local tx, ty = 0, 0
+    if hasNormal then
+        -- Base angle for outward-facing dust cone
+        baseAngle = math.atan2(normalY, normalX)
 
+        -- Tangent vector (perpendicular to normal) for surface chips
+        tx, ty = -normalY, normalX
+        local tLen = math.sqrt(tx * tx + ty * ty)
+        if tLen > 0 then
+            tx, ty = tx / tLen, ty / tLen
+        else
+            tx, ty = 1, 0
+        end
+    end
+
+    -- Fraction of particles that behave like grazing surface shards
+    local shatterFrac = 0.55
+    -- Outward dust cone spread around the normal
+    local halfSpread = math.pi * 0.35
+
+    for i = 1, count do
+        local vx, vy
+        local speed
+        local life
+        local drag
+
+        if hasNormal and math.random() < shatterFrac then
+            ------------------------------------------------------
+            -- SURFACE SHARDS
+            -- These travel mostly along the tangent with a bit of
+            -- outward push so they appear to peel off the surface.
+            ------------------------------------------------------
+            local sign = (math.random() < 0.5) and -1 or 1
+            local mixT = 0.8  -- dominant tangent component
+            local mixN = 0.4  -- small outward component
+            local dirX = tx * sign * mixT + (normalX or 0) * mixN
+            local dirY = ty * sign * mixT + (normalY or 0) * mixN
+            local dLen = math.sqrt(dirX * dirX + dirY * dirY)
+            if dLen > 0 then
+                dirX, dirY = dirX / dLen, dirY / dLen
+            else
+                -- Fallback: slide straight along the normal
+                dirX, dirY = normalX or 1, normalY or 0
+            end
+
+            -- Slightly slower than the core dust but live longer
+            -- so you can read individual chips skidding away.
+            speed = math.random() * 220 + 260   -- ~260 - 480
+            life = math.random() * 0.30 + 0.26 -- ~0.26 - 0.56s
+            drag = 0.92
+            vx = dirX * speed
+            vy = dirY * speed
+        else
+            ------------------------------------------------------
+            -- OUTWARD DUST
+            -- A tighter cone around the normal to read as a
+            -- directional blast away from the impact point.
+            ------------------------------------------------------
+            local angle
+            if hasNormal and baseAngle then
+                angle = baseAngle + (math.random() - 0.5) * (halfSpread * 2)
+            else
+                angle = math.random() * math.pi * 2
+            end
+            speed = math.random() * 360 + 360   -- ~360 - 720
+            life = math.random() * 0.20 + 0.16 -- ~0.16 - 0.36s
+            drag = 0.86
+            vx = math.cos(angle) * speed
+            vy = math.sin(angle) * speed
+        end
+
+        ----------------------------------------------------------
+        -- Common particle fields for GPU path
+        ----------------------------------------------------------
         table.insert(particles.list, {
             x = x,
             y = y,
-            vx = math.cos(angle) * speed,
-            vy = math.sin(angle) * speed,
+            vx = vx,
+            vy = vy,
             life = life,
             maxLife = life,
             color = {color[1] or 1, color[2] or 1, color[3] or 1},
             size = math.random() * 1.2 + 1.0,
-            drag = 0.92,
+            drag = drag,
 
             -- GPU rendering metadata
             type = PARTICLE_TYPE_IMPACT,
@@ -195,9 +272,10 @@ function particles.draw(cameraScale)
         baseSize = baseSize * cameraScale
 
         local seed = p.seed or 0.0
+        local c = p.color or {1, 1, 1}
 
         -- VertexUserData: life phase, base size, type id, random seed
-        mesh:setVertex(i, p.x, p.y, lifePhase, baseSize, pType, seed)
+        mesh:setVertex(i, p.x, p.y, lifePhase, baseSize, pType, seed, c[1], c[2], c[3])
     end
 
     mesh:setDrawRange(1, count)

@@ -3,6 +3,7 @@ local asteroidModule = require("src.entities.asteroid")
 local projectileModule = require("src.entities.projectile")
 local wreckModule = require("src.entities.wreck")
 local config = require("src.core.config")
+local ecsWorld = require("src.ecs.world")
 
 local combat = {}
 
@@ -172,7 +173,7 @@ function combat.updateAutoShoot(dt, player)
                 fireTimer = 0
                 local tx = targetEnemy.position and targetEnemy.position.x or targetEnemy.x
                 local ty = targetEnemy.position and targetEnemy.position.y or targetEnemy.y
-                projectileModule.spawn(player, tx, ty, targetEnemy)
+                ecsWorld:emit("fireProjectile", player, tx, ty, targetEnemy)
                 -- We fired this frame; skip the generic auto-fire logic below
                 -- to avoid double shots.
                 return
@@ -192,7 +193,7 @@ function combat.updateAutoShoot(dt, player)
         fireTimer = 0
         local tx = targetEnemy.position and targetEnemy.position.x or targetEnemy.x
         local ty = targetEnemy.position and targetEnemy.position.y or targetEnemy.y
-        projectileModule.spawn(player, tx, ty, targetEnemy)
+        ecsWorld:emit("fireProjectile", player, tx, ty, targetEnemy)
     end
 end
 
@@ -318,6 +319,38 @@ function combat.getWeaponCooldownState(player)
     local remaining = interval - fireTimer
 
     return progress, remaining, interval
+end
+
+-- Instantly fire one or more basic shots at the current target. Used by
+-- instant-cast abilities such as the Q extra-shot without applying any
+-- timed buff to the player.
+function combat.castExtraShot(player, extraShots)
+    if not player then
+        return
+    end
+
+    extraShots = extraShots or 1
+    if extraShots <= 0 then
+        return
+    end
+
+    if not targetEnemy or not isEnemyValid(targetEnemy) then
+        return
+    end
+
+    local tx = targetEnemy.position and targetEnemy.position.x or targetEnemy.x
+    local ty = targetEnemy.position and targetEnemy.position.y or targetEnemy.y
+    if not tx or not ty then
+        return
+    end
+
+    -- Treat this as a normal shot for cooldown purposes so the global
+    -- fire rate remains consistent after the extra attack.
+    fireTimer = 0
+
+    for i = 1, extraShots do
+        ecsWorld:emit("fireProjectile", player, tx, ty, targetEnemy)
+    end
 end
 
 function combat.reset()

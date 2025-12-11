@@ -1,9 +1,9 @@
 local ability = {
-    id = "q_attack_speed",
+    id = "overcharge",
     key = "q",
     name = "Overcharge",
     cooldown = 6,
-    extraShots = 1
+    extraShots = 1,
 }
 
 return ability

@@ -5,10 +5,12 @@
 
 // x = life phase [0..1], y = base size (pixels), z = type (0=explosion,1=impact,2=spark), w = random seed
 attribute vec4 VertexUserData;
+attribute vec3 VertexColor;
 
 varying float v_lifePhase;
 varying float v_type;
 varying float v_seed;
+varying vec3 v_color;
 
 extern highp float u_time;
 
@@ -22,6 +24,7 @@ vec4 position(mat4 transform_projection, vec4 vertex_position)
     v_lifePhase = lifePhase;
     v_type = pType;
     v_seed = seed;
+    v_color = VertexColor;
 
     // Different expansion profiles per type
     float expansion;
@@ -45,13 +48,14 @@ vec4 position(mat4 transform_projection, vec4 vertex_position)
 #endif
 
 // =====================================
-// Fragment Shader (L0VE PIXEL section)
+// Fragment Shader (L0VE PIXEL section)
 // =====================================
 #ifdef PIXEL
 
 varying float v_lifePhase;
 varying float v_type;
 varying float v_seed;
+varying vec3 v_color;
 
 extern vec3 u_colorExplosion;
 extern vec3 u_colorImpact;
@@ -87,17 +91,14 @@ vec4 effect(vec4 color, Image tex, vec2 texcoord, vec2 screen_coords)
     float typeImpact    = step(0.5, v_type) * step(v_type, 1.5);
     float typeSpark     = step(1.5, v_type) * step(v_type, 2.5);
 
-    vec3 baseColor;
+    vec3 baseColor = v_color;
     float intensityMul;
 
     if (typeExplosion > 0.5) {
-        baseColor = u_colorExplosion;
         intensityMul = u_intensityExplosion;
     } else if (typeImpact > 0.5) {
-        baseColor = u_colorImpact;
         intensityMul = u_intensityImpact;
     } else {
-        baseColor = u_colorSpark;
         intensityMul = u_intensitySpark;
     }
 

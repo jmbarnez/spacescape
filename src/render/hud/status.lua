@@ -128,7 +128,8 @@ function hud_status.draw(player, colors)
     love.graphics.setColor(0, 0, 0, 0.5)
     love.graphics.rectangle("fill", barsX, shieldBarY, barWidth, barHeight, 4, 4)
 
-    love.graphics.setColor(colors.projectile[1], colors.projectile[2], colors.projectile[3], 0.8)
+    -- Set shield bar color using the shared shieldDamage palette color with 80% opacity
+    love.graphics.setColor(colors.shieldDamage[1], colors.shieldDamage[2], colors.shieldDamage[3], 0.8)
     love.graphics.rectangle("fill", barsX, shieldBarY, barWidth * shieldRatio, barHeight, 4, 4)
     love.graphics.setLineWidth(3)
     love.graphics.setColor(0, 0, 0, 0.9)

@@ -12,36 +12,27 @@ local AISystem = Concord.system({
 })
 
 --- Update AI for all enemies
+--- Update AI for all enemies
 function AISystem:update(dt, playerEntity)
     if not playerEntity or not playerEntity.position then return end
 
     local playerX = playerEntity.position.x
     local playerY = playerEntity.position.y
 
-    -- Find closest enemy to player for activation
-    local closestIdx = nil
-    local closestDistSq = math.huge
-
+    -- Update each enemy
     for i = 1, self.enemies.size do
         local e = self.enemies[i]
         if e.faction.name == "enemy" then
+            -- Check distance for activation
             local dx = playerX - e.position.x
             local dy = playerY - e.position.y
             local distSq = dx * dx + dy * dy
             local detectionRange = e.aiState.detectionRange
 
-            if distSq <= detectionRange * detectionRange and distSq < closestDistSq then
-                closestDistSq = distSq
-                closestIdx = i
-            end
-        end
-    end
+            -- Active if within detection range
+            local isActive = distSq <= detectionRange * detectionRange
 
-    -- Update each enemy
-    for i = 1, self.enemies.size do
-        local e = self.enemies[i]
-        if e.faction.name == "enemy" then
-            self:updateEnemy(e, i == closestIdx, playerX, playerY, dt)
+            self:updateEnemy(e, isActive, playerX, playerY, dt)
         end
     end
 end

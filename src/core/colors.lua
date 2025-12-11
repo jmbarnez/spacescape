@@ -14,18 +14,18 @@ local colors = {
     white = { 1.0, 1.0, 1.0, 1.0 },
 
     -- UI colors (synthwave theme)
-    uiPanelBorder = { 1.0, 0.2, 0.8, 0.7 },
-    uiText = { 0.0, 1.0, 1.0, 1.0 },
+    uiPanelBorder = { 0.8, 0.8, 0.8, 0.7 },
+    uiText = { 1.0, 1.0, 1.0, 1.0 },
     uiFps = { 1.0, 0.8, 0.0, 0.7 },
-    uiInstruction = { 0.8, 0.4, 1.0, 0.6 },
-    uiAbilitySlotBg = { 0.1, 0.02, 0.15, 0.8 },
+    uiInstruction = { 1.0, 1.0, 1.0, 0.6 },
+    uiAbilitySlotBg = { 0.05, 0.05, 0.05, 0.8 },
     uiAbilityActive = { 0.0, 1.0, 1.0, 1.0 },
     uiAbilityInactive = { 0.6, 0.3, 0.8, 0.5 },
-    uiCooldownBg = { 0.15, 0.02, 0.2, 0.7 },
-    uiCooldownText = { 1.0, 0.2, 0.8, 1.0 },
-    uiGameOverBg = { 0.05, 0.0, 0.1, 0.85 },
-    uiGameOverText = { 1.0, 0.2, 0.6, 1.0 },
-    uiGameOverSubText = { 0.6, 0.4, 0.8, 1.0 },
+    uiCooldownBg = { 0.05, 0.05, 0.05, 0.7 },
+    uiCooldownText = { 1.0, 1.0, 1.0, 1.0 },
+    uiGameOverBg = { 0.0, 0.0, 0.0, 0.85 },
+    uiGameOverText = { 1.0, 1.0, 1.0, 1.0 },
+    uiGameOverSubText = { 1.0, 1.0, 1.0, 1.0 },
 
     -- Background / environment (deep purple synthwave)
     backgroundSpace = { 0.03, 0.0, 0.08, 1.0 },
@@ -55,7 +55,7 @@ local colors = {
 
     -- Floating text defaults
     floatingBg = { 1.0, 0.2, 0.8 },
-    floatingText = { 0.0, 1.0, 1.0 },
+    floatingText = { 1.0, 1.0, 1.0 },
 
     -- Item / pickup visuals (XP shards, resources, etc.)
     itemCore = { 1.0, 0.2, 0.8, 1.0 },

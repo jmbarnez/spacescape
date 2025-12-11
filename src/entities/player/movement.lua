@@ -52,7 +52,7 @@ local function handleBoundaryBounce(state, boundX, boundY)
         return
     end
 
-    local color = colors.shieldDamage or colors.projectile or colors.white
+    local color = colors.shieldDamage
 
     ----------------------------------------------------------------------
     -- Attach the shield FX to the player state so the ring continues to

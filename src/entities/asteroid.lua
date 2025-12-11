@@ -121,7 +121,7 @@ function asteroid.populate(world, count)
         end
 
         -- Extra data for rendering/mining
-        e.rotationSpeed = (math.random() - 0.5) * 0.3
+        e.rotationSpeed = (math.random() - 0.5) * config.asteroid.rotationSpeedRange
         e.composition = composition
         e.data = data
 

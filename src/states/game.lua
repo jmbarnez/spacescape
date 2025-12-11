@@ -296,7 +296,6 @@ function game.keypressed(key)
 		if gameState == "playing" then
 			gameState = "paused"
 			windowManager.setWindowOpen("cargo", false) -- Close cargo when pausing
-			pauseMenu.selected = 1
 		elseif gameState == "paused" then
 			gameState = "playing"
 		end
@@ -317,36 +316,6 @@ function game.keypressed(key)
 	-- changing the core game state.
 	if key == "m" and gameState == "playing" then
 		windowManager.toggleWindow("map")
-		return
-	end
-
-	if gameState == "paused" then
-		local items = pauseMenu.items or {}
-		local count = #items
-		if count == 0 then
-			return
-		end
-		pauseMenu.selected = pauseMenu.selected or 1
-
-		if key == "up" or key == "w" then
-			pauseMenu.selected = ((pauseMenu.selected - 2) % count) + 1
-			return
-		elseif key == "down" or key == "s" then
-			pauseMenu.selected = (pauseMenu.selected % count) + 1
-			return
-		elseif key == "return" or key == "space" then
-			local item = items[pauseMenu.selected]
-			if not item then
-				return
-			end
-
-			if item.id == "resume" then
-				gameState = "playing"
-			elseif item.id == "quit" then
-				love.event.quit()
-			end
-			return
-		end
 		return
 	end
 

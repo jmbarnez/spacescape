@@ -119,12 +119,13 @@ function wreck.getLootRange()
     return LOOT_RANGE
 end
 
---- Check if a wreck is empty (no cargo and no coins)
+--- Check if a wreck is empty (no cargo). Coins are awarded on kill and
+--- are no longer considered part of loot, so emptiness only cares about
+--- item slots.
 --- @param w table The wreck entity
 --- @return boolean True if wreck has no loot
 function wreck.isEmpty(w)
     if not w then return true end
-    if w.coins and w.coins > 0 then return false end
     if w.cargo then
         for _, slot in pairs(w.cargo) do
             if slot and slot.id and slot.quantity and slot.quantity > 0 then

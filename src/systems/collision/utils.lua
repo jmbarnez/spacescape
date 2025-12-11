@@ -218,7 +218,7 @@ function utils.cleanupProjectilesForTarget(bullets, target)
         local bulletTarget = bullet.target or (bullet.projectileData and bullet.projectileData.target)
         if bulletTarget == target then
             local body = utils.getBody(bullet)
-            if body and body.destroy then
+            if body and body.destroy and not body:isDestroyed() then
                 body:destroy()
             end
             if bullet.destroy then

@@ -73,6 +73,7 @@ local function computeWindowOptionsForMenu(menu)
 		screenMargin = WINDOW_OPTS.screenMargin,
 		title = WINDOW_OPTS.title,
 		hint = WINDOW_OPTS.hint,
+		dimmer = true,
 	}
 
 	return opts, maxItemWidth
@@ -94,7 +95,6 @@ function hud_pause.draw(player, colors, menu)
 	local baseY = layout.contentY + MENU_TOP_PADDING
 
 	if menu and menu.items and maxItemWidth > 0 then
-		local selectedIndex = menu.selected or 1
 		for i, item in ipairs(menu.items) do
 			local label = item.label
 			local itemWidth = font:getWidth(label)
@@ -108,10 +108,9 @@ function hud_pause.draw(player, colors, menu)
 			local rectY = y - BUTTON_PADDING_Y
 
 			local hovered = mx >= rectX and mx <= rectX + rectW and my >= rectY and my <= rectY + rectH
-			local selected = (i == selectedIndex)
 
-			-- Button background: soft panel tint, slightly brighter on hover or when selected.
-			if hovered or selected then
+			-- Button background: soft panel tint, slightly brighter when hovered.
+			if hovered then
 				love.graphics.setColor(
 					hudPanelStyle.background[1] + 0.02,
 					hudPanelStyle.background[2] + 0.02,
@@ -128,8 +127,8 @@ function hud_pause.draw(player, colors, menu)
 			end
 			love.graphics.rectangle("fill", rectX, rectY, rectW, rectH, 4, 4)
 
-			-- Button outline: subtle when idle, stronger when hovered/selected.
-			if hovered or selected then
+			-- Button outline: subtle when idle, stronger when hovered.
+			if hovered then
 				love.graphics.setColor(0, 0, 0, 0.9)
 				love.graphics.setLineWidth(2)
 			else
@@ -140,7 +139,7 @@ function hud_pause.draw(player, colors, menu)
 			love.graphics.rectangle("line", rectX, rectY, rectW, rectH, 4, 4)
 
 			-- Label text
-			if hovered or selected then
+			if hovered then
 				love.graphics.setColor(colors.uiText[1], colors.uiText[2], colors.uiText[3], 1.0)
 			else
 				love.graphics.setColor(colors.uiText[1], colors.uiText[2], colors.uiText[3], 0.9)

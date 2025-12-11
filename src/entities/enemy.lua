@@ -83,18 +83,55 @@ function enemy.spawn(world, safeRadius)
         end
     end
 
-    local size = config.enemy.sizeMin + math.random() * (config.enemy.sizeMax - config.enemy.sizeMin)
+    local enemyConfig = config.enemy
+    local size = enemyConfig.sizeMin + math.random() * (enemyConfig.sizeMax - enemyConfig.sizeMin)
     local ship = ship_generator.generate(size)
-    local maxHealth = config.enemy.maxHealth
+    local maxHealth = enemyConfig.maxHealth
     local collisionRadius = (ship and ship.boundingRadius) or size
     local consts = physics.constants
+
+    local levelMin = enemyConfig.levelMin or 1
+    local levelMax = enemyConfig.levelMax or levelMin
+    local level = math.random(levelMin, levelMax)
+    local levelStep = level - 1
+
+    local healthPerLevel = enemyConfig.healthPerLevel or 0
+    if levelStep > 0 and healthPerLevel ~= 0 then
+        maxHealth = maxHealth * (1 + levelStep * healthPerLevel)
+    end
+
+    local detectionRange = enemyConfig.detectionRange
+    local attackRange = enemyConfig.attackRange
+    local detectionPerLevel = enemyConfig.detectionRangePerLevel or 0
+    local attackPerLevel = enemyConfig.attackRangePerLevel or 0
+    if levelStep > 0 then
+        if detectionRange and detectionPerLevel ~= 0 then
+            detectionRange = detectionRange * (1 + levelStep * detectionPerLevel)
+        end
+        if attackRange and attackPerLevel ~= 0 then
+            attackRange = attackRange * (1 + levelStep * attackPerLevel)
+        end
+    end
+
+    local baseWeapon = weapons.enemyPulseLaser
+    local weaponData = {}
+    if baseWeapon then
+        for k, v in pairs(baseWeapon) do
+            weaponData[k] = v
+        end
+        local damagePerLevel = enemyConfig.weaponDamagePerLevel or 0
+        local baseDamage = weaponData.damage or 1
+        if levelStep > 0 and damagePerLevel ~= 0 then
+            weaponData.damage = baseDamage * (1 + levelStep * damagePerLevel)
+        end
+    end
 
     -- Create ECS entity
     local e = Concord.entity(ecsWorld)
     e:give("position", x, y)
         :give("velocity",
-            (math.random() - 0.5) * config.enemy.initialDriftSpeed,
-            (math.random() - 0.5) * config.enemy.initialDriftSpeed)
+            (math.random() - 0.5) * enemyConfig.initialDriftSpeed,
+            (math.random() - 0.5) * enemyConfig.initialDriftSpeed)
         :give("rotation", math.random() * math.pi * 2)
         :give("faction", "enemy")
         :give("ship")
@@ -103,15 +140,17 @@ function enemy.spawn(world, safeRadius)
         :give("size", size)
         :give("collisionRadius", collisionRadius)
         :give("thrust", consts.enemyThrust, consts.enemyMaxSpeed)
-        :give("weapon", weapons.enemyPulseLaser)
+        :give("weapon", weaponData)
         :give("shipVisual", ship)
-        :give("aiState", "idle")
+        :give("aiState", "idle", detectionRange, attackRange)
+        :give("enemyLevel", level)
         :give("wanderBehavior", math.random() * math.pi * 2,
-            config.enemy.wanderIntervalBase + math.random() * config.enemy.wanderIntervalRandom,
-            config.enemy.wanderRadius)
+            enemyConfig.wanderIntervalBase + math.random() * enemyConfig.wanderIntervalRandom,
+            enemyConfig.wanderRadius)
         :give("spawnPosition", x, y)
         :give("xpReward", config.player.xpPerEnemy or 0)
         :give("tokenReward", config.player.tokensPerEnemy or 0)
+        :give("damping", 0.8)
 
     -- Create physics body
     local collisionVertices = nil
@@ -213,24 +252,43 @@ function enemy.draw(colors)
 
         love.graphics.pop()
 
-        -- Health bar (ECS component)
+        -- Health bar (ECS component, always visible above the enemy)
         local healthComp = e.health
         local healthCurrent = healthComp and healthComp.current or 0
         local healthMax = healthComp and healthComp.max or 0
 
-        if healthCurrent and healthMax and healthCurrent < healthMax then
+        -- Only skip if we truly have no valid health data
+        if healthCurrent and healthMax and healthMax > 0 then
+            -- Compute health bar placement relative to the enemy's collision radius
             local radius = (type(e.collisionRadius) == "table" and e.collisionRadius.radius) or e.collisionRadius or 10
             local barWidth = radius * 0.9
             local barHeight = 3
             local barX = px - barWidth
             local barY = py - radius - 10
 
+            -- Background segment of the health bar
             love.graphics.setColor(colors.healthBg)
             love.graphics.rectangle("fill", barX, barY, barWidth * 2, barHeight)
 
+            -- Foreground segment shows current health ratio
             local ratio = math.max(0, math.min(1, healthCurrent / healthMax))
             love.graphics.setColor(colors.health)
             love.graphics.rectangle("fill", barX, barY, barWidth * 2 * ratio, barHeight)
+
+            -- Level label (e.g., "Lv 2") rendered just above the health bar
+            local levelComp = e.enemyLevel
+            local level = levelComp and levelComp.level
+            if level then
+                local label = "Lv " .. tostring(level)
+                local font = love.graphics.getFont()
+                local textWidth = font and font:getWidth(label) or 0
+                local textHeight = font and font:getHeight() or 0
+                local textX = px - textWidth / 2
+                local textY = barY - textHeight - 2
+
+                love.graphics.setColor(colors.uiText or colors.white or { 1, 1, 1, 1 })
+                love.graphics.print(label, textX, textY)
+            end
         end
     end
 end

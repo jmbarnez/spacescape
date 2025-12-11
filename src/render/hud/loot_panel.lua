@@ -11,13 +11,17 @@ local playerModule = require("src.entities.player")
 local wreckModule = require("src.entities.wreck")
 
 -- Panel configuration
-local PANEL_WIDTH = 380
-local PANEL_HEIGHT = 280
-local SLOT_SIZE = 40
-local SLOT_PADDING = 4
+local SLOT_SIZE = 90
+local SLOT_PADDING = 8
 local COLS = 4
-local ROWS = 2
-local PANEL_PADDING = 12
+local ROWS = 4
+local PANEL_PADDING = 20
+local TOP_BAR_HEIGHT = 40
+local BOTTOM_BAR_HEIGHT = 36
+local GRID_WIDTH = COLS * SLOT_SIZE + (COLS - 1) * SLOT_PADDING
+local GRID_HEIGHT = ROWS * SLOT_SIZE + (ROWS - 1) * SLOT_PADDING
+local PANEL_WIDTH = GRID_WIDTH + PANEL_PADDING * 2
+local PANEL_HEIGHT = TOP_BAR_HEIGHT + GRID_HEIGHT + PANEL_PADDING * 2 + BOTTOM_BAR_HEIGHT
 local GRID_GAP = 20
 
 -- Window state
@@ -50,16 +54,6 @@ local function drawScrapIcon(cx, cy, size)
     love.graphics.setLineWidth(1)
     love.graphics.line(cx - size * 0.3, cy - size * 0.3, cx - size * 0.3, cy + size * 0.3)
     love.graphics.line(cx + size * 0.3, cy - size * 0.3, cx + size * 0.3, cy + size * 0.3)
-end
-
-local function drawCoinIcon(cx, cy, size)
-    love.graphics.setColor(1.0, 0.85, 0.3, 1.0)
-    love.graphics.circle("fill", cx, cy, size * 0.5)
-    love.graphics.setColor(0.8, 0.65, 0.1, 0.9)
-    love.graphics.setLineWidth(2)
-    love.graphics.circle("line", cx, cy, size * 0.5)
-    love.graphics.setColor(0.9, 0.7, 0.2, 1.0)
-    love.graphics.print("$", cx - 4, cy - 6)
 end
 
 local function drawResourceIcon(id, cx, cy, size)
@@ -108,35 +102,61 @@ local function clearDragState()
 end
 
 --------------------------------------------------------------------------------
+-- WRECK CONTENT HELPERS
+--------------------------------------------------------------------------------
+
+local function wreckHasCargoSlots(wreck)
+    if not wreck or not wreck.cargo then
+        return false
+    end
+
+    for _, slot in pairs(wreck.cargo) do
+        if slot and slot.id and slot.quantity and slot.quantity > 0 then
+            return true
+        end
+    end
+
+    return false
+end
+
+--------------------------------------------------------------------------------
 -- DRAWING
 --------------------------------------------------------------------------------
 
+local getLootAllButtonRect
+
 local function drawSlot(x, y, slot, isHovered)
     -- Slot background
-    if isHovered then
-        love.graphics.setColor(0.3, 0.35, 0.4, 0.9)
-    else
-        love.graphics.setColor(0.15, 0.18, 0.22, 0.85)
-    end
-    love.graphics.rectangle("fill", x, y, SLOT_SIZE, SLOT_SIZE, 4, 4)
+    love.graphics.setColor(1, 1, 1, 0.06)
+    love.graphics.rectangle("fill", x, y, SLOT_SIZE, SLOT_SIZE, 6, 6)
 
     -- Slot border
-    love.graphics.setColor(0.4, 0.45, 0.5, 0.6)
+    love.graphics.setColor(1, 1, 1, 0.12)
     love.graphics.setLineWidth(1)
-    love.graphics.rectangle("line", x, y, SLOT_SIZE, SLOT_SIZE, 4, 4)
+    love.graphics.rectangle("line", x, y, SLOT_SIZE, SLOT_SIZE, 6, 6)
 
     -- Draw item if present
     if slot and slot.id and slot.quantity and slot.quantity > 0 then
-        local cx = x + SLOT_SIZE / 2
-        local cy = y + SLOT_SIZE / 2
-        drawResourceIcon(slot.id, cx, cy - 4, SLOT_SIZE * 0.4)
+        local font = love.graphics.getFont()
+        local slotCenterX = x + SLOT_SIZE / 2
+        local slotCenterY = y + SLOT_SIZE / 2
+        drawResourceIcon(slot.id, slotCenterX, slotCenterY - 4, 18)
 
-        -- Quantity
         love.graphics.setColor(1, 1, 1, 1)
         local qtyText = tostring(slot.quantity)
-        local font = love.graphics.getFont()
-        local tw = font:getWidth(qtyText)
-        love.graphics.print(qtyText, x + SLOT_SIZE - tw - 3, y + SLOT_SIZE - 14)
+        local qtyWidth = font:getWidth(qtyText)
+        love.graphics.print(qtyText, slotCenterX - qtyWidth / 2, y + 4)
+
+        local label = tostring(slot.id)
+        local labelWidth = font:getWidth(label)
+        love.graphics.setColor(1, 1, 1, 0.85)
+        love.graphics.print(label, slotCenterX - labelWidth / 2, y + SLOT_SIZE - font:getHeight() - 4)
+    end
+
+    if isHovered then
+        love.graphics.setColor(0.2, 0.9, 1.0, 0.9)
+        love.graphics.setLineWidth(2)
+        love.graphics.rectangle("line", x, y, SLOT_SIZE, SLOT_SIZE, 6, 6)
     end
 end
 
@@ -177,41 +197,28 @@ function loot_panel.draw(player, colors)
     local wreck = player.lootTarget
 
     -- Draw window frame
-    window_frame.draw(windowState, {
+    local layout = window_frame.draw(windowState, {
         title = "Salvage Wreck",
         fixedWidth = PANEL_WIDTH,
         fixedHeight = PANEL_HEIGHT,
         showCloseButton = true,
-    })
+    }, colors)
 
-    local layout = window_frame.getLayout(windowState, {
-        fixedWidth = PANEL_WIDTH,
-        fixedHeight = PANEL_HEIGHT,
-    })
+    -- Single 4x4 wreck grid, centered in the window content area so the
+    -- wreck inventory feels like a dedicated panel separate from player cargo.
+    local innerWidth = layout.contentWidth - PANEL_PADDING * 2
+    local totalSlotWidth = COLS * (SLOT_SIZE + SLOT_PADDING) - SLOT_PADDING
+    local gridOffsetX = 0
+    if totalSlotWidth < innerWidth then
+        gridOffsetX = (innerWidth - totalSlotWidth) / 2
+    end
 
-    -- Left grid: Wreck cargo
-    local leftGridX = 0
-    drawGrid(leftGridX, "Wreck", wreck.cargo, COLS * ROWS, "wreck")
+    drawGrid(gridOffsetX, "Wreck", wreck.cargo, COLS * ROWS, "wreck")
 
-    -- Right grid: Player cargo
-    local rightGridX = (COLS * (SLOT_SIZE + SLOT_PADDING)) + GRID_GAP
-    local playerCargo = player.cargo and player.cargo.slots or {}
-    local playerMaxSlots = player.cargo and player.cargo.maxSlots or 16
-    drawGrid(rightGridX, "Your Cargo", playerCargo, math.min(playerMaxSlots, COLS * ROWS), "player")
-
-    -- Draw coins if wreck has any
-    if wreck.coins and wreck.coins > 0 then
-        local coinX = layout.contentX + PANEL_PADDING
-        local coinY = layout.contentY + PANEL_HEIGHT - 50
-        drawCoinIcon(coinX + 12, coinY + 12, 20)
-        love.graphics.setColor(1, 0.9, 0.4, 1)
-        love.graphics.print(tostring(wreck.coins) .. " coins", coinX + 30, coinY + 5)
-
-        -- Loot All button
-        local btnX = layout.contentX + PANEL_WIDTH - 100
-        local btnY = coinY
-        local btnW, btnH = 80, 24
-
+    -- Loot All button (no token display): appears only when the wreck still
+    -- has cargo so the action is always meaningful.
+    if wreckHasCargoSlots(wreck) then
+        local btnX, btnY, btnW, btnH = getLootAllButtonRect(layout)
         local mx, my = love.mouse.getPosition()
         local btnHovered = mx >= btnX and mx <= btnX + btnW and my >= btnY and my <= btnY + btnH
 
@@ -257,13 +264,16 @@ local function hitTestSlot(gridX, maxSlots, mx, my)
     return nil
 end
 
+function getLootAllButtonRect(layout)
+    local btnW, btnH = 96, 26
+    local btnX = layout.contentX + layout.contentWidth - PANEL_PADDING - btnW
+    local btnY = layout.bottomBarY - btnH - 8
+    return btnX, btnY, btnW, btnH
+end
+
 local function hitTestLootAllButton(layout)
     if not layout then return false end
-    local coinY = layout.contentY + PANEL_HEIGHT - 50
-    local btnX = layout.contentX + PANEL_WIDTH - 100
-    local btnY = coinY
-    local btnW, btnH = 80, 24
-
+    local btnX, btnY, btnW, btnH = getLootAllButtonRect(layout)
     local mx, my = love.mouse.getPosition()
     return mx >= btnX and mx <= btnX + btnW and my >= btnY and my <= btnY + btnH
 end
@@ -271,7 +281,7 @@ end
 local function lootAllFromWreck(player, wreck)
     if not wreck or not player then return end
 
-    -- Transfer all cargo
+    -- Transfer all cargo from the wreck into the player's cargo component.
     if wreck.cargo then
         for slotIndex, slot in pairs(wreck.cargo) do
             if slot and slot.id and slot.quantity and slot.quantity > 0 then
@@ -286,13 +296,8 @@ local function lootAllFromWreck(player, wreck)
         end
     end
 
-    -- Transfer coins
-    if wreck.coins and wreck.coins > 0 then
-        playerModule.addCurrency(wreck.coins)
-        wreck.coins = 0
-    end
-
-    -- Check if wreck is empty and remove
+    -- Once the wreck no longer contains any items, remove it from the world
+    -- and clear the current loot target.
     if wreckModule.isEmpty(wreck) then
         wreckModule.remove(wreck)
         playerModule.clearLootTarget()
@@ -325,13 +330,11 @@ function loot_panel.mousepressed(x, y, button)
         fixedHeight = PANEL_HEIGHT,
     })
 
-    -- Check Loot All button
+    -- Check Loot All button (only active when the wreck still has cargo)
     local wreck = player.lootTarget
-    if wreck and wreck.coins and wreck.coins > 0 then
-        if hitTestLootAllButton(layout) then
-            lootAllFromWreck(player, wreck)
-            return true
-        end
+    if wreck and wreckHasCargoSlots(wreck) and hitTestLootAllButton(layout) then
+        lootAllFromWreck(player, wreck)
+        return true
     end
 
     -- Check wreck grid clicks
@@ -367,7 +370,11 @@ function loot_panel.mousereleased(x, y, button)
         return
     end
 
-    window_frame.mousereleased(windowState, x, y, button)
+    window_frame.mousereleased(windowState, {
+        fixedWidth = PANEL_WIDTH,
+        fixedHeight = PANEL_HEIGHT,
+        showCloseButton = true,
+    }, x, y, button)
     clearDragState()
 end
 
@@ -377,7 +384,11 @@ function loot_panel.mousemoved(x, y)
         return
     end
 
-    window_frame.mousemoved(windowState, x, y)
+    window_frame.mousemoved(windowState, {
+        fixedWidth = PANEL_WIDTH,
+        fixedHeight = PANEL_HEIGHT,
+        showCloseButton = true,
+    }, x, y)
 
     if dragState.active then
         dragState.mouseX = x

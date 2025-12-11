@@ -126,8 +126,11 @@ function window_frame.draw(state, opts, colors)
     local screenH = love.graphics.getHeight()
 
     -- Subtle dimmer behind the window so content stands out.
-    love.graphics.setColor(0, 0, 0, 0.6)
-    love.graphics.rectangle("fill", 0, 0, screenW, screenH)
+    local useDimmer = opts and opts.dimmer
+    if useDimmer then
+        love.graphics.setColor(0, 0, 0, 0.6)
+        love.graphics.rectangle("fill", 0, 0, screenW, screenH)
+    end
 
     --------------------------------------------------------------------------
     -- Main panel body

@@ -81,6 +81,10 @@ function collision.update(player, particlesModule, colors, damagePerHit)
     currentDamagePerHit = damagePerHit or config.combat.damagePerHit
     playerDiedThisFrame = false
 
+    local bullets = projectileModule.getList and projectileModule.getList() or projectileModule.list or {}
+    local enemies = enemyModule.getList and enemyModule.getList() or enemyModule.list or {}
+    local asteroids = asteroidModule.getList and asteroidModule.getList() or asteroidModule.list or {}
+
     -- Build the runtime context for handlers
     local context = {
         bullets = bullets,

@@ -6,7 +6,7 @@ projectile_shards.list = {}
 
 local DEFAULT_COLOR = {1, 0.95, 0.8}
 
-local function spawnShard(x, y, dirX, dirY, baseSpeed, lifeMin, lifeMax, color)
+local function spawnShard(x, y, dirX, dirY, baseSpeed, lifeMin, lifeMax, color, sizeScale)
     local len = math.sqrt(dirX * dirX + dirY * dirY)
     if len == 0 then
         dirX, dirY = 1, 0
@@ -26,7 +26,8 @@ local function spawnShard(x, y, dirX, dirY, baseSpeed, lifeMin, lifeMax, color)
     local vy = vxDirY * speed
 
     local life = (lifeMin or 0.35) + math.random() * ((lifeMax or 0.6) - (lifeMin or 0.35))
-    local radius = 1.2
+    local scale = sizeScale or 1.0
+    local radius = 0.9 + 0.9 * scale
 
     local shard = {
         x = x,
@@ -37,6 +38,7 @@ local function spawnShard(x, y, dirX, dirY, baseSpeed, lifeMin, lifeMax, color)
         life = life,
         maxLife = life,
         color = color or DEFAULT_COLOR,
+        lengthScale = scale,
     }
 
     shard.body, shard.shape, shard.fixture = physics.createCircleBody(
@@ -56,12 +58,19 @@ local function spawnShard(x, y, dirX, dirY, baseSpeed, lifeMin, lifeMax, color)
     table.insert(projectile_shards.list, shard)
 end
 
-function projectile_shards.spawn(x, y, dirX, dirY, baseSpeed, count, color)
+function projectile_shards.spawn(x, y, dirX, dirY, baseSpeed, count, color, length, width)
     baseSpeed = baseSpeed or (physics.constants and physics.constants.projectileSpeed) or 350
     count = count or 8
 
+    local sizeScale = 1.0
+    if length or width then
+        local l = length or 20
+        local w = width or 2
+        sizeScale = ((l / 20) + (w / 2)) * 0.5
+    end
+
     for i = 1, count do
-        spawnShard(x, y, dirX, dirY, baseSpeed, 0.35, 0.7, color)
+        spawnShard(x, y, dirX, dirY, baseSpeed, 0.35, 0.7, color, sizeScale)
     end
 end
 
@@ -97,15 +106,18 @@ function projectile_shards.draw()
             if len > 0 then
                 local nx = vx / len
                 local ny = vy / len
-                local tailLength = 3.5
+                local scale = s.lengthScale or 1.0
+                local tailLength = 2.5 + 3.5 * scale
+                local headX = s.x + nx * (tailLength * 0.2)
+                local headY = s.y + ny * (tailLength * 0.2)
                 local tailX = s.x - nx * tailLength
                 local tailY = s.y - ny * tailLength
                 local t = math.max(0, s.life / (s.maxLife or 0.0001))
 
                 local color = s.color or DEFAULT_COLOR
                 love.graphics.setColor(color[1], color[2], color[3], 0.4 + 0.6 * t)
-                love.graphics.setLineWidth(1.5)
-                love.graphics.line(tailX, tailY, s.x, s.y)
+                love.graphics.setLineWidth(1.0 + scale)
+                love.graphics.line(tailX, tailY, headX, headY)
             end
         end
     end

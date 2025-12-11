@@ -1,6 +1,6 @@
 local abilities = {}
 
-abilities.q_attack_speed = require("src.data.abilities.q_attack_speed")
-abilities.e_dash = require("src.data.abilities.e_dash")
+abilities.overcharge = require("src.data.abilities.overcharge")
+abilities.vector_dash = require("src.data.abilities.vector_dash")
 
 return abilities

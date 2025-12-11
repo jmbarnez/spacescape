@@ -112,9 +112,9 @@ function hud_ability_bar.draw(player, colors)
             local pillH = font:getHeight() + 4
             local pillX = x + size / 2 - pillW / 2
             local pillY = labelY - 2
-            love.graphics.setColor(0.08, 0.1, 0.14, 0.9)
+            love.graphics.setColor(0.07, 0.07, 0.07, 0.9)
             love.graphics.rectangle("fill", pillX, pillY, pillW, pillH, 4, 4)
-            love.graphics.setColor(0.25, 0.5, 0.6, 0.6)
+            love.graphics.setColor(0.50, 0.50, 0.50, 0.6)
             love.graphics.setLineWidth(1)
             love.graphics.rectangle("line", pillX, pillY, pillW, pillH, 4, 4)
 
