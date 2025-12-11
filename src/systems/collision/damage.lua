@@ -311,8 +311,23 @@ function damage.spawnProjectileShards(projectile, target, contactX, contactY, ra
         return
     end
 
-    local dirX = px - tx
-    local dirY = py - ty
+    local pvx = utils.getVX(projectile) or 0
+    local pvy = utils.getVY(projectile) or 0
+    local projSpeed = math.sqrt(pvx * pvx + pvy * pvy)
+
+    local dirX = 0
+    local dirY = 0
+
+    if target and tx and ty and ix and iy then
+        dirX = ix - tx
+        dirY = iy - ty
+    end
+
+    if (dirX == 0 and dirY == 0) and projSpeed and projSpeed > 0 then
+        dirX = pvx
+        dirY = pvy
+    end
+
     local angle = 0
     if projectile.rotation then
         angle = projectile.rotation.angle
@@ -323,19 +338,17 @@ function damage.spawnProjectileShards(projectile, target, contactX, contactY, ra
         dirX, dirY = math.cos(angle), math.sin(angle)
     end
 
-    local baseSpeed = utils.getDamage(projectile) or (physics.constants and physics.constants.projectileSpeed) or 350
-    if projectile.projectileData and projectile.projectileData.speed then
-        baseSpeed = projectile.projectileData.speed
-    elseif projectile.speed then
-        baseSpeed = projectile.speed
+    local baseSpeed = projSpeed or 0
+    if not baseSpeed or baseSpeed <= 0 then
+        baseSpeed = utils.getDamage(projectile) or (physics.constants and physics.constants.projectileSpeed) or 350
+        if projectile.projectileData and projectile.projectileData.speed then
+            baseSpeed = projectile.projectileData.speed
+        elseif projectile.speed then
+            baseSpeed = projectile.speed
+        end
     end
 
-    -- Scale shard count based on projectile size (subtle: 3-5 shards max)
-    local projectileRadius = 4 -- Default projectile radius
-    local baseCount = math.max(2, math.min(5, math.floor(projectileRadius / 2) + 2))
-    if countScale and countScale > 0 then
-        baseCount = math.max(2, math.floor(baseCount * countScale))
-    end
+    baseSpeed = baseSpeed * 0.85
 
     local projectileConfig = nil
 
@@ -363,6 +376,18 @@ function damage.spawnProjectileShards(projectile, target, contactX, contactY, ra
 
     local projectileLength = projectileConfig and projectileConfig.length or nil
     local projectileWidth = projectileConfig and projectileConfig.width or nil
+
+    local projectileRadius = 4
+    if projectileWidth and projectileWidth > 0 then
+        projectileRadius = projectileWidth * 0.5
+    elseif projectileLength and projectileLength > 0 then
+        projectileRadius = math.max(projectileRadius, projectileLength * 0.25)
+    end
+
+    local baseCount = math.max(2, math.min(5, math.floor(projectileRadius / 2) + 2))
+    if countScale and countScale > 0 then
+        baseCount = math.max(2, math.floor(baseCount * countScale))
+    end
 
     projectileShards.spawn(ix, iy, dirX, dirY, baseSpeed, baseCount, projectileColor, projectileLength, projectileWidth)
 end

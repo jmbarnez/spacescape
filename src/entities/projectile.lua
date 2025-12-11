@@ -95,6 +95,7 @@ function projectile.update(dt, world)
             if e.physics and e.physics.body then
                 e.physics.body:destroy()
             end
+            e._removed = true
             e:destroy()
         end
     end

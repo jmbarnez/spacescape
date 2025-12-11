@@ -332,7 +332,7 @@ local function drawWorldObjects(ctx)
     end
     projectileModule.draw(colors)
     projectileShards.draw()
-    enemyModule.draw(colors)
+    enemyModule.draw(colors, player)
 
     if gameState == "playing" or gameState == "paused" then
         engineTrail.draw()

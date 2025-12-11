@@ -255,6 +255,90 @@ local function isPointInRect(px, py, rx, ry, rw, rh)
     return px >= rx and px <= rx + rw and py >= ry and py <= ry + rh
 end
 
+local function findExistingStack(slots, maxSlots, id)
+    for i = 1, maxSlots do
+        local slot = slots[i]
+        if slot and slot.id == id then
+            return i
+        end
+    end
+    return nil
+end
+
+local function findEmptySlot(slots, maxSlots)
+    for i = 1, maxSlots do
+        local slot = slots[i]
+        if not slot or slot.id == nil then
+            return i
+        end
+    end
+    return nil
+end
+
+function hud_cargo.tryAcceptExternalResourceStack(resourceId, quantity, x, y)
+    if not resourceId or not quantity or quantity <= 0 then
+        return 0
+    end
+
+    local cargo = getCargoComponent()
+    if not cargo then
+        return 0
+    end
+
+    local layout = window_frame.getLayout(windowState, {
+        fixedWidth = PANEL_WIDTH,
+        fixedHeight = PANEL_HEIGHT,
+    })
+
+    local panelX = layout.panelX
+    local panelY = layout.panelY
+    local panelW = layout.panelWidth
+    local panelH = layout.panelHeight
+
+    if x < panelX or x > panelX + panelW or y < panelY or y > panelY + panelH then
+        return 0
+    end
+
+    local slots = cargo.slots or {}
+    cargo.slots = slots
+    local maxSlots = cargo.maxSlots or (COLS * ROWS)
+
+    local destIndex = hitTestSlot(layout, x, y, maxSlots)
+    local targetIndex = nil
+
+    if destIndex and destIndex >= 1 and destIndex <= maxSlots then
+        local destSlot = slots[destIndex]
+        if not destSlot or not destSlot.id or destSlot.id == resourceId then
+            targetIndex = destIndex
+        end
+    end
+
+    if not targetIndex then
+        targetIndex = findExistingStack(slots, maxSlots, resourceId)
+    end
+
+    if not targetIndex then
+        targetIndex = findEmptySlot(slots, maxSlots)
+    end
+
+    if not targetIndex then
+        return 0
+    end
+
+    local slot = slots[targetIndex]
+    if not slot or not slot.id then
+        slot = {
+            id = resourceId,
+            quantity = 0,
+        }
+        slots[targetIndex] = slot
+    end
+
+    slot.quantity = (slot.quantity or 0) + quantity
+
+    return quantity
+end
+
 --------------------------------------------------------------------------------
 -- MOUSE HANDLING
 --------------------------------------------------------------------------------

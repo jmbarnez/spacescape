@@ -60,6 +60,11 @@ local colors = {
     -- Item / pickup visuals (XP shards, resources, etc.)
     itemCore = { 1.0, 0.2, 0.8, 1.0 },
     itemGlow = { 0.5, 0.1, 0.6, 0.45 },
+
+    -- Enemy level indicators
+    levelEasy = { 0.0, 1.0, 0.0, 1.0 },   -- Weaker than player (green)
+    levelEven = { 1.0, 1.0, 0.0, 1.0 },   -- Equal to player (yellow)
+    levelHard = { 1.0, 0.1, 0.1, 1.0 },   -- Stronger than player (red)
 }
 
 return colors

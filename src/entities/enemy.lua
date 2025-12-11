@@ -232,8 +232,10 @@ end
 -- DRAW
 --------------------------------------------------------------------------------
 
-function enemy.draw(colors)
+function enemy.draw(colors, player)
     colors = colors or baseColors
+    -- Cache player level once so we can compare enemy levels against it for coloring
+    local playerLevel = player and player.level or nil
     local enemies = enemy.getList()
 
     for _, e in ipairs(enemies) do
@@ -275,18 +277,50 @@ function enemy.draw(colors)
             love.graphics.setColor(colors.health)
             love.graphics.rectangle("fill", barX, barY, barWidth * 2 * ratio, barHeight)
 
-            -- Level label (e.g., "Lv 2") rendered just above the health bar
+            -- Level indicator: rendered in a black box to the left of the health bar.
+            -- The text color reflects how dangerous the enemy is relative to the player:
+            -- green  = enemy level lower than player level
+            -- yellow = enemy level equal to player level
+            -- red    = enemy level higher than player level
             local levelComp = e.enemyLevel
             local level = levelComp and levelComp.level
             if level then
-                local label = "Lv " .. tostring(level)
+                local label = tostring(level)
                 local font = love.graphics.getFont()
                 local textWidth = font and font:getWidth(label) or 0
                 local textHeight = font and font:getHeight() or 0
-                local textX = px - textWidth / 2
-                local textY = barY - textHeight - 2
 
-                love.graphics.setColor(colors.uiText or colors.white or { 1, 1, 1, 1 })
+                -- Box sizing and placement: snug box just to the left of the bar
+                local paddingX = 4
+                local paddingY = 2
+                local boxWidth = textWidth + paddingX * 2
+                local boxHeight = barHeight + paddingY * 2
+                local boxRight = barX - 4
+                local boxX = boxRight - boxWidth
+                local boxY = barY - (boxHeight - barHeight) / 2
+
+                -- Black background box to anchor the level badge
+                love.graphics.setColor(0, 0, 0, 0.9)
+                love.graphics.rectangle("fill", boxX, boxY, boxWidth, boxHeight)
+
+                -- Choose text color based on comparison with player level
+                local r, g, b, a = 1, 1, 1, 1
+                if playerLevel then
+                    if level < playerLevel then
+                        local c = colors.levelEasy or { 0.0, 1.0, 0.0, 1.0 }
+                        r, g, b, a = c[1], c[2], c[3], c[4] or 1.0
+                    elseif level == playerLevel then
+                        local c = colors.levelEven or { 1.0, 1.0, 0.0, 1.0 }
+                        r, g, b, a = c[1], c[2], c[3], c[4] or 1.0
+                    else
+                        local c = colors.levelHard or { 1.0, 0.1, 0.1, 1.0 }
+                        r, g, b, a = c[1], c[2], c[3], c[4] or 1.0
+                    end
+                end
+
+                love.graphics.setColor(r, g, b, a)
+                local textX = boxX + (boxWidth - textWidth) / 2
+                local textY = boxY + (boxHeight - textHeight) / 2
                 love.graphics.print(label, textX, textY)
             end
         end

@@ -147,12 +147,21 @@ function FiringSystem:update(dt, playerEntity)
     local playerX = playerEntity.position.x
     local playerY = playerEntity.position.y
 
-    for i = 1, self.shooters.size do
+      for i = 1, self.shooters.size do
         local e = self.shooters[i]
 
         -- Only enemies fire automatically
         if e.faction.name ~= "enemy" then goto continue end
-        if not e.aiState or e.aiState.state ~= "attack" then goto continue end
+        if not e.aiState then goto continue end
+
+        -- Check that the player is at least within this enemy's detection radius
+        -- so they start shooting as soon as they "see" the player, instead of
+        -- waiting until a tighter attack/optimal range.
+        local dx = playerX - e.position.x
+        local dy = playerY - e.position.y
+        local distSq = dx * dx + dy * dy
+        local detectionRange = e.aiState.detectionRange or config.enemy.detectionRange or 1000
+        if distSq > detectionRange * detectionRange then goto continue end
 
         local weapon = e.weapon
         local weaponData = weapon.data or {}

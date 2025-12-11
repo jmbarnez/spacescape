@@ -189,6 +189,8 @@ end
 function utils.removeEntity(list, entity)
     -- For ECS entities, use destroy()
     if entity.destroy and type(entity.destroy) == "function" then
+        entity._removed = true
+
         local body = utils.getBody(entity)
         if body and body.destroy and not body:isDestroyed() then
             body:destroy()
@@ -222,6 +224,7 @@ function utils.cleanupProjectilesForTarget(bullets, target)
                 body:destroy()
             end
             if bullet.destroy then
+                bullet._removed = true
                 bullet:destroy()
             else
                 bullet._removed = true

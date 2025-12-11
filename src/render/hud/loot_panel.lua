@@ -9,6 +9,9 @@ local ui_theme = require("src.core.ui_theme")
 local window_frame = require("src.render.hud.window_frame")
 local playerModule = require("src.entities.player")
 local wreckModule = require("src.entities.wreck")
+local resourceDefs = require("src.data.mining.resources")
+local item_icons = require("src.render.item_icons")
+local hud_cargo = require("src.render.hud.cargo")
 
 -- Panel configuration
 local SLOT_SIZE = 90
@@ -43,6 +46,8 @@ local dragState = {
     mouseY = 0,
 }
 
+local currentHudPalette = nil
+
 --------------------------------------------------------------------------------
 -- RESOURCE ICONS (simplified versions)
 --------------------------------------------------------------------------------
@@ -57,13 +62,27 @@ local function drawScrapIcon(cx, cy, size)
 end
 
 local function drawResourceIcon(id, cx, cy, size)
+    if not id then
+        return
+    end
+
     if id == "scrap" then
         drawScrapIcon(cx, cy, size)
-    else
-        -- Generic fallback
-        love.graphics.setColor(0.5, 0.5, 0.5, 1.0)
-        love.graphics.rectangle("fill", cx - size * 0.4, cy - size * 0.4, size * 0.8, size * 0.8, 2, 2)
+        return
     end
+
+    local def = resourceDefs[id] or resourceDefs.default
+    local it = {
+        x = cx,
+        y = cy,
+        radius = size,
+        age = love.timer.getTime(),
+        itemType = "resource",
+        resourceType = id,
+    }
+
+    local palette = currentHudPalette or {}
+    item_icons.drawResource(it, def, palette, size, 0)
 end
 
 --------------------------------------------------------------------------------
@@ -182,6 +201,9 @@ local function drawGrid(gridX, label, slots, maxSlots, gridId)
             if slotIndex <= maxSlots then
                 local sx, sy = getSlotBounds(gridX, row, col)
                 local slot = slots and slots[slotIndex]
+                if dragState.active and dragState.sourceGrid == gridId and dragState.sourceSlot == slotIndex then
+                    slot = nil
+                end
                 local isHovered = mx >= sx and mx <= sx + SLOT_SIZE and my >= sy and my <= sy + SLOT_SIZE
                 drawSlot(sx, sy, slot, isHovered)
             end
@@ -195,6 +217,8 @@ function loot_panel.draw(player, colors)
     end
 
     local wreck = player.lootTarget
+
+    currentHudPalette = colors
 
     -- Draw window frame
     local layout = window_frame.draw(windowState, {
@@ -236,7 +260,8 @@ function loot_panel.draw(player, colors)
 
     -- Draw dragged item
     if dragState.active and dragState.item then
-        local mx, my = love.mouse.getPosition()
+        local mx = dragState.mouseX or 0
+        local my = dragState.mouseY or 0
         love.graphics.setColor(0.2, 0.25, 0.3, 0.9)
         love.graphics.rectangle("fill", mx - SLOT_SIZE / 2, my - SLOT_SIZE / 2, SLOT_SIZE, SLOT_SIZE, 4, 4)
         drawResourceIcon(dragState.item.id, mx, my - 4, SLOT_SIZE * 0.4)
@@ -266,8 +291,8 @@ end
 
 function getLootAllButtonRect(layout)
     local btnW, btnH = 96, 26
-    local btnX = layout.contentX + layout.contentWidth - PANEL_PADDING - btnW
-    local btnY = layout.bottomBarY - btnH - 8
+    local btnX = layout.panelX + layout.panelWidth - PANEL_PADDING - btnW
+    local btnY = layout.bottomBarY + (layout.bottomBarHeight - btnH) / 2
     return btnX, btnY, btnW, btnH
 end
 
@@ -343,19 +368,30 @@ function loot_panel.mousepressed(x, y, button)
     if wreckSlot then
         local slot = wreck.cargo and wreck.cargo[wreckSlot]
         if slot and slot.id and slot.quantity and slot.quantity > 0 then
-            -- Transfer to player
-            local added = playerModule.addCargoResource(slot.id, slot.quantity)
-            if added and added > 0 then
-                slot.quantity = slot.quantity - added
-                if slot.quantity <= 0 then
-                    wreck.cargo[wreckSlot] = nil
+            local isShift = love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift")
+            if isShift then
+                local added = playerModule.addCargoResource(slot.id, slot.quantity)
+                if added and added > 0 then
+                    slot.quantity = slot.quantity - added
+                    if slot.quantity <= 0 then
+                        wreck.cargo[wreckSlot] = nil
+                    end
                 end
-            end
 
-            -- Check if wreck is now empty
-            if wreckModule.isEmpty(wreck) then
-                wreckModule.remove(wreck)
-                playerModule.clearLootTarget()
+                if wreckModule.isEmpty(wreck) then
+                    wreckModule.remove(wreck)
+                    playerModule.clearLootTarget()
+                end
+            else
+                dragState.active = true
+                dragState.sourceGrid = "wreck"
+                dragState.sourceSlot = wreckSlot
+                dragState.item = {
+                    id = slot.id,
+                    quantity = slot.quantity,
+                }
+                dragState.mouseX = x
+                dragState.mouseY = y
             end
             return true
         end
@@ -375,6 +411,34 @@ function loot_panel.mousereleased(x, y, button)
         fixedHeight = PANEL_HEIGHT,
         showCloseButton = true,
     }, x, y, button)
+
+    if button == 1 and dragState.active and dragState.item then
+        local accepted = 0
+        if hud_cargo and hud_cargo.tryAcceptExternalResourceStack then
+            accepted = hud_cargo.tryAcceptExternalResourceStack(dragState.item.id, dragState.item.quantity, x, y)
+        end
+
+        if accepted and accepted > 0 then
+            local wreck = player.lootTarget
+            if wreck and wreck.cargo and dragState.sourceGrid == "wreck" and dragState.sourceSlot then
+                local sourceSlotIndex = dragState.sourceSlot
+                local sourceSlot = wreck.cargo[sourceSlotIndex]
+                if sourceSlot and sourceSlot.id == dragState.item.id and sourceSlot.quantity then
+                    sourceSlot.quantity = sourceSlot.quantity - accepted
+                    if sourceSlot.quantity <= 0 then
+                        wreck.cargo[sourceSlotIndex] = nil
+                    end
+                end
+            end
+
+            local wreck = player.lootTarget
+            if wreck and wreckModule.isEmpty(wreck) then
+                wreckModule.remove(wreck)
+                playerModule.clearLootTarget()
+            end
+        end
+    end
+
     clearDragState()
 end
 
