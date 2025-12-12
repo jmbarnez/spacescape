@@ -107,11 +107,23 @@ end
 --------------------------------------------------------------------------------
 
 local function wreckHasCargoSlots(wreck)
-    if not wreck or not wreck.cargo then
+    if not wreck then
         return false
     end
 
-    for _, slot in pairs(wreck.cargo) do
+    -- Wreck cargo is ECS-backed but the HUD historically expects a plain
+    -- `wreck.cargo` table. Support both layouts and keep them aliased.
+    local cargo = wreck.cargo
+    if not cargo and wreck.loot and wreck.loot.cargo then
+        cargo = wreck.loot.cargo
+        wreck.cargo = cargo
+    end
+
+    if not cargo then
+        return false
+    end
+
+    for _, slot in pairs(cargo) do
         if slot and slot.id and slot.quantity and slot.quantity > 0 then
             return true
         end
@@ -195,6 +207,13 @@ function loot_panel.draw(player, colors)
 
     local wreck = player.lootTarget
 
+    -- If the wreck was removed (emptied/expired), close the panel cleanly.
+    if wreck and (wreck._removed or wreck.removed) then
+        playerModule.clearLootTarget()
+        clearDragState()
+        return
+    end
+
     currentHudPalette = colors
 
     -- Draw window frame
@@ -237,7 +256,13 @@ function loot_panel.draw(player, colors)
         gridOffsetX = (innerWidth - totalSlotWidth) / 2
     end
 
-    drawGrid(gridOffsetX, wreck.cargo, COLS * ROWS, "wreck")
+    local cargo = wreck.cargo
+    if not cargo and wreck.loot and wreck.loot.cargo then
+        cargo = wreck.loot.cargo
+        wreck.cargo = cargo
+    end
+
+    drawGrid(gridOffsetX, cargo, COLS * ROWS, "wreck")
 
     -- Loot All button (no token display): appears only when the wreck still
     -- has cargo so the action is always meaningful.
@@ -314,15 +339,22 @@ end
 local function lootAllFromWreck(player, wreck)
     if not wreck or not player then return end
 
+    -- Resolve authoritative cargo table (ECS or legacy).
+    local cargo = wreck.cargo
+    if not cargo and wreck.loot and wreck.loot.cargo then
+        cargo = wreck.loot.cargo
+        wreck.cargo = cargo
+    end
+
     -- Transfer all cargo from the wreck into the player's cargo component.
-    if wreck.cargo then
-        for slotIndex, slot in pairs(wreck.cargo) do
+    if cargo then
+        for slotIndex, slot in pairs(cargo) do
             if slot and slot.id and slot.quantity and slot.quantity > 0 then
                 local added = playerModule.addCargoResource(slot.id, slot.quantity)
                 if added and added > 0 then
                     slot.quantity = slot.quantity - added
                     if slot.quantity <= 0 then
-                        wreck.cargo[slotIndex] = nil
+                        cargo[slotIndex] = nil
                     end
                 end
             end
@@ -371,10 +403,22 @@ function loot_panel.mousepressed(x, y, button)
     end
 
     -- Check wreck grid clicks
-    local leftGridX = 0
-    local wreckSlot = hitTestSlot(leftGridX, COLS * ROWS, x, y)
+    local innerWidth = layout.contentWidth - PANEL_PADDING * 2
+    local totalSlotWidth = COLS * (SLOT_SIZE + SLOT_PADDING) - SLOT_PADDING
+    local gridOffsetX = 0
+    if totalSlotWidth < innerWidth then
+        gridOffsetX = (innerWidth - totalSlotWidth) / 2
+    end
+
+    local wreckSlot = hitTestSlot(gridOffsetX, COLS * ROWS, x, y)
     if wreckSlot then
-        local slot = wreck.cargo and wreck.cargo[wreckSlot]
+        local cargo = wreck.cargo
+        if not cargo and wreck.loot and wreck.loot.cargo then
+            cargo = wreck.loot.cargo
+            wreck.cargo = cargo
+        end
+
+        local slot = cargo and cargo[wreckSlot]
         if slot and slot.id and slot.quantity and slot.quantity > 0 then
             local isShift = love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift")
             if isShift then
@@ -382,7 +426,7 @@ function loot_panel.mousepressed(x, y, button)
                 if added and added > 0 then
                     slot.quantity = slot.quantity - added
                     if slot.quantity <= 0 then
-                        wreck.cargo[wreckSlot] = nil
+                        cargo[wreckSlot] = nil
                     end
                 end
 
@@ -428,13 +472,19 @@ function loot_panel.mousereleased(x, y, button)
 
         if accepted and accepted > 0 then
             local wreck = player.lootTarget
-            if wreck and wreck.cargo and dragState.sourceGrid == "wreck" and dragState.sourceSlot then
+            local cargo = wreck and wreck.cargo
+            if not cargo and wreck and wreck.loot and wreck.loot.cargo then
+                cargo = wreck.loot.cargo
+                wreck.cargo = cargo
+            end
+
+            if wreck and cargo and dragState.sourceGrid == "wreck" and dragState.sourceSlot then
                 local sourceSlotIndex = dragState.sourceSlot
-                local sourceSlot = wreck.cargo[sourceSlotIndex]
+                local sourceSlot = cargo[sourceSlotIndex]
                 if sourceSlot and sourceSlot.id == dragState.item.id and sourceSlot.quantity then
                     sourceSlot.quantity = sourceSlot.quantity - accepted
                     if sourceSlot.quantity <= 0 then
-                        wreck.cargo[sourceSlotIndex] = nil
+                        cargo[sourceSlotIndex] = nil
                     end
                 end
             end

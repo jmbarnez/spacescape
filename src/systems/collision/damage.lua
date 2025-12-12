@@ -175,22 +175,16 @@ function damage.computeAsteroidResourceYield(asteroid, radius)
     }
 end
 
---- Compute a lightweight salvage yield for a destroyed enemy ship. For now we
---- treat this as generic "stone" scrap scaled very loosely by its radius.
+--- Enemies do not drop raw resource chunks on death.
+---
+--- Enemy kills are rewarded via XP/tokens and (optionally) a loot container
+--- wreck. Asteroids are the source of raw materials like stone.
 --- @param enemy table The enemy entity
 --- @param radius number Approximate enemy radius
---- @return table Resource amounts
+--- @return table Resource amounts (always empty)
 function damage.computeEnemyResourceYield(enemy, radius)
-    local r = radius or utils.getBoundingRadius(enemy)
-    local baseChunks = math.max(1, math.floor((r or 12) / 8))
-    return {
-        stone = baseChunks,
-    }
+    return {}
 end
-
---------------------------------------------------------------------------------
--- WRECK SPAWNING
---------------------------------------------------------------------------------
 
 --- Compute cargo contents for an enemy wreck
 --- @param enemy table The enemy entity
@@ -220,14 +214,73 @@ function damage.computeEnemyWreckCargo(enemy, radius)
     return cargo, coinAmount
 end
 
+local function clampDropChance(value)
+    if value == nil then
+        return nil
+    end
+
+    local chance = tonumber(value)
+    if not chance then
+        return nil
+    end
+
+    -- Support either 0..1 or 0..100 style values.
+    if chance > 1 then
+        chance = chance / 100
+    end
+
+    if chance < 0 then
+        chance = 0
+    elseif chance > 1 then
+        chance = 1
+    end
+
+    return chance
+end
+
+--- Resolve the chance that an enemy should spawn a loot container (wreck).
+---
+--- This is data-driven: enemy definitions can set:
+---   def.rewards.loot.dropChance
+---
+--- @param enemy table|nil The enemy entity
+--- @return number chance (0..1)
+function damage.getEnemyLootContainerChance(enemy)
+    local def = enemy and (enemy.enemyDef or (enemy.respawnOnDeath and enemy.respawnOnDeath.enemyDef)) or nil
+    local loot = def and def.rewards and def.rewards.loot or nil
+    local chance = loot and loot.dropChance or nil
+
+    chance = clampDropChance(chance)
+
+    -- Default to 0 so enemy definitions must explicitly opt in to dropping a
+    -- loot container (wreck).
+    if chance == nil then
+        chance = 0
+    end
+
+    return chance
+end
+
+--------------------------------------------------------------------------------
+-- WRECK SPAWNING
+--------------------------------------------------------------------------------
+
 --- Spawn a wreck with cargo at the given position from a destroyed enemy
 --- @param x number World X position
 --- @param y number World Y position
 --- @param enemy table The enemy entity that was destroyed
 --- @param radius number Approximate enemy radius
 function damage.spawnEnemyWreck(x, y, enemy, radius)
+    local chance = damage.getEnemyLootContainerChance(enemy)
+    if not chance or chance <= 0 then
+        return nil
+    end
+    if chance < 1 and math.random() > chance then
+        return nil
+    end
+
     local cargo, coins = damage.computeEnemyWreckCargo(enemy, radius)
-    wreckModule.spawn(x, y, cargo, coins)
+    return wreckModule.spawn(x, y, cargo, coins)
 end
 
 --------------------------------------------------------------------------------

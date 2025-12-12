@@ -8,21 +8,49 @@ local RespawnerSystem = Concord.system({
 })
 
 function RespawnerSystem:update(dt)
-    -- Iterate backwards safely as we might destroy entities
-    for i = #self.timers, 1, -1 do
+    dt = dt or 0
+
+    -- Iterate backwards safely (Concord pools are Lists with a `.size` field).
+    for i = self.timers.size, 1, -1 do
         local e = self.timers[i]
+        if not e then
+            goto continue
+        end
+
         local timer = e.respawnTimer
-        
+        if not timer then
+            goto continue
+        end
+
+        -- Defensively normalize timer state so a bad respawn payload doesn't crash
+        -- the entire game loop.
+        if type(timer.current) ~= "number" then
+            timer.current = 0
+        end
+
         timer.current = timer.current - dt
-        
+
         if timer.current <= 0 then
-            -- Respawn the enemy at original location
+            -- Respawn the enemy at original location.
             -- Spawn via the ECS world to keep this system decoupled from legacy entity modules.
-            self:getWorld():spawnEnemy(timer.x, timer.y, timer.enemyDef)
-            
-            -- Destroy the timer entity
+            local world = self:getWorld()
+            if world and world.spawnEnemy then
+                pcall(function()
+                    -- Explicit spawn spec:
+                    --   - { def = enemyDef } so assemblages.enemy can normalize consistently.
+                    local spec = nil
+                    if timer.enemyDef then
+                        spec = { def = timer.enemyDef }
+                    end
+                    world:spawnEnemy(timer.x or 0, timer.y or 0, spec)
+                end)
+            end
+
+            -- Destroy the timer entity (actual removal occurs on the next world flush).
             e:destroy()
         end
+
+        ::continue::
     end
 end
 

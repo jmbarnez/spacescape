@@ -21,9 +21,9 @@
 
 local physics = require("src.core.physics")
 local config = require("src.core.config")
-local enemyModule = require("src.entities.enemy")
 local projectileModule = require("src.entities.projectile")
 local asteroidModule = require("src.entities.asteroid")
+local ecsWorld = require("src.ecs.world")
 
 local utils = require("src.systems.collision.utils")
 local handlers = require("src.systems.collision.handlers")
@@ -35,9 +35,16 @@ local collision = {}
 -- MODULE REFERENCES
 -- Direct references to entity lists for fast access during collision handling
 --------------------------------------------------------------------------------
-local enemies = enemyModule.list
-local bullets = projectileModule.list
-local asteroids = asteroidModule.list
+local function getEnemyEntities()
+    local ships = ecsWorld:query({ "ship", "faction", "position" }) or {}
+    local enemies = {}
+    for _, e in ipairs(ships) do
+        if e.faction and e.faction.name == "enemy" and not e._removed and not e.removed then
+            table.insert(enemies, e)
+        end
+    end
+    return enemies
+end
 
 local ENABLE_CONTINUOUS_SHIP_ASTEROID_RESOLVE = false
 
@@ -82,7 +89,7 @@ function collision.update(player, particlesModule, colors, damagePerHit)
     playerDiedThisFrame = false
 
     local bullets = projectileModule.getList and projectileModule.getList() or projectileModule.list or {}
-    local enemies = enemyModule.getList and enemyModule.getList() or enemyModule.list or {}
+    local enemies = getEnemyEntities()
     local asteroids = asteroidModule.getList and asteroidModule.getList() or asteroidModule.list or {}
 
     -- Build the runtime context for handlers

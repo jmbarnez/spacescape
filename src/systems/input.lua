@@ -31,6 +31,9 @@ function input.mousepressed(x, y, button, player, world, camera)
         local wreck = combatSystem.findWreckAtPosition(worldX, worldY, config.input.selectionRadius)
         if wreck then
             playerModule.setLootTarget(wreck)
+            if combatSystem.lockEntity then
+                combatSystem.lockEntity(wreck)
+            end
         else
             combatSystem.handleLeftClick(worldX, worldY, config.input.selectionRadius)
         end

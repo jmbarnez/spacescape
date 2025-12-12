@@ -60,6 +60,9 @@ local scout = {
         -- Optional wreck loot; RewardSystem will spawn a wreck only if the
         -- entity has BOTH: ship tag AND loot component.
         loot = {
+            -- Chance (0..1 or 0..100) to spawn a loot container when this enemy
+            -- is destroyed.
+            dropChance = 25,
             cargo = {},
             coins = 0,
         },

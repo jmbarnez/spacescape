@@ -431,12 +431,19 @@ function hud_cargo.mousereleased(x, y, button)
                 slots[destIndex] = dragged
             else
                 local existing = slots[destIndex]
-                slots[destIndex] = dragged
+                -- When dropping onto a filled slot:
+                --   - Same item id: stack quantities together.
+                --   - Different item id: swap the two stacks.
+                if existing and existing.id and existing.id == dragged.id then
+                    existing.quantity = (existing.quantity or 0) + dragged.quantity
+                else
+                    slots[destIndex] = dragged
 
-                -- If the destination was occupied, move that stack back to the
-                -- origin so the interaction behaves like a swap.
-                if existing and existing.id then
-                    slots[fromIndex] = existing
+                    -- If the destination was occupied, move that stack back to the
+                    -- origin so the interaction behaves like a swap.
+                    if existing and existing.id then
+                        slots[fromIndex] = existing
+                    end
                 end
             end
         elseif fromIndex and fromIndex >= 1 and fromIndex <= maxSlots then

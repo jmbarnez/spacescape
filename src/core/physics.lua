@@ -15,6 +15,7 @@ physics.categories = {
     PLAYER_PROJECTILE = 0x0008, -- 8:   Projectiles fired by player
     ENEMY_PROJECTILE  = 0x0010, -- 16:  Projectiles fired by enemies
     DEBRIS           = 0x0020,  -- 32:  Non-colliding projectile shards / debris
+    WRECK            = 0x0040,  -- 64:  Loot containers / wrecks (non-colliding, selectable)
 }
 
 -- Define what each category can collide with (mask)
@@ -37,6 +38,9 @@ physics.masks = {
 
     -- Debris: no collisions (visual-only physics bodies)
     DEBRIS = 0x0000,
+
+    -- Wrecks: no collisions (kept purely for queries / click targeting)
+    WRECK = 0x0000,
 }
 
 physics.fixtureTypes = {
@@ -46,6 +50,7 @@ physics.fixtureTypes = {
     PLAYER_PROJECTILE = "playerprojectile",
     ENEMY_PROJECTILE = "enemyprojectile",
     DEBRIS = "debris",
+    WRECK = "wreck",
 }
 
 --------------------------------------------------------------------------------

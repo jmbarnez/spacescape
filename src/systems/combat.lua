@@ -1,4 +1,3 @@
-local enemyModule = require("src.entities.enemy")
 local asteroidModule = require("src.entities.asteroid")
 local projectileModule = require("src.entities.projectile")
 local wreckModule = require("src.entities.wreck")
@@ -8,6 +7,7 @@ local ecsWorld = require("src.ecs.world")
 local combat = {}
 
 local targetEnemy = nil
+local lockedTarget = nil
 local fireTimer = 0
 local fireInterval = config.combat.fireInterval
 local lockTarget = nil
@@ -16,11 +16,22 @@ local lockDuration = config.combat.lockDuration
 
 -- Helper to get current enemy/asteroid lists dynamically
 local function getEnemies()
-    return enemyModule.getList and enemyModule.getList() or enemyModule.list or {}
+    local ships = ecsWorld:query({ "ship", "faction", "position" }) or {}
+    local enemies = {}
+    for _, e in ipairs(ships) do
+        if e.faction and e.faction.name == "enemy" and not e._removed and not e.removed then
+            table.insert(enemies, e)
+        end
+    end
+    return enemies
 end
 
 local function getAsteroids()
     return asteroidModule.getList and asteroidModule.getList() or asteroidModule.list or {}
+end
+
+local function getWrecks()
+    return wreckModule.getList and wreckModule.getList() or wreckModule.list or {}
 end
 
 local function isEnemyValid(e)
@@ -43,6 +54,25 @@ local function isEnemyValid(e)
     end
 
     return false
+end
+
+local function isWreckValid(e)
+    if not e then
+        return false
+    end
+
+    local wrecks = getWrecks()
+    for i = 1, #wrecks do
+        if wrecks[i] == e then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function isLockTargetValid(e)
+    return isEnemyValid(e) or isWreckValid(e)
 end
 
 local function findEnemyAtPosition(x, y, maxRadius)
@@ -127,9 +157,13 @@ end
 function combat.updateAutoShoot(dt, player)
     -- Validate lock and active target; if either becomes invalid we clear the
     -- reference so we never try to fire at destroyed entities.
-    if lockTarget and not isEnemyValid(lockTarget) then
+    if lockTarget and not isLockTargetValid(lockTarget) then
         lockTarget = nil
         lockTimer = 0
+    end
+
+    if lockedTarget and not isLockTargetValid(lockedTarget) then
+        lockedTarget = nil
     end
 
     if targetEnemy and not isEnemyValid(targetEnemy) then
@@ -160,12 +194,18 @@ function combat.updateAutoShoot(dt, player)
     -- Handle lock-on progression. Once the lock duration is reached we
     -- promote the lock target to the active target and, if the cooldown has
     -- finished, immediately fire the first shot.
-    if lockTarget and not targetEnemy then
+    if lockTarget and (not lockedTarget or lockTarget ~= lockedTarget) then
         lockTimer = lockTimer + dt
 
         if lockDuration > 0 and lockTimer >= lockDuration then
             lockTimer = lockDuration
-            targetEnemy = lockTarget
+            lockedTarget = lockTarget
+
+            if isEnemyValid(lockTarget) then
+                targetEnemy = lockTarget
+            else
+                targetEnemy = nil
+            end
 
             -- Auto-fire a shot as soon as the player is fully locked-on,
             -- unless the weapon is still on cooldown.
@@ -209,6 +249,7 @@ function combat.handleLeftClick(worldX, worldY, selectionRadius)
             lockTarget = enemy
             lockTimer = 0
             targetEnemy = nil
+            lockedTarget = nil
         end
     else
         -- Clearing the current target/lock should also leave the cooldown
@@ -217,7 +258,19 @@ function combat.handleLeftClick(worldX, worldY, selectionRadius)
         targetEnemy = nil
         lockTarget = nil
         lockTimer = 0
+        lockedTarget = nil
     end
+end
+
+function combat.lockEntity(entity)
+    if not entity then
+        return
+    end
+
+    lockTarget = entity
+    lockTimer = 0
+    targetEnemy = nil
+    lockedTarget = nil
 end
 
 function combat.getTargetEnemy()
@@ -229,8 +282,8 @@ function combat.getTargetEnemy()
 end
 
 function combat.getLockStatus()
-    if lockTarget and isEnemyValid(lockTarget) then
-        return lockTarget, lockTimer, lockDuration, targetEnemy
+    if lockTarget and isLockTargetValid(lockTarget) then
+        return lockTarget, lockTimer, lockDuration, lockedTarget
     end
 
     return nil
@@ -253,18 +306,18 @@ function combat.getCurrentHudTarget()
     local progress = 0
 
     -- First, resolve which entity we are visually focusing on
-    if lockTarget and isEnemyValid(lockTarget) and (not targetEnemy or lockTarget ~= targetEnemy) then
+    if lockTarget and isLockTargetValid(lockTarget) and (not lockedTarget or lockTarget ~= lockedTarget) then
         currentTarget = lockTarget
         if lockDuration and lockDuration > 0 then
             progress = math.max(0, math.min(1, lockTimer / lockDuration))
             isLocking = true
         end
-    elseif targetEnemy and isEnemyValid(targetEnemy) then
-        currentTarget = targetEnemy
+    elseif lockedTarget and isLockTargetValid(lockedTarget) then
+        currentTarget = lockedTarget
     end
 
     -- Determine locked state
-    if currentTarget and not isLocking and targetEnemy and currentTarget == targetEnemy then
+    if currentTarget and not isLocking and lockedTarget and currentTarget == lockedTarget then
         isLocked = true
         progress = 1
     end
@@ -358,6 +411,7 @@ function combat.reset()
     fireTimer = 0
     lockTarget = nil
     lockTimer = 0
+    lockedTarget = nil
 end
 
 return combat

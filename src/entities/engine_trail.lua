@@ -43,16 +43,33 @@ end
 -- Spawn bubbles for a single entity (player or enemy)
 -- colorA, colorB are the gradient colors for this entity's trail
 local function spawnBubblesForEntity(entity, colorA, colorB)
-    if not entity or not entity.x or not entity.y then
+    if not entity then
         return
     end
 
-    -- Check if entity is thrusting (enemies always thrust when moving)
-    local isMoving = entity.isThrusting
+    -- ECS-aware property resolution
+    local ex = entity.position and entity.position.x or entity.x
+    local ey = entity.position and entity.position.y or entity.y
+    if ex == nil or ey == nil then
+        return
+    end
+
+    -- Check if entity is thrusting.
+    -- NOTE: This module supports BOTH:
+    --   - ECS entities where `thrust` is a component table (with `isThrusting`)
+    --   - Legacy/player state where `thrust` is a numeric power and `isThrusting`
+    --     is stored directly on the entity/state table.
+    local isMoving = nil
+    if type(entity.thrust) == "table" then
+        isMoving = entity.thrust.isThrusting
+    end
+    if isMoving == nil then
+        isMoving = entity.isThrusting
+    end
     if isMoving == nil then
         -- For enemies, check if they have velocity
-        local vx = entity.vx or 0
-        local vy = entity.vy or 0
+        local vx = (entity.velocity and entity.velocity.vx) or entity.vx or 0
+        local vy = (entity.velocity and entity.velocity.vy) or entity.vy or 0
         isMoving = (vx * vx + vy * vy) > 100
     end
 
@@ -69,8 +86,14 @@ local function spawnBubblesForEntity(entity, colorA, colorB)
     engine_trail.entityTimers[entity] = 0
 
     -- Spawn behind the entity
-    local size = entity.size or 15
-    local angle = entity.angle or 0
+    local size = 15
+    if entity.size then
+        size = type(entity.size) == "table" and (entity.size.value or 15) or entity.size
+    elseif entity.collisionRadius then
+        size = type(entity.collisionRadius) == "table" and (entity.collisionRadius.radius or 15) or entity.collisionRadius
+    end
+
+    local angle = (entity.rotation and entity.rotation.angle) or entity.angle or 0
     local offset = size * 0.85
     local baseDirX = math.cos(angle + math.pi)
     local baseDirY = math.sin(angle + math.pi)
@@ -97,8 +120,8 @@ local function spawnBubblesForEntity(entity, colorA, colorB)
         math.random() * (config.engineTrail.bubbleSizeMax - config.engineTrail.bubbleSizeMin)
 
         table.insert(engine_trail.points, 1, {
-            x = entity.x + ox,
-            y = entity.y + oy,
+            x = ex + ox,
+            y = ey + oy,
             vx = math.cos(dir) * speed,
             vy = math.sin(dir) * speed,
             life = config.engineTrail.lifetime,

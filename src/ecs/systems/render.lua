@@ -45,7 +45,7 @@ end
 --------------------------------------------------------------------------------
 
 local HealthBarSystem = Concord.system({
-    damaged = { "position", "health", "collisionRadius" },
+    damaged = { "ship", "position", "health", "collisionRadius" },
 })
 
 function HealthBarSystem:draw(colors)

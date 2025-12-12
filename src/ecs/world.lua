@@ -53,8 +53,20 @@ world:addSystems(
 -- ENTITY CREATION HELPERS
 --------------------------------------------------------------------------------
 
-function world:spawnEnemy(x, y, size)
-    return Concord.entity(self):assemble(assemblages.enemy, x, y, size)
+-- spawnEnemy(x, y, spec)
+--
+-- spec is intentionally flexible so call sites can be explicit without
+-- constantly reworking legacy code:
+--   - { def = enemyDef }   -- pass a fully-loaded enemy definition table
+--   - { id = "scout" }     -- select by enemy definition id
+--   - { size = 20 }        -- force a size override (keeps random enemy type)
+--
+-- Backward compatible legacy forms:
+--   - number -> size override
+--   - string -> enemy id
+--   - table  -> treated as a spec (or raw enemy def table)
+function world:spawnEnemy(x, y, spec)
+    return Concord.entity(self):assemble(assemblages.enemy, x, y, spec)
 end
 
 function world:spawnProjectile(shooter, targetX, targetY, targetEntity)

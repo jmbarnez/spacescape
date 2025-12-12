@@ -6,6 +6,7 @@ local lockLabelLockedAt = nil
 -- Config import used for hover selection radius, matching input selection
 -- behavior so that hovering "feels" similar to clicking.
 local config = require("src.core.config")
+local ecsWorld = require("src.ecs.world")
 
 -- Rendering constants to avoid magic numbers throughout the module
 local RENDER_CONSTANTS = {
@@ -95,11 +96,12 @@ end
 -- logic in systems/combat.lua. This keeps the hover behavior intuitive:
 -- if it would be easy to click something, it is also easy to hover it.
 local function findHoveredEntity(ctx)
-    local enemyModule = ctx.enemyModule
+    local enemyList = ctx.enemyList
     local asteroidModule = ctx.asteroidModule
+    local wreckModule = ctx.wreckModule
     local camera = ctx.camera
 
-    if not enemyModule or not asteroidModule or not camera then
+    if not enemyList or not asteroidModule or not camera then
         return nil
     end
 
@@ -155,13 +157,20 @@ local function findHoveredEntity(ctx)
     end
 
     -- Check all active enemies
-    for _, e in ipairs(enemyModule.list or {}) do
+    for _, e in ipairs(enemyList or {}) do
         considerEntity(e)
     end
 
     -- Check all active asteroids
     for _, a in ipairs(asteroidModule.list or {}) do
         considerEntity(a)
+    end
+
+    -- Check all active loot containers / wrecks
+    if wreckModule and wreckModule.list then
+        for _, w in ipairs(wreckModule.list or {}) do
+            considerEntity(w)
+        end
     end
 
     return closestEntity
@@ -175,14 +184,14 @@ local function drawTargetIndicator(colors, combatSystem, camera)
     local isLocking = false
     local progress = 0
 
-    if lockTarget and (not targetEnemy or lockTarget ~= targetEnemy) then
+    if lockTarget and (not lockedEnemy or lockTarget ~= lockedEnemy) then
         drawEnemy = lockTarget
         if lockDuration and lockDuration > 0 then
             progress = math.max(0, math.min(1, lockTimer / lockDuration))
             isLocking = true
         end
-    elseif targetEnemy then
-        drawEnemy = targetEnemy
+    elseif lockedEnemy then
+        drawEnemy = lockedEnemy
     end
 
     if not drawEnemy then
@@ -219,7 +228,7 @@ local function drawTargetIndicator(colors, combatSystem, camera)
 
     local screenRadius = (radius + RENDER_CONSTANTS.targetRing.padding) * scale
 
-    local isLocked = (not isLocking) and targetEnemy ~= nil and drawEnemy == targetEnemy
+    local isLocked = (not isLocking) and lockedEnemy ~= nil and drawEnemy == lockedEnemy
 
     if isLocked then
         if not lockLabelLockedAt then
@@ -303,7 +312,6 @@ local function drawWorldObjects(ctx)
     local itemModule = ctx.itemModule
     local projectileModule = ctx.projectileModule
     local projectileShards = ctx.projectileShards
-    local enemyModule = ctx.enemyModule
     local engineTrail = ctx.engineTrail
     local particlesModule = ctx.particlesModule
     local explosionFx = ctx.explosionFx
@@ -330,9 +338,11 @@ local function drawWorldObjects(ctx)
     if wreckModule and wreckModule.draw then
         wreckModule.draw()
     end
-    projectileModule.draw(colors)
+    -- Draw all ECS-rendered entities (projectiles + enemy ships + ship health bars)
+    ecsWorld:emit("draw", colors)
+
+    -- Projectile shards are a separate effect layer (legacy module)
     projectileShards.draw()
-    enemyModule.draw(colors, player)
 
     if gameState == "playing" or gameState == "paused" then
         engineTrail.draw()
@@ -418,7 +428,7 @@ local function drawOverlay(ctx)
     local pauseMenu = ctx.pauseMenu
     local cargoOpen = ctx.cargoOpen
     local mapOpen = ctx.mapOpen
-    local enemyModule = ctx.enemyModule
+    local enemyList = ctx.enemyList
     local asteroidModule = ctx.asteroidModule
 
     drawTargetIndicator(colors, combatSystem, camera)
@@ -426,9 +436,9 @@ local function drawOverlay(ctx)
     -- Forward enemy / asteroid lists into the HUD so widgets such as the
     -- minimap can optionally render blips for them without reaching into
     -- global modules directly.
-    local enemyList = enemyModule and enemyModule.list or nil
+    local enemyListForHud = enemyList
     local asteroidList = asteroidModule and asteroidModule.list or nil
-    ui.drawHUD(player, colors, enemyList, asteroidList)
+    ui.drawHUD(player, colors, enemyListForHud, asteroidList)
 
     -- Cargo window overlay (shown when Tab is pressed)
     if cargoOpen and gameState == "playing" then
@@ -443,7 +453,7 @@ local function drawOverlay(ctx)
     -- Full-screen world map overlay (toggled with M). This is rendered after
     -- the regular HUD so it sits on top of other UI elements.
     if mapOpen and gameState == "playing" then
-        ui.drawWorldMap(player, colors, enemyList, asteroidList)
+        ui.drawWorldMap(player, colors, enemyListForHud, asteroidList)
     end
 
     if gameState == "gameover" then

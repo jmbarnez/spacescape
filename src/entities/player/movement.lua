@@ -145,22 +145,31 @@ function movement.update(state, dt, world)
     --------------------------------------------------------------------------
     if state.lootTarget and not state.isLooting then
         local lw = state.lootTarget
-        local ldx = lw.x - state.x
-        local ldy = lw.y - state.y
-        local lootDist = math.sqrt(ldx * ldx + ldy * ldy)
-        local lootRange = wreckModule.getLootRange()
-        if lootDist <= lootRange then
-            state.isLooting = true
-            -- Stop movement when reaching the wreck
-            state.targetX = state.x
-            state.targetY = state.y
+        local lx = lw.position and lw.position.x or lw.x
+        local ly = lw.position and lw.position.y or lw.y
+        if lx and ly then
+            -- Keep chasing the loot target as it drifts so the player doesn't
+            -- end up stopping short of the actual wreck.
+            state.targetX = lx
+            state.targetY = ly
+
+            local ldx = lx - state.x
+            local ldy = ly - state.y
+            local lootDist = math.sqrt(ldx * ldx + ldy * ldy)
+            local lootRange = wreckModule.getLootRange()
+            if lootDist <= lootRange then
+                state.isLooting = true
+                -- Stop movement when reaching the wreck
+                state.targetX = state.x
+                state.targetY = state.y
+            end
         end
     end
 
     -- Validate loot target still exists
     if state.lootTarget then
         local found = false
-        for _, w in ipairs(wreckModule.list) do
+        for _, w in ipairs((wreckModule.getList and wreckModule.getList()) or wreckModule.list or {}) do
             if w == state.lootTarget then
                 found = true
                 break

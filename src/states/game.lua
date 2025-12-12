@@ -3,7 +3,6 @@
 
 -- Module imports
 local playerModule = require("src.entities.player")
-local enemyModule = require("src.entities.enemy")
 local asteroidModule = require("src.entities.asteroid")
 local ui = require("src.render.hud")
 local windowManager = require("src.render.hud.window_manager")
@@ -29,6 +28,34 @@ local shieldImpactFx = require("src.entities.shield_impact_fx")
 local floatingText = require("src.entities.floating_text")
 local gameRender = require("src.states.game_render")
 local ecsWorld = require("src.ecs.world")
+
+local function getEnemyEntities()
+	local ships = ecsWorld:query({ "ship", "faction", "position" }) or {}
+	local enemies = {}
+	for _, e in ipairs(ships) do
+		if e.faction and e.faction.name == "enemy" and not e._removed and not e.removed then
+			table.insert(enemies, e)
+		end
+	end
+	return enemies
+end
+
+local function clearEnemyEntities()
+	local enemies = getEnemyEntities()
+	for i = #enemies, 1, -1 do
+		local e = enemies[i]
+		if e and e.physics and e.physics.body then
+			pcall(function()
+				if e.physics.body.isDestroyed and not e.physics.body:isDestroyed() then
+					e.physics.body:destroy()
+				end
+			end)
+		end
+		if e and e.destroy then
+			e:destroy()
+		end
+	end
+end
 
 local ecsPlayerProxy = {
 	position = { x = 0, y = 0 }
@@ -83,7 +110,7 @@ local function registerUpdateSystems()
 	end, 30)
 
 	systems.registerUpdate("engineTrail", function(dt, ctx)
-		engineTrail.update(dt, ctx.player, enemyModule.list)
+		engineTrail.update(dt, ctx.player, getEnemyEntities())
 	end, 40)
 
 	systems.registerUpdate("camera", function(dt, ctx)
@@ -105,10 +132,6 @@ local function registerUpdateSystems()
 	systems.registerUpdate("projectileShards", function(dt, ctx)
 		projectileShards.update(dt)
 	end, 85)
-
-	systems.registerUpdate("enemies", function(dt, ctx)
-		enemyModule.update(dt, ctx.player, ctx.world)
-	end, 90)
 
 	systems.registerUpdate("particles", function(dt, ctx)
 		particlesModule.update(dt)
@@ -357,7 +380,6 @@ function game.restartGame()
 
 	projectileModule.clear()
 	projectileShards.clear()
-	enemyModule.clear()
 	asteroidModule.clear()
 	particlesModule.clear()
 	itemModule.clear()
@@ -367,6 +389,7 @@ function game.restartGame()
 	shieldImpactFx.clear()
 	floatingText.clear()
 	collisionSystem.clear()
+	clearEnemyEntities()
 	ecsWorld:clear()
 
 	spawnSystem.reset()
@@ -393,7 +416,7 @@ function game.draw()
 		wreckModule = wreckModule,
 		projectileModule = projectileModule,
 		projectileShards = projectileShards,
-		enemyModule = enemyModule,
+		enemyList = getEnemyEntities(),
 		engineTrail = engineTrail,
 		particlesModule = particlesModule,
 		explosionFx = explosionFx,

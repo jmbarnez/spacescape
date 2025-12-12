@@ -1,7 +1,7 @@
 local config = require("src.core.config")
 local world = require("src.core.world")
+local ecsWorld = require("src.ecs.world")
 
-local enemyModule = require("src.entities.enemy")
 local asteroidModule = require("src.entities.asteroid")
 local playerModule = require("src.entities.player")
 
@@ -9,6 +9,35 @@ local spawn = {}
 
 -- Internal timer for periodic enemy spawns.
 local spawnTimer = 0
+
+local function getEnemyEntities()
+    local ships = ecsWorld:query({ "ship", "faction", "position" }) or {}
+    local enemies = {}
+    for _, e in ipairs(ships) do
+        if e.faction and e.faction.name == "enemy" and not e._removed and not e.removed then
+            table.insert(enemies, e)
+        end
+    end
+    return enemies
+end
+
+local function safeDestroyEcsEntity(e)
+    if not e then
+        return
+    end
+
+    if e.physics and e.physics.body then
+        pcall(function()
+            if e.physics.body.isDestroyed and not e.physics.body:isDestroyed() then
+                e.physics.body:destroy()
+            end
+        end)
+    end
+
+    if e.destroy then
+        e:destroy()
+    end
+end
 
 -- Helper: get a stable player position for spawn calculations.
 local function getPlayerPos()
@@ -61,9 +90,7 @@ local function spawnOneEnemy()
     local safeRadius = (config.spawn and config.spawn.safeEnemyRadius) or 0
     local x, y = pickSpawnPointOutsideRadius(safeRadius)
 
-    -- Pass explicit coordinates so the enemy module does not need to infer
-    -- spawn locations from world.centerX/centerY.
-    enemyModule.spawn(nil, nil, nil, x, y)
+    ecsWorld:spawnEnemy(x, y, nil)
 end
 
 -- Reset spawn state and (re)populate initial entities.
@@ -71,8 +98,9 @@ function spawn.reset()
     spawnTimer = 0
 
     -- Reset the population so restarts are deterministic and don't accumulate.
-    if enemyModule.clear then
-        enemyModule.clear()
+    local enemies = getEnemyEntities()
+    for i = #enemies, 1, -1 do
+        safeDestroyEcsEntity(enemies[i])
     end
 
     if asteroidModule.populate then
@@ -97,7 +125,7 @@ function spawn.update(dt)
     while spawnTimer >= interval do
         spawnTimer = spawnTimer - interval
 
-        local enemies = enemyModule.getList and enemyModule.getList() or enemyModule.list or {}
+        local enemies = getEnemyEntities()
         local maxEnemies = (config.spawn and config.spawn.maxEnemies) or 0
         if maxEnemies > 0 and #enemies >= maxEnemies then
             -- Already at cap.
@@ -110,7 +138,7 @@ function spawn.update(dt)
         end
 
         for _ = 1, perSpawn do
-            enemies = enemyModule.getList and enemyModule.getList() or enemyModule.list or {}
+            enemies = getEnemyEntities()
             if maxEnemies > 0 and #enemies >= maxEnemies then
                 break
             end

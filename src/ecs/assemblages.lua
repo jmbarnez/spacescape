@@ -97,25 +97,57 @@ function assemblages.enemy(e, x, y, shipSize)
     local enemyConfig = config.enemy
     local consts = physics.constants
 
-    -- shipSize is historically a numeric size override, but to keep the API
-    -- flexible we also accept:
-    --   - string: enemy definition id (e.g. "scout")
-    --   - table:  { id = "scout", size = 20 }
+    -- shipSize is historically a numeric size override, but we now treat the
+    -- 3rd parameter as a flexible spawn "spec":
+    --   - { def = enemyDef }   -- explicit definition table
+    --   - { id = "scout" }     -- select by enemy definition id
+    --   - { size = 20 }        -- size override while keeping random enemy type
+    --
+    -- Backward compatible legacy forms:
+    --   - number -> size override
+    --   - string -> enemy id
+    --   - table  -> spec (or raw enemyDef table)
     local sizeOverride = nil
     local defId = nil
+    local def = nil
+
     if type(shipSize) == "number" then
         sizeOverride = shipSize
     elseif type(shipSize) == "string" then
         defId = shipSize
     elseif type(shipSize) == "table" then
-        defId = shipSize.id or shipSize.enemyId or shipSize.defId
-        sizeOverride = shipSize.size
+        -- Explicit spec wrapper.
+        if shipSize.def or shipSize.enemyDef then
+            def = shipSize.def or shipSize.enemyDef
+            defId = shipSize.id or shipSize.enemyId or shipSize.defId
+            sizeOverride = shipSize.size
+        else
+            -- Spec shape.
+            defId = shipSize.id or shipSize.enemyId or shipSize.defId
+            sizeOverride = shipSize.size
+
+            -- If the table looks like a raw enemy definition (as stored in
+            -- src/data/enemies/*.lua), treat it as the definition directly.
+            if not defId and shipSize.shipBlueprint then
+                def = shipSize
+            end
+        end
     end
 
-    local def = pickEnemyDef(defId)
+    def = def or pickEnemyDef(defId)
     if not def then
         return
     end
+
+    ------------------------------------------------------------------------
+    -- Definition reference
+    --
+    -- Store the resolved enemy definition on the entity so other systems
+    -- (legacy collision rewards, loot drops, UI, etc.) can read per-enemy
+    -- tuning values without having to re-resolve the definition.
+    ------------------------------------------------------------------------
+    e.enemyDef = def
+    e.enemyDefId = def.id
 
     ------------------------------------------------------------------------
     -- Level + size
@@ -202,6 +234,10 @@ function assemblages.enemy(e, x, y, shipSize)
         :give("tokenReward", (def.rewards and def.rewards.tokens) or config.player.tokensPerEnemy or 0)
         :give("damping", 0.8)
 
+    if def.respawn then
+        e:give("respawnOnDeath", def.respawn.delay, def)
+    end
+
     if def.rewards and def.rewards.loot then
         e:give("loot", def.rewards.loot.cargo, def.rewards.loot.coins)
     end
@@ -287,12 +323,59 @@ end
 --------------------------------------------------------------------------------
 
 function assemblages.wreck(e, x, y, cargo, coins)
+    -- Wrecks are loot containers: they drift slowly, can be clicked/hovered,
+    -- and can be target-locked (for UX parity with asteroids/enemies), but
+    -- they do not participate in combat collisions.
+    local size = 24
+    local collisionRadius = size
+
+    -- Random slow drift + slow rotation so wrecks feel like debris.
+    local driftSpeed = 8
+    local driftAngle = math.random() * math.pi * 2
+    local rotationSpeed = (math.random() - 0.5) * 0.3
+
     e:give("position", x, y)
+        :give("rotation", math.random() * math.pi * 2)
         :give("wreck")
         :give("loot", cargo or {}, coins or 0)
-        :give("lifetime", 120)
-        :give("size", 20)
-        :give("collisionRadius", 20)
+        :give("lifetime", 180)
+        :give("size", size)
+        :give("collisionRadius", collisionRadius)
+
+    -- Drift velocity is stored as plain fields to avoid being double-integrated
+    -- by the ECS movement system and the legacy wreck update loop.
+    e.vx = math.cos(driftAngle) * driftSpeed
+    e.vy = math.sin(driftAngle) * driftSpeed
+
+    -- Store total lifetime as a plain entity field so legacy-style draw code
+    -- can fade out near expiry without needing a second ECS component.
+    e.lifetimeTotal = 180
+
+    -- Stored on the entity (not a component) because it is purely visual.
+    e.rotationSpeed = rotationSpeed
+
+    -- Provide collision vertices for the hover outline renderer so wrecks
+    -- get the same nice polygon outline behavior as ships/asteroids.
+    local half = size / 2
+    e.collisionVertices = {
+        -half, -half,
+        half, -half,
+        half, half,
+        -half, half,
+    }
+
+    -- Create a non-colliding sensor body so wrecks are still represented in
+    -- the physics world (and can be queried/debugged consistently).
+    local body, shape, fixture = physics.createCircleBody(
+        x, y, collisionRadius,
+        "WRECK",
+        e,
+        { isSensor = true, bodyType = "dynamic" }
+    )
+
+    if body then
+        e:give("physics", body, shape and { shape } or nil, fixture and { fixture } or nil)
+    end
 end
 
 --------------------------------------------------------------------------------

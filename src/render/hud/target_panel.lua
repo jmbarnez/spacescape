@@ -58,6 +58,8 @@ function target_panel.draw(colors)
 
     if factionName == "enemy" then
         typeLabel = "Enemy Ship"
+    elseif target.wreck or (target.loot and target.loot.cargo) then
+        typeLabel = "Loot Container"
     elseif target.collisionRadius and not shipData then
         -- Asteroids have collisionRadius and no ship field in this project
         typeLabel = "Asteroid"
@@ -113,6 +115,8 @@ function target_panel.draw(colors)
         secondaryText = "Composition: " .. compositionText
     elseif typeLabel == "Enemy Ship" then
         secondaryText = "Hostile vessel locked"
+    elseif typeLabel == "Loot Container" then
+        secondaryText = "Salvage available"
     else
         secondaryText = nil
     end
