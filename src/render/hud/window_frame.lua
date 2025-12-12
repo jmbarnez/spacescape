@@ -54,6 +54,13 @@ local function computeLayout(state, opts)
     local windowStyle = ui_theme.window
     local topBarHeight = windowStyle.topBarHeight or 40
     local bottomBarHeight = windowStyle.bottomBarHeight or 36
+    if opts then
+        if opts.hideBottomBar then
+            bottomBarHeight = 0
+        elseif opts.bottomBarHeight ~= nil then
+            bottomBarHeight = opts.bottomBarHeight
+        end
+    end
 
     local panelX, panelY, panelWidth, panelHeight = computePanelRect(state, opts)
 
@@ -178,28 +185,30 @@ function window_frame.draw(state, opts, colors)
     )
 
     -- Bottom bar
-    love.graphics.setColor(
-        windowStyle.bottomBar[1],
-        windowStyle.bottomBar[2],
-        windowStyle.bottomBar[3],
-        windowStyle.bottomBar[4]
-    )
-    love.graphics.rectangle(
-        "fill",
-        layout.panelX,
-        layout.bottomBarY,
-        layout.panelWidth,
-        layout.bottomBarHeight,
-        radius,
-        radius
-    )
-    love.graphics.rectangle(
-        "fill",
-        layout.panelX,
-        layout.bottomBarY,
-        layout.panelWidth,
-        radius
-    )
+    if layout.bottomBarHeight and layout.bottomBarHeight > 0 then
+        love.graphics.setColor(
+            windowStyle.bottomBar[1],
+            windowStyle.bottomBar[2],
+            windowStyle.bottomBar[3],
+            windowStyle.bottomBar[4]
+        )
+        love.graphics.rectangle(
+            "fill",
+            layout.panelX,
+            layout.bottomBarY,
+            layout.panelWidth,
+            layout.bottomBarHeight,
+            radius,
+            radius
+        )
+        love.graphics.rectangle(
+            "fill",
+            layout.panelX,
+            layout.bottomBarY,
+            layout.panelWidth,
+            radius
+        )
+    end
 
     -- Border
     local borderColor = windowStyle.border or colors.uiPanelBorder or { 1, 1, 1, 0.5 }
@@ -218,8 +227,9 @@ function window_frame.draw(state, opts, colors)
     --------------------------------------------------------------------------
     -- Title + close button + bottom hint
     --------------------------------------------------------------------------
-    local title = opts.title or "WINDOW"
-    local hint = opts.hint
+    local title = (opts and opts.title) or "WINDOW"
+    local hint = opts and opts.hint
+    local showHint = opts and opts.showHint
 
     -- Title
     love.graphics.setColor(colors.uiText[1], colors.uiText[2], colors.uiText[3], 1.0)
@@ -258,7 +268,7 @@ function window_frame.draw(state, opts, colors)
     love.graphics.line(closeX + closeW - pad, closeY + pad, closeX + pad, closeY + closeH - pad)
 
     -- Bottom hint text, centered in the bottom bar
-    if hint and hint ~= "" then
+    if showHint and hint and hint ~= "" then
         local hintWidth = font:getWidth(hint)
         local hintX = layout.panelX + (layout.panelWidth - hintWidth) / 2
         local hintY = layout.bottomBarY + (layout.bottomBarHeight - font:getHeight()) / 2

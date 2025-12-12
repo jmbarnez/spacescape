@@ -211,6 +211,7 @@ function ship.buildInstanceFromBlueprint(blueprint, size, overrides)
         id       = blueprint.id,
         role     = (overrides and overrides.role) or blueprint.role,
         class    = blueprint.class,
+        palette  = blueprint.palette,
         baseSize = blueprint.baseSize,
         size     = s,
         tags     = blueprint.tags,

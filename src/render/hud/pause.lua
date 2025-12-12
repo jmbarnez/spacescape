@@ -17,24 +17,24 @@ local windowState = {
 
 -- Layout / presentation options for the pause window.
 local WINDOW_OPTS = {
-	minWidth = 360,
-	minHeight = 220,
+	minWidth = 240,
+	minHeight = 120,
 	screenMargin = 80,
 	title = "PAUSED",
-	hint = "Esc: Resume  |  Click a button",
+	hint = nil,
 }
 
 -- Menu layout constants inside the pause window content area.
-local MENU_TOP_PADDING = 32
-local MENU_SPACING = 34
-local BUTTON_PADDING_X = 18
-local BUTTON_PADDING_Y = 6
+local MENU_TOP_PADDING = 14
+local MENU_SPACING = 40
+local BUTTON_PADDING_X = 26
+local BUTTON_PADDING_Y = 10
 
 local function computeWindowOptionsForMenu(menu)
 	local font = love.graphics.getFont()
 	local windowStyle = ui_theme.window
 	local topBarHeight = windowStyle.topBarHeight or 40
-	local bottomBarHeight = windowStyle.bottomBarHeight or 36
+	local bottomBarHeight = 0
 
 	local panelWidth = WINDOW_OPTS.minWidth
 	local panelHeight = WINDOW_OPTS.minHeight
@@ -61,7 +61,7 @@ local function computeWindowOptionsForMenu(menu)
 			marginTop = 0
 		end
 		local contentHeight = marginTop * 2 + groupHeight
-		local contentWidth = rectW + 32
+		local contentWidth = rectW + 24
 
 		panelWidth = math.max(panelWidth, contentWidth)
 		panelHeight = math.max(panelHeight, topBarHeight + contentHeight + bottomBarHeight)
@@ -73,6 +73,7 @@ local function computeWindowOptionsForMenu(menu)
 		screenMargin = WINDOW_OPTS.screenMargin,
 		title = WINDOW_OPTS.title,
 		hint = WINDOW_OPTS.hint,
+		hideBottomBar = true,
 		dimmer = true,
 	}
 

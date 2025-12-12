@@ -50,6 +50,9 @@ local windows = {
         mousemoved = function(x, y)
             hud_world_map.mousemoved(x, y)
         end,
+        wheelmoved = function(x, y)
+            return hud_world_map.wheelmoved(x, y)
+        end,
     },
 
     cargo = {
@@ -291,6 +294,32 @@ function window_manager.mousereleased(uiCtx, x, y, button)
     end
 
     return handled
+end
+
+--- Handle mouse wheel events for HUD windows.
+--
+-- This is intended to be called from game.wheelmoved before any gameplay
+-- camera zoom is applied. When the world map is open, the wheel should zoom
+-- the map instead of the gameplay camera.
+function window_manager.wheelmoved(uiCtx, x, y)
+    if uiCtx.gameState == "gameover" then
+        return false
+    end
+
+    if uiCtx.gameState ~= "playing" then
+        return false
+    end
+
+    for _, win in ipairs(getWindowsInZOrderDescending()) do
+        if win.isOpen and win.wheelmoved then
+            local handled = win.wheelmoved(x, y)
+            if handled then
+                return true
+            end
+        end
+    end
+
+    return false
 end
 
 --- Handle mouse move for all HUD windows.

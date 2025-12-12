@@ -286,6 +286,13 @@ function game.wheelmoved(x, y)
 		return
 	end
 
+	local uiCtx = createUiContext()
+	local handled = windowManager.wheelmoved(uiCtx, x, y)
+	applyUiContext(uiCtx)
+	if handled then
+		return
+	end
+
 	inputSystem.wheelmoved(x, y, camera)
 end
 

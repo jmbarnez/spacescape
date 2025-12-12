@@ -9,9 +9,10 @@ local ecsWorld = require("src.ecs.world")
 local assemblages = require("src.ecs.assemblages")
 local Concord = require("lib.concord")
 local physics = require("src.core.physics")
+local core_ship = require("src.core.ship")
 local config = require("src.core.config")
 local weapons = require("src.core.weapons")
-local ship_generator = require("src.utils.procedural_ship_generator")
+local enemyDefs = require("src.data.enemies")
 local ship_renderer = require("src.render.ship_renderer")
 local baseColors = require("src.core.colors")
 
@@ -47,6 +48,36 @@ setmetatable(enemy, {
 --------------------------------------------------------------------------------
 -- SPAWN
 --------------------------------------------------------------------------------
+
+-- NOTE: Enemy spawning is now data-driven.
+--
+-- The spawn pipeline is:
+--   spawnSystem -> enemy.spawn(...) -> pick enemy definition -> build ship
+--
+-- Enemy definitions live in:
+--   src/data/enemies/*.lua
+-- and reference ship blueprints in:
+--   src/data/ships/*.lua
+--
+-- This replaces procedural ship generation so ship design, level range, stats,
+-- and rewards can be authored explicitly.
+
+local function randFloat(min, max)
+    if min == nil and max == nil then
+        return 0
+    end
+    if max == nil then
+        return min
+    end
+    return min + math.random() * (max - min)
+end
+
+local function pickEnemyDef()
+    if enemyDefs and enemyDefs.list and #enemyDefs.list > 0 then
+        return enemyDefs.list[math.random(1, #enemyDefs.list)]
+    end
+    return enemyDefs and enemyDefs.default or nil
+end
 
 function enemy.spawn(world, safeRadius)
     local x, y
@@ -88,42 +119,80 @@ function enemy.spawn(world, safeRadius)
     end
 
     local enemyConfig = config.enemy
-    local size = enemyConfig.sizeMin + math.random() * (enemyConfig.sizeMax - enemyConfig.sizeMin)
-    local ship = ship_generator.generate(size)
-    local maxHealth = enemyConfig.maxHealth
-    local collisionRadius = (ship and ship.boundingRadius) or size
     local consts = physics.constants
 
-    local levelMin = enemyConfig.levelMin or 1
-    local levelMax = enemyConfig.levelMax or levelMin
+    ------------------------------------------------------------------------
+    -- Select which enemy type to spawn (data-driven)
+    ------------------------------------------------------------------------
+    local def = pickEnemyDef()
+    if not def then
+        -- No enemy definitions available; bail safely.
+        return nil
+    end
+
+    ------------------------------------------------------------------------
+    -- Level + size
+    ------------------------------------------------------------------------
+    local levelMin = (def.levelRange and def.levelRange.min) or enemyConfig.levelMin or 1
+    local levelMax = (def.levelRange and def.levelRange.max) or enemyConfig.levelMax or levelMin
+    if levelMax < levelMin then
+        levelMax = levelMin
+    end
+
     local level = math.random(levelMin, levelMax)
     local levelStep = level - 1
 
-    local healthPerLevel = enemyConfig.healthPerLevel or 0
+    local sizeMin = (def.sizeRange and def.sizeRange.min) or enemyConfig.sizeMin
+    local sizeMax = (def.sizeRange and def.sizeRange.max) or enemyConfig.sizeMax
+    local size = randFloat(sizeMin, sizeMax)
+
+    ------------------------------------------------------------------------
+    -- Ship design (authored blueprint -> concrete instance)
+    ------------------------------------------------------------------------
+    local shipBlueprint = def.shipBlueprint
+    local ship = core_ship.buildInstanceFromBlueprint(shipBlueprint, size)
+    local collisionRadius = (ship and ship.boundingRadius) or size
+
+    ------------------------------------------------------------------------
+    -- Health scaling
+    ------------------------------------------------------------------------
+    local baseHealth = (def.health and def.health.base) or enemyConfig.maxHealth
+    local healthPerLevel = (def.health and def.health.perLevel) or enemyConfig.healthPerLevel or 0
+    local maxHealth = baseHealth
     if levelStep > 0 and healthPerLevel ~= 0 then
         maxHealth = maxHealth * (1 + levelStep * healthPerLevel)
     end
 
-    local detectionRange = enemyConfig.detectionRange
-    local attackRange = enemyConfig.attackRange
-    local detectionPerLevel = enemyConfig.detectionRangePerLevel or 0
-    local attackPerLevel = enemyConfig.attackRangePerLevel or 0
-    if levelStep > 0 then
-        if detectionRange and detectionPerLevel ~= 0 then
-            detectionRange = detectionRange * (1 + levelStep * detectionPerLevel)
-        end
-        if attackRange and attackPerLevel ~= 0 then
-            attackRange = attackRange * (1 + levelStep * attackPerLevel)
-        end
+    ------------------------------------------------------------------------
+    -- AI ranges
+    --
+    -- Detection scaling is disabled globally via config (and can be authored
+    -- per enemy definition). Attack range may still scale if desired.
+    ------------------------------------------------------------------------
+    local detectionRange = (def.ai and def.ai.detectionRange) or enemyConfig.detectionRange
+    local attackRange = (def.ai and def.ai.attackRange) or enemyConfig.attackRange
+    local attackPerLevel = (def.ai and def.ai.attackRangePerLevel) or enemyConfig.attackRangePerLevel or 0
+    if levelStep > 0 and attackPerLevel ~= 0 then
+        attackRange = attackRange * (1 + levelStep * attackPerLevel)
     end
 
-    local baseWeapon = weapons.enemyPulseLaser
+    ------------------------------------------------------------------------
+    -- Weapon selection
+    ------------------------------------------------------------------------
+    local weaponId = (def.weapon and def.weapon.id) or "enemyPulseLaser"
+    local baseWeapon = weapons[weaponId] or weapons.enemyPulseLaser
     local weaponData = {}
     if baseWeapon then
         for k, v in pairs(baseWeapon) do
             weaponData[k] = v
         end
-        local damagePerLevel = enemyConfig.weaponDamagePerLevel or 0
+
+        -- Optional per-enemy damage override.
+        if def.weapon and def.weapon.damage ~= nil then
+            weaponData.damage = def.weapon.damage
+        end
+
+        local damagePerLevel = (def.weapon and def.weapon.damagePerLevel) or enemyConfig.weaponDamagePerLevel or 0
         local baseDamage = weaponData.damage or 1
         if levelStep > 0 and damagePerLevel ~= 0 then
             weaponData.damage = baseDamage * (1 + levelStep * damagePerLevel)
@@ -152,25 +221,28 @@ function enemy.spawn(world, safeRadius)
             enemyConfig.wanderIntervalBase + math.random() * enemyConfig.wanderIntervalRandom,
             enemyConfig.wanderRadius)
         :give("spawnPosition", x, y)
-        :give("xpReward", config.player.xpPerEnemy or 0)
-        :give("tokenReward", config.player.tokensPerEnemy or 0)
+        :give("xpReward", (def.rewards and def.rewards.xp) or config.player.xpPerEnemy or 0)
+        :give("tokenReward", (def.rewards and def.rewards.tokens) or config.player.tokensPerEnemy or 0)
         :give("damping", 0.8)
+
+    -- Optional loot definition (spawns a wreck via RewardSystem on death).
+    if def.rewards and def.rewards.loot then
+        local cargo = def.rewards.loot.cargo
+        local coins = def.rewards.loot.coins
+        e:give("loot", cargo, coins)
+    end
 
     -- Create physics body
     local collisionVertices = nil
-    if ship then
-        if ship.collisionVertices and #ship.collisionVertices >= 6 then
-            collisionVertices = ship.collisionVertices
-        elseif ship.hull and ship.hull.points then
-            collisionVertices = ship_generator.getBaseOutline(ship)
-        end
+    if ship and ship.collisionVertices and #ship.collisionVertices >= 6 then
+        collisionVertices = ship.collisionVertices
     end
 
     local body, shapes, fixtures
     if collisionVertices and #collisionVertices >= 6 then
-        body, shapes, fixtures = physics.createPolygonBody(x, y, collisionVertices, "ENEMY", e)
+        body, shapes, fixtures = physics.createPolygonBody(x, y, collisionVertices, "ENEMY", e, {})
     else
-        local b, s, f = physics.createCircleBody(x, y, collisionRadius, "ENEMY", e)
+        local b, s, f = physics.createCircleBody(x, y, collisionRadius, "ENEMY", e, {})
         body = b
         shapes = s and { s } or nil
         fixtures = f and { f } or nil

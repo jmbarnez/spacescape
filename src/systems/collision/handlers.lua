@@ -283,7 +283,13 @@ end
 --- @param contactY number Contact point Y (optional)
 --- @param context table Runtime context
 function handlers.handleEnemyProjectileVsPlayer(projectile, player, contactX, contactY, context)
-    local playerRadius = player.size or utils.getBoundingRadius(player)
+    -- Prefer the computed bounding/collision radius over player.size.
+    --
+    -- player.size is the base ship size, but the actual collision silhouette
+    -- (and therefore the shield ring size) is derived from the built ship
+    -- geometry. Using the bounding radius keeps enemy hits visually consistent
+    -- with player projectile impacts.
+    local playerRadius = utils.getBoundingRadius(player) or player.size
 
     handlers.resolveProjectileHit(projectile, player, contactX, contactY, playerRadius, {
         canMiss = false,
