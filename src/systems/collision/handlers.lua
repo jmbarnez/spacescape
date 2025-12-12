@@ -339,8 +339,8 @@ function handlers.handleProjectileVsAsteroid(projectile, asteroid, contactX, con
             local ownerFaction = owner and utils.getFaction(owner) or "player"
             if ownerFaction ~= "enemy" then
                 local xp = config.player.xpPerAsteroid or 0
-                local tokens = config.player.tokensPerAsteroid or 0
-                damageModule.awardXpAndTokensOnKill(xp, tokens)
+                -- Asteroids should not award tokens/currency; only XP + item/resources.
+                damageModule.awardXpAndTokensOnKill(xp, 0)
                 local resources = damageModule.computeAsteroidResourceYield(target, radius)
                 damageModule.spawnResourceChunksAt(tx, ty, resources)
             end

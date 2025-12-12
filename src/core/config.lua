@@ -30,7 +30,8 @@ local config = {
         xpPerEnemy = 25,
         xpPerAsteroid = 5,
         tokensPerEnemy = 1,
-        tokensPerAsteroid = 1,
+        -- Asteroids should not award tokens/currency; only XP + resource/item drops.
+        tokensPerAsteroid = 0,
         -- Radius (in world units) around the player ship within which loose
         -- item pickups (XP shards, future resources) begin to feel the
         -- magnetic pull.
