@@ -158,8 +158,12 @@ function player.setLootTarget(wreck)
     local p = player.state
     p.lootTarget = wreck
     p.isLooting = false
-    -- Set movement target to the wreck position
-    movement.setTarget(p, wreck.x, wreck.y)
+    -- Set movement target to the wreck position (ECS position component)
+    local wx = wreck.position and wreck.position.x or wreck.x
+    local wy = wreck.position and wreck.position.y or wreck.y
+    if wx and wy then
+        movement.setTarget(p, wx, wy)
+    end
 end
 
 --- Clear the current loot target

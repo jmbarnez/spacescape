@@ -10,8 +10,8 @@ local config = require("src.core.config")
 local playerModule = require("src.entities.player")
 local floatingText = require("src.entities.floating_text")
 local colors = require("src.core.colors")
-local resourceDefs = require("src.data.mining.resources")
-local item_icons = require("src.render.item_icons")
+local itemDefs = require("src.data.items")
+local icon_renderer = require("src.render.icon_renderer")
 
 --------------------------------------------------------------------------------
 -- INTERNAL CONFIG HELPERS
@@ -28,15 +28,15 @@ local function getPlayerConfig()
     return config.player or {}
 end
 
--- Resolve a resource definition table for the given resource id. This keeps
+-- Resolve an item definition table for the given item type. This keeps
 -- all hard data (names, colours, rarity, icon hints) in the dedicated data
 -- module so gameplay/render code can stay generic.
-local function getResourceDef(resourceType)
-    if not resourceType then
-        return resourceDefs.default or resourceDefs.stone or {}
+local function getItemDef(itemType)
+    if not itemType then
+        return itemDefs.default or itemDefs.stone or {}
     end
 
-    return resourceDefs[resourceType] or resourceDefs.default or resourceDefs.stone or {}
+    return itemDefs[itemType] or itemDefs.default or itemDefs.stone or {}
 end
 
 --------------------------------------------------------------------------------
@@ -115,7 +115,7 @@ local function applyPickupEffect(pickup, player)
         if amount > 0 and playerModule.addCargoResource then
             local added = playerModule.addCargoResource(resourceType, amount)
             if added and added > 0 then
-                local def = getResourceDef(resourceType)
+                local def = getItemDef(resourceType)
                 local label = def.displayName or def.name or tostring(resourceType)
                 local baseText = label
                 local textColor = colors.health or colors.white
@@ -324,13 +324,16 @@ function item.draw(palette)
         local pulse = (math.sin(age * 3.2) + 1) * 0.5
 
         if it.itemType == "resource" then
-            local def = getResourceDef(it.resourceType)
-            item_icons.drawResource(it, def, col, baseRadius, pulse)
+            icon_renderer.draw(it.resourceType, {
+                x = it.x,
+                y = it.y,
+                size = baseRadius,
+                context = "inspace",
+                age = age,
+                pulse = pulse,
+            })
         else
-            -- Legacy / fallback path (e.g. XP shards if they are ever reused).
-            -- We simply use the generic resource icon when no specific
-            -- definition is available.
-            item_icons.drawResource(it, nil, col, baseRadius, pulse)
+            icon_renderer.drawUnknown(it.x, it.y, baseRadius)
         end
     end
 

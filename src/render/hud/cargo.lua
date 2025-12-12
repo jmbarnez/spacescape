@@ -4,9 +4,8 @@ local ui_theme = require("src.core.ui_theme")
 local window_frame = require("src.render.hud.window_frame")
 local camera = require("src.core.camera")
 local itemModule = require("src.entities.item")
-local resourceDefs = require("src.data.mining.resources")
-local item_icons = require("src.render.item_icons")
-local item_icon = require("src.render.item_icon")
+local itemDefs = require("src.data.items")
+local icon_renderer = require("src.render.icon_renderer")
 
 --------------------------------------------------------------------------------
 -- WINDOW STATE
@@ -42,115 +41,6 @@ local PANEL_WIDTH = GRID_WIDTH + PANEL_PADDING * 2
 local PANEL_HEIGHT = TOP_BAR_HEIGHT + GRID_HEIGHT + PANEL_PADDING * 2 + BOTTOM_BAR_HEIGHT
 
 --------------------------------------------------------------------------------
--- RESOURCE ICON DRAWERS
---------------------------------------------------------------------------------
-
-local function drawStoneIcon(cx, cy, size)
-    local segments = 6
-    local points = {}
-    for i = 0, segments - 1 do
-        local t = i / segments
-        local angle = t * math.pi * 2
-        local noise = 1 + math.sin(i * 2.1) * 0.3
-        local pr = size * (0.7 + 0.3 * noise)
-        points[#points + 1] = cx + math.cos(angle) * pr
-        points[#points + 1] = cy + math.sin(angle) * pr
-    end
-    love.graphics.setColor(0.55, 0.50, 0.44, 1.0)
-    love.graphics.polygon("fill", points)
-    love.graphics.setColor(0.25, 0.22, 0.18, 0.9)
-    love.graphics.setLineWidth(2)
-    love.graphics.polygon("line", points)
-end
-
-local function drawIceIcon(cx, cy, size)
-    local segments = 6
-    local points = {}
-    for i = 0, segments - 1 do
-        local t = i / segments
-        local angle = t * math.pi * 2
-        local noise = 1 + math.sin(i * 2.7) * 0.2
-        local pr = size * (0.75 + 0.25 * noise)
-        points[#points + 1] = cx + math.cos(angle) * pr
-        points[#points + 1] = cy + math.sin(angle) * pr
-    end
-    love.graphics.setColor(0.78, 0.86, 0.96, 1.0)
-    love.graphics.polygon("fill", points)
-    love.graphics.setColor(0.30, 0.40, 0.55, 0.9)
-    love.graphics.setLineWidth(2)
-    love.graphics.polygon("line", points)
-end
-
-local function drawMithrilIcon(cx, cy, size)
-    local topX, topY = cx, cy - size
-    local rightX, rightY = cx + size * 0.75, cy
-    local bottomX, bottomY = cx, cy + size * 1.1
-    local leftX, leftY = cx - size * 0.75, cy
-
-    love.graphics.setColor(0.86, 0.98, 1.00, 1.0)
-    love.graphics.polygon("fill", topX, topY, rightX, rightY, bottomX, bottomY, leftX, leftY)
-    love.graphics.setColor(1.0, 1.0, 1.0, 0.4)
-    local glowSize = size * 0.5
-    love.graphics.polygon("fill", cx, cy - glowSize, cx + glowSize * 0.5, cy, cx, cy + glowSize * 0.7,
-        cx - glowSize * 0.5, cy)
-    love.graphics.setColor(0.18, 0.35, 0.42, 0.95)
-    love.graphics.setLineWidth(2)
-    love.graphics.polygon("line", topX, topY, rightX, rightY, bottomX, bottomY, leftX, leftY)
-end
-
-local function drawScrapIcon(cx, cy, size)
-    love.graphics.setColor(0.6, 0.55, 0.5, 1.0)
-    love.graphics.rectangle("fill", cx - size * 0.6, cy - size * 0.3, size * 1.2, size * 0.6, 2, 2)
-    love.graphics.setColor(0.4, 0.35, 0.3, 0.8)
-    love.graphics.setLineWidth(2)
-    love.graphics.line(cx - size * 0.3, cy - size * 0.3, cx - size * 0.3, cy + size * 0.3)
-    love.graphics.line(cx + size * 0.3, cy - size * 0.3, cx + size * 0.3, cy + size * 0.3)
-end
-
-local function drawUnknownIcon(cx, cy, size)
-    love.graphics.setColor(0.15, 0.15, 0.15, 0.95)
-    love.graphics.rectangle("fill", cx - size, cy - size, size * 2, size * 2, 3, 3)
-    love.graphics.setColor(1.0, 1.0, 1.0, 0.65)
-    love.graphics.setLineWidth(2)
-    love.graphics.rectangle("line", cx - size, cy - size, size * 2, size * 2, 3, 3)
-    love.graphics.setColor(1.0, 1.0, 1.0, 0.9)
-    local font = love.graphics.getFont()
-    local q = "?"
-    love.graphics.print(q, cx - font:getWidth(q) / 2, cy - font:getHeight() / 2)
-end
-
---------------------------------------------------------------------------------
--- RESOURCE VISUAL METADATA
---------------------------------------------------------------------------------
-
--- Basic HUD-facing metadata for known resources. This is intentionally
--- lightweight; the authoritative gameplay data lives in
--- src.data.mining.resource_*. We use this table primarily to map resource ids
--- to friendly labels and HUD icon drawers.
-local RESOURCE_VISUALS = {
-    stone = {
-        id = "stone",
-        label = (resourceDefs.stone and (resourceDefs.stone.displayName or resourceDefs.stone.id)) or "Stone",
-        drawIcon = drawStoneIcon,
-    },
-    ice = {
-        id = "ice",
-        label = (resourceDefs.ice and (resourceDefs.ice.displayName or resourceDefs.ice.id)) or "Ice",
-        drawIcon = drawIceIcon,
-    },
-    mithril = {
-        id = "mithril",
-        label = (resourceDefs.mithril and (resourceDefs.mithril.displayName or resourceDefs.mithril.id)) or "Mithril",
-        drawIcon = drawMithrilIcon,
-    },
-    scrap = {
-        id = "scrap",
-        label = "Scrap",
-        drawIcon = drawScrapIcon,
-    },
-}
-
---------------------------------------------------------------------------------
 -- CARGO / SLOT HELPERS
 --------------------------------------------------------------------------------
 
@@ -177,71 +67,16 @@ local function getCargoComponent()
     return cargo
 end
 
--- Resolve visual metadata for a resource id. Falls back to the mining
--- resource definitions so new resources can show a reasonable label even
--- before bespoke HUD icons are added.
-local function getResourceVisual(id)
-    if not id then
-        return nil
-    end
-
-    local visual = RESOURCE_VISUALS[id]
-    if visual then
-        return visual
-    end
-
-    if id == "scrap" then
-        visual = {
-            id = "scrap",
-            label = "Scrap",
-            drawIcon = drawScrapIcon,
-        }
-        RESOURCE_VISUALS[id] = visual
-        return visual
-    end
-
-    local def = resourceDefs[id]
-    if def then
-        visual = {
-            id = id,
-            label = def.displayName or def.id or tostring(id),
-            drawIcon = nil,
-        }
-    else
-        visual = {
-            id = id,
-            label = tostring(id),
-            drawIcon = nil,
-        }
-    end
-
-    -- Cache for subsequent lookups.
-    RESOURCE_VISUALS[id] = visual
-    return visual
-end
-
 local function drawHudItemIcon(id, cx, cy, size, palette)
     if not id then
         return
     end
-    if item_icon and item_icon.drawResource then
-        item_icon.drawResource(id, {
-            x = cx,
-            y = cy,
-            size = size,
-            palette = palette,
-            age = 0,
-            pulse = 0,
-        })
-        return
-    end
-
-    local visual = getResourceVisual(id)
-    if visual and visual.drawIcon then
-        visual.drawIcon(cx, cy, size)
-    else
-        drawUnknownIcon(cx, cy, size)
-    end
+    icon_renderer.draw(id, {
+        x = cx,
+        y = cy,
+        size = size,
+        context = "ui",
+    })
 end
 
 --------------------------------------------------------------------------------
@@ -414,13 +249,15 @@ function hud_cargo.dockNextToLoot(lootLayout)
     local screenH = love.graphics.getHeight()
     local margin = 16
 
-    local desiredX = lootLayout.panelX + lootLayout.panelWidth + margin
+    -- Position cargo to the LEFT of the loot panel
+    local desiredX = lootLayout.panelX - margin - PANEL_WIDTH
     local desiredY = lootLayout.panelY
 
-    if desiredX + PANEL_WIDTH > screenW then
-        local leftX = lootLayout.panelX - margin - PANEL_WIDTH
-        if leftX >= 0 then
-            desiredX = leftX
+    -- Fallback: if it doesn't fit on the left, try the right side
+    if desiredX < 0 then
+        local rightX = lootLayout.panelX + lootLayout.panelWidth + margin
+        if rightX + PANEL_WIDTH <= screenW then
+            desiredX = rightX
         else
             desiredX = math.max(0, math.min(screenW - PANEL_WIDTH, desiredX))
         end
@@ -732,7 +569,6 @@ function hud_cargo.draw(player, colors)
 
         local slot = slots[index]
         if slot and slot.id and slot.quantity and slot.quantity > 0 then
-            local visual = getResourceVisual(slot.id)
             local qty = slot.quantity or 0
             local slotCenterX = slotX + SLOT_SIZE / 2
             local slotCenterY = slotY + SLOT_SIZE / 2
@@ -748,7 +584,8 @@ function hud_cargo.draw(player, colors)
             love.graphics.print(qtyText, slotCenterX - qtyWidth / 2, slotY + 4)
 
             -- Item name at bottom
-            local label = (visual and visual.label) or tostring(slot.id)
+            local def = itemDefs[slot.id]
+            local label = (def and (def.displayName or def.id)) or tostring(slot.id)
             local labelWidth = font:getWidth(label)
             love.graphics.setColor(colors.uiText[1], colors.uiText[2], colors.uiText[3], 0.8)
             love.graphics.print(label, slotCenterX - labelWidth / 2,
@@ -769,7 +606,7 @@ function hud_cargo.draw(player, colors)
     -- stack at the cursor position so it feels like the player is "holding"
     -- the item.
     if dragState.active and dragState.item and dragState.item.id then
-        local visual = getResourceVisual(dragState.item.id)
+
         local qty = dragState.item.quantity or 0
         local mx = dragState.mouseX or 0
         local my = dragState.mouseY or 0

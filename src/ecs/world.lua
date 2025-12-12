@@ -15,6 +15,7 @@ local render = require("src.ecs.systems.render")
 local reward = require("src.ecs.systems.reward")
 local ai = require("src.ecs.systems.ai")
 local projectileSpawner = require("src.ecs.systems.projectile_spawner")
+local respawner = require("src.ecs.systems.respawner")
 
 -- Load assemblages
 local assemblages = require("src.ecs.assemblages")
@@ -39,6 +40,7 @@ world:addSystems(
     projectileSpawner,
     collision.CollisionSystem,
     reward,
+    respawner, -- Added respawner system
     collision.CleanupSystem,
 
     -- Rendering (order matters - drawn back to front)

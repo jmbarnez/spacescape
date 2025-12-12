@@ -56,6 +56,17 @@ function RewardSystem:onDeath(entity, killerFaction)
             radius)
     end
 
+    -- Trigger Respawn
+    if entity.respawnOnDeath then
+        local delay = entity.respawnOnDeath.delay
+        local def = entity.respawnOnDeath.enemyDef
+        local x = entity.spawnPosition and entity.spawnPosition.x or entity.position.x
+        local y = entity.spawnPosition and entity.spawnPosition.y or entity.position.y
+
+        local timer = Concord.entity(world)
+        timer:give("respawnTimer", delay, def, x, y)
+    end
+
     -- Mark for removal
     entity:give("removed")
 end

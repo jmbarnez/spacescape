@@ -79,10 +79,12 @@ local function pickEnemyDef()
     return enemyDefs and enemyDefs.default or nil
 end
 
-function enemy.spawn(world, safeRadius)
+function enemy.spawn(world, safeRadius, specificDef, spawnX, spawnY)
     local x, y
 
-    if world then
+    if spawnX and spawnY then
+        x, y = spawnX, spawnY
+    elseif world then
         local margin = config.enemy.spawnMargin
         local centerX = world.centerX or (world.minX + world.maxX) / 2
         local centerY = world.centerY or (world.minY + world.maxY) / 2
@@ -124,7 +126,7 @@ function enemy.spawn(world, safeRadius)
     ------------------------------------------------------------------------
     -- Select which enemy type to spawn (data-driven)
     ------------------------------------------------------------------------
-    local def = pickEnemyDef()
+    local def = specificDef or pickEnemyDef()
     if not def then
         -- No enemy definitions available; bail safely.
         return nil
@@ -224,6 +226,10 @@ function enemy.spawn(world, safeRadius)
         :give("xpReward", (def.rewards and def.rewards.xp) or config.player.xpPerEnemy or 0)
         :give("tokenReward", (def.rewards and def.rewards.tokens) or config.player.tokensPerEnemy or 0)
         :give("damping", 0.8)
+
+    if def.respawn then
+        e:give("respawnOnDeath", def.respawn.delay, def)
+    end
 
     -- Optional loot definition (spawns a wreck via RewardSystem on death).
     if def.rewards and def.rewards.loot then

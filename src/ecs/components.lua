@@ -195,4 +195,20 @@ end)
 
 Concord.component("removed")
 
+--------------------------------------------------------------------------------
+-- RESPAWN
+--------------------------------------------------------------------------------
+
+Concord.component("respawnOnDeath", function(c, delay, enemyDef)
+    c.delay = delay or 30
+    c.enemyDef = enemyDef
+end)
+
+Concord.component("respawnTimer", function(c, current, enemyDef, x, y)
+    c.current = current or 30
+    c.enemyDef = enemyDef
+    c.x = x or 0
+    c.y = y or 0
+end)
+
 return true

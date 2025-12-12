@@ -64,6 +64,10 @@ local scout = {
             coins = 0,
         },
     },
+
+    respawn = {
+        delay = 30,
+    },
 }
 
 return scout

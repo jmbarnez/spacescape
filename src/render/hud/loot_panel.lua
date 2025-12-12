@@ -9,9 +9,8 @@ local ui_theme = require("src.core.ui_theme")
 local window_frame = require("src.render.hud.window_frame")
 local playerModule = require("src.entities.player")
 local wreckModule = require("src.entities.wreck")
-local resourceDefs = require("src.data.mining.resources")
-local item_icons = require("src.render.item_icons")
-local item_icon = require("src.render.item_icon")
+local itemDefs = require("src.data.items")
+local icon_renderer = require("src.render.icon_renderer")
 local hud_cargo = require("src.render.hud.cargo")
 
 -- Keep the wreck loot panel aligned with the player's cargo window footprint.
@@ -51,48 +50,19 @@ local currentHudPalette = nil
 local cargoDockedForLootSession = false
 
 --------------------------------------------------------------------------------
--- RESOURCE ICONS (simplified versions)
+-- ICON HELPER
 --------------------------------------------------------------------------------
-
-local function drawScrapIcon(cx, cy, size)
-    love.graphics.setColor(0.6, 0.55, 0.5, 1.0)
-    love.graphics.rectangle("fill", cx - size * 0.6, cy - size * 0.3, size * 1.2, size * 0.6, 2, 2)
-    love.graphics.setColor(0.4, 0.35, 0.3, 0.8)
-    love.graphics.setLineWidth(1)
-    love.graphics.line(cx - size * 0.3, cy - size * 0.3, cx - size * 0.3, cy + size * 0.3)
-    love.graphics.line(cx + size * 0.3, cy - size * 0.3, cx + size * 0.3, cy + size * 0.3)
-end
-
-local function drawUnknownIcon(cx, cy, size)
-    love.graphics.setColor(0.15, 0.15, 0.15, 0.95)
-    love.graphics.rectangle("fill", cx - size, cy - size, size * 2, size * 2, 3, 3)
-    love.graphics.setColor(1.0, 1.0, 1.0, 0.65)
-    love.graphics.setLineWidth(2)
-    love.graphics.rectangle("line", cx - size, cy - size, size * 2, size * 2, 3, 3)
-    love.graphics.setColor(1.0, 1.0, 1.0, 0.9)
-    local font = love.graphics.getFont()
-    local q = "?"
-    love.graphics.print(q, cx - font:getWidth(q) / 2, cy - font:getHeight() / 2)
-end
 
 local function drawResourceIcon(id, cx, cy, size)
     if not id then
         return
     end
-
-    if item_icon and item_icon.drawResource then
-        item_icon.drawResource(id, {
-            x = cx,
-            y = cy,
-            size = size,
-            palette = currentHudPalette or {},
-            age = 0,
-            pulse = 0,
-        })
-        return
-    end
-
-    drawUnknownIcon(cx, cy, size)
+    icon_renderer.draw(id, {
+        x = cx,
+        y = cy,
+        size = size,
+        context = "ui",
+    })
 end
 
 --------------------------------------------------------------------------------
@@ -179,7 +149,7 @@ local function drawSlot(x, y, slot, isHovered)
         local qtyWidth = font:getWidth(qtyText)
         love.graphics.print(qtyText, slotCenterX - qtyWidth / 2, y + 4)
 
-        local def = resourceDefs[slot.id]
+        local def = itemDefs[slot.id]
         local label = (def and (def.displayName or def.id)) or tostring(slot.id)
         local labelWidth = font:getWidth(label)
         love.graphics.setColor(1, 1, 1, 0.85)
@@ -235,11 +205,26 @@ function loot_panel.draw(player, colors)
         showCloseButton = true,
     }, colors)
 
-    -- Dock the cargo window next to the loot panel once per loot session.
-    -- We do not continuously re-dock while the loot panel is open; otherwise
-    -- dragging the loot panel would "drag" the cargo window too.
-    if not cargoDockedForLootSession and hud_cargo and hud_cargo.dockNextToLoot then
-        hud_cargo.dockNextToLoot(layout)
+    -- Position loot panel and cargo window side-by-side, centered on screen.
+    -- Cargo on the left, Loot on the right.
+    if not cargoDockedForLootSession then
+        local screenW = love.graphics.getWidth()
+        local screenH = love.graphics.getHeight()
+        local margin = 16
+        local totalWidth = PANEL_WIDTH * 2 + margin
+        local startX = (screenW - totalWidth) / 2
+
+        -- Loot panel goes on the right
+        windowState.x = math.max(0, math.min(screenW - PANEL_WIDTH, startX + PANEL_WIDTH + margin))
+        windowState.y = math.max(0, (screenH - PANEL_HEIGHT) / 2)
+
+        -- Dock cargo to the left of loot
+        if hud_cargo and hud_cargo.dockNextToLoot then
+            hud_cargo.dockNextToLoot(window_frame.getLayout(windowState, {
+                fixedWidth = PANEL_WIDTH,
+                fixedHeight = PANEL_HEIGHT,
+            }))
+        end
         cargoDockedForLootSession = true
     end
 
