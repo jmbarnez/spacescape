@@ -5,6 +5,8 @@ local window_frame = require("src.render.hud.window_frame")
 local camera = require("src.core.camera")
 local itemModule = require("src.entities.item")
 local resourceDefs = require("src.data.mining.resources")
+local item_icons = require("src.render.item_icons")
+local item_icon = require("src.render.item_icon")
 
 --------------------------------------------------------------------------------
 -- WINDOW STATE
@@ -96,6 +98,27 @@ local function drawMithrilIcon(cx, cy, size)
     love.graphics.polygon("line", topX, topY, rightX, rightY, bottomX, bottomY, leftX, leftY)
 end
 
+local function drawScrapIcon(cx, cy, size)
+    love.graphics.setColor(0.6, 0.55, 0.5, 1.0)
+    love.graphics.rectangle("fill", cx - size * 0.6, cy - size * 0.3, size * 1.2, size * 0.6, 2, 2)
+    love.graphics.setColor(0.4, 0.35, 0.3, 0.8)
+    love.graphics.setLineWidth(2)
+    love.graphics.line(cx - size * 0.3, cy - size * 0.3, cx - size * 0.3, cy + size * 0.3)
+    love.graphics.line(cx + size * 0.3, cy - size * 0.3, cx + size * 0.3, cy + size * 0.3)
+end
+
+local function drawUnknownIcon(cx, cy, size)
+    love.graphics.setColor(0.15, 0.15, 0.15, 0.95)
+    love.graphics.rectangle("fill", cx - size, cy - size, size * 2, size * 2, 3, 3)
+    love.graphics.setColor(1.0, 1.0, 1.0, 0.65)
+    love.graphics.setLineWidth(2)
+    love.graphics.rectangle("line", cx - size, cy - size, size * 2, size * 2, 3, 3)
+    love.graphics.setColor(1.0, 1.0, 1.0, 0.9)
+    local font = love.graphics.getFont()
+    local q = "?"
+    love.graphics.print(q, cx - font:getWidth(q) / 2, cy - font:getHeight() / 2)
+end
+
 --------------------------------------------------------------------------------
 -- RESOURCE VISUAL METADATA
 --------------------------------------------------------------------------------
@@ -119,6 +142,11 @@ local RESOURCE_VISUALS = {
         id = "mithril",
         label = (resourceDefs.mithril and (resourceDefs.mithril.displayName or resourceDefs.mithril.id)) or "Mithril",
         drawIcon = drawMithrilIcon,
+    },
+    scrap = {
+        id = "scrap",
+        label = "Scrap",
+        drawIcon = drawScrapIcon,
     },
 }
 
@@ -162,6 +190,16 @@ local function getResourceVisual(id)
         return visual
     end
 
+    if id == "scrap" then
+        visual = {
+            id = "scrap",
+            label = "Scrap",
+            drawIcon = drawScrapIcon,
+        }
+        RESOURCE_VISUALS[id] = visual
+        return visual
+    end
+
     local def = resourceDefs[id]
     if def then
         visual = {
@@ -180,6 +218,30 @@ local function getResourceVisual(id)
     -- Cache for subsequent lookups.
     RESOURCE_VISUALS[id] = visual
     return visual
+end
+
+local function drawHudItemIcon(id, cx, cy, size, palette)
+    if not id then
+        return
+    end
+    if item_icon and item_icon.drawResource then
+        item_icon.drawResource(id, {
+            x = cx,
+            y = cy,
+            size = size,
+            palette = palette,
+            age = 0,
+            pulse = 0,
+        })
+        return
+    end
+
+    local visual = getResourceVisual(id)
+    if visual and visual.drawIcon then
+        visual.drawIcon(cx, cy, size)
+    else
+        drawUnknownIcon(cx, cy, size)
+    end
 end
 
 --------------------------------------------------------------------------------
@@ -677,9 +739,7 @@ function hud_cargo.draw(player, colors)
 
             -- Resource icon (if a HUD icon drawer exists for this resource).
             local iconSize = 18
-            if visual and visual.drawIcon then
-                visual.drawIcon(slotCenterX, slotCenterY - 4, iconSize)
-            end
+            drawHudItemIcon(slot.id, slotCenterX, slotCenterY - 4, iconSize, colors)
 
             -- Quantity at top-center
             local qtyText = tostring(math.floor(qty))
@@ -715,9 +775,7 @@ function hud_cargo.draw(player, colors)
         local my = dragState.mouseY or 0
 
         local iconSize = 18
-        if visual and visual.drawIcon then
-            visual.drawIcon(mx, my - 4, iconSize)
-        end
+        drawHudItemIcon(dragState.item.id, mx, my - 4, iconSize, colors)
 
         local qtyText = tostring(math.floor(qty))
         local qtyWidth = font:getWidth(qtyText)

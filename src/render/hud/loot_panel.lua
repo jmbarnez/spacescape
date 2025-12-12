@@ -11,10 +11,11 @@ local playerModule = require("src.entities.player")
 local wreckModule = require("src.entities.wreck")
 local resourceDefs = require("src.data.mining.resources")
 local item_icons = require("src.render.item_icons")
+local item_icon = require("src.render.item_icon")
 local hud_cargo = require("src.render.hud.cargo")
 
--- Note: SLOT_SIZE is intentionally large so the wreck grid feels bold and readable.
-local SLOT_SIZE = 144
+-- Keep the wreck loot panel aligned with the player's cargo window footprint.
+local SLOT_SIZE = 72
 local SLOT_PADDING = 6
 local COLS = 4
 local ROWS = 4
@@ -47,6 +48,7 @@ local dragState = {
 }
 
 local currentHudPalette = nil
+local cargoDockedForLootSession = false
 
 --------------------------------------------------------------------------------
 -- RESOURCE ICONS (simplified versions)
@@ -61,28 +63,36 @@ local function drawScrapIcon(cx, cy, size)
     love.graphics.line(cx + size * 0.3, cy - size * 0.3, cx + size * 0.3, cy + size * 0.3)
 end
 
+local function drawUnknownIcon(cx, cy, size)
+    love.graphics.setColor(0.15, 0.15, 0.15, 0.95)
+    love.graphics.rectangle("fill", cx - size, cy - size, size * 2, size * 2, 3, 3)
+    love.graphics.setColor(1.0, 1.0, 1.0, 0.65)
+    love.graphics.setLineWidth(2)
+    love.graphics.rectangle("line", cx - size, cy - size, size * 2, size * 2, 3, 3)
+    love.graphics.setColor(1.0, 1.0, 1.0, 0.9)
+    local font = love.graphics.getFont()
+    local q = "?"
+    love.graphics.print(q, cx - font:getWidth(q) / 2, cy - font:getHeight() / 2)
+end
+
 local function drawResourceIcon(id, cx, cy, size)
     if not id then
         return
     end
 
-    if id == "scrap" then
-        drawScrapIcon(cx, cy, size)
+    if item_icon and item_icon.drawResource then
+        item_icon.drawResource(id, {
+            x = cx,
+            y = cy,
+            size = size,
+            palette = currentHudPalette or {},
+            age = 0,
+            pulse = 0,
+        })
         return
     end
 
-    local def = resourceDefs[id] or resourceDefs.default
-    local it = {
-        x = cx,
-        y = cy,
-        radius = size,
-        age = love.timer.getTime(),
-        itemType = "resource",
-        resourceType = id,
-    }
-
-    local palette = currentHudPalette or {}
-    item_icons.drawResource(it, def, palette, size, 0)
+    drawUnknownIcon(cx, cy, size)
 end
 
 --------------------------------------------------------------------------------
@@ -105,7 +115,9 @@ local function getSlotBounds(gridX, row, col)
     })
 
     local gridStartX = layout.contentX + PANEL_PADDING + gridX
-    local gridStartY = layout.contentY + PANEL_PADDING + 20 -- Space for label
+    -- Keep the grid vertically aligned with cargo: no extra label padding that
+    -- would cause the last row to drift into the bottom bar.
+    local gridStartY = layout.contentY + PANEL_PADDING
 
     local slotX = gridStartX + col * (SLOT_SIZE + SLOT_PADDING)
     local slotY = gridStartY + row * (SLOT_SIZE + SLOT_PADDING)
@@ -159,14 +171,16 @@ local function drawSlot(x, y, slot, isHovered)
         local font = love.graphics.getFont()
         local slotCenterX = x + SLOT_SIZE / 2
         local slotCenterY = y + SLOT_SIZE / 2
-        drawResourceIcon(slot.id, slotCenterX, slotCenterY - 4, 18)
+        local iconSize = math.floor(SLOT_SIZE * 0.25 + 0.5)
+        drawResourceIcon(slot.id, slotCenterX, slotCenterY - 4, iconSize)
 
         love.graphics.setColor(1, 1, 1, 1)
         local qtyText = tostring(slot.quantity)
         local qtyWidth = font:getWidth(qtyText)
         love.graphics.print(qtyText, slotCenterX - qtyWidth / 2, y + 4)
 
-        local label = tostring(slot.id)
+        local def = resourceDefs[slot.id]
+        local label = (def and (def.displayName or def.id)) or tostring(slot.id)
         local labelWidth = font:getWidth(label)
         love.graphics.setColor(1, 1, 1, 0.85)
         love.graphics.print(label, slotCenterX - labelWidth / 2, y + SLOT_SIZE - font:getHeight() - 4)
@@ -179,19 +193,12 @@ local function drawSlot(x, y, slot, isHovered)
     end
 end
 
-local function drawGrid(gridX, label, slots, maxSlots, gridId)
+local function drawGrid(gridX, slots, maxSlots, gridId)
     local px, py = getPanelPosition()
     local layout = window_frame.getLayout(windowState, {
         fixedWidth = PANEL_WIDTH,
         fixedHeight = PANEL_HEIGHT,
     })
-
-    local labelX = layout.contentX + PANEL_PADDING + gridX
-    local labelY = layout.contentY + PANEL_PADDING
-
-    -- Grid label
-    love.graphics.setColor(0.8, 0.85, 0.9, 1.0)
-    love.graphics.print(label, labelX, labelY)
 
     -- Draw slots
     local mx, my = love.mouse.getPosition()
@@ -228,8 +235,12 @@ function loot_panel.draw(player, colors)
         showCloseButton = true,
     }, colors)
 
-    if hud_cargo and hud_cargo.dockNextToLoot then
+    -- Dock the cargo window next to the loot panel once per loot session.
+    -- We do not continuously re-dock while the loot panel is open; otherwise
+    -- dragging the loot panel would "drag" the cargo window too.
+    if not cargoDockedForLootSession and hud_cargo and hud_cargo.dockNextToLoot then
         hud_cargo.dockNextToLoot(layout)
+        cargoDockedForLootSession = true
     end
 
     -- Single 4x4 wreck grid, centered in the window content area so the
@@ -241,7 +252,7 @@ function loot_panel.draw(player, colors)
         gridOffsetX = (innerWidth - totalSlotWidth) / 2
     end
 
-    drawGrid(gridOffsetX, "Wreck", wreck.cargo, COLS * ROWS, "wreck")
+    drawGrid(gridOffsetX, wreck.cargo, COLS * ROWS, "wreck")
 
     -- Loot All button (no token display): appears only when the wreck still
     -- has cargo so the action is always meaningful.
@@ -259,7 +270,11 @@ function loot_panel.draw(player, colors)
         love.graphics.setColor(0.5, 0.8, 0.5, 0.8)
         love.graphics.rectangle("line", btnX, btnY, btnW, btnH)
         love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.print("Loot All", btnX + 10, btnY + 5)
+        local font = love.graphics.getFont()
+        local label = "Loot All"
+        local textX = btnX + (btnW - font:getWidth(label)) / 2
+        local textY = btnY + (btnH - font:getHeight()) / 2
+        love.graphics.print(label, textX, textY)
     end
 
     -- Draw dragged item
@@ -294,9 +309,13 @@ local function hitTestSlot(gridX, maxSlots, mx, my)
 end
 
 function getLootAllButtonRect(layout)
-    local btnW, btnH = 96, 26
-    local btnX = layout.panelX + layout.panelWidth - PANEL_PADDING - btnW
-    local btnY = layout.bottomBarY + (layout.bottomBarHeight - btnH) / 2
+    -- Bottom bar button geometry (kept inside the bottom bar region).
+    -- Extra padding keeps the button from "hanging" over the window border.
+    local pad = 3
+    local btnW = 110
+    local btnH = math.max(16, (layout.bottomBarHeight or 0) - pad * 2)
+    local btnX = layout.panelX + layout.panelWidth - PANEL_PADDING - pad - btnW
+    local btnY = layout.bottomBarY + pad
     return btnX, btnY, btnW, btnH
 end
 
@@ -473,7 +492,11 @@ end
 
 function loot_panel.isOpen()
     local player = playerModule.state
-    return player and player.isLooting and player.lootTarget ~= nil
+    local open = player and player.isLooting and player.lootTarget ~= nil
+    if not open then
+        cargoDockedForLootSession = false
+    end
+    return open
 end
 
 return loot_panel

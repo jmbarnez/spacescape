@@ -1,5 +1,38 @@
 local window_manager = {}
 
+local hud_pause
+local hud_cargo
+local hud_world_map
+local hud_loot_panel
+
+local windows
+
+local lootWasOpenLastSync = false
+local cargoWasOpenBeforeLoot = false
+
+local function syncLootAndCargoWindows()
+    local lootWin = windows.loot
+    if lootWin then
+        lootWin.isOpen = hud_loot_panel.isOpen()
+    end
+
+    local lootOpen = lootWin and lootWin.isOpen or false
+    local cargoWin = windows.cargo
+
+    if lootOpen and not lootWasOpenLastSync then
+        cargoWasOpenBeforeLoot = cargoWin and cargoWin.isOpen or false
+        if cargoWin then
+            cargoWin.isOpen = true
+        end
+    elseif (not lootOpen) and lootWasOpenLastSync then
+        if cargoWin and not cargoWasOpenBeforeLoot then
+            cargoWin.isOpen = false
+        end
+    end
+
+    lootWasOpenLastSync = lootOpen
+end
+
 -- Centralized HUD window input manager
 --
 -- This module routes mouse events for all window-frame-based HUD overlays
@@ -14,10 +47,10 @@ local window_manager = {}
 --   - Easy to extend with new windows by adding small, well-documented blocks
 --     instead of duplicating logic in the game state.
 
-local hud_pause = require("src.render.hud.pause")
-local hud_cargo = require("src.render.hud.cargo")
-local hud_world_map = require("src.render.hud.world_map")
-local hud_loot_panel = require("src.render.hud.loot_panel")
+hud_pause = require("src.render.hud.pause")
+hud_cargo = require("src.render.hud.cargo")
+hud_world_map = require("src.render.hud.world_map")
+hud_loot_panel = require("src.render.hud.loot_panel")
 
 --------------------------------------------------------------------------------
 -- INTERNAL HELPERS / REGISTRY
@@ -36,7 +69,7 @@ end
 --
 -- Windows are keyed by a stable id ("cargo", "map", etc.) and also carry a
 -- z-index so that input can be dispatched from the top-most window down.
-local windows = {
+windows = {
     map = {
         id = "map",
         zIndex = 200,
@@ -90,11 +123,7 @@ local windows = {
 --- Build a temporary array of registered windows sorted by descending z-index
 -- so that input is always offered to the visually top-most window first.
 local function getWindowsInZOrderDescending()
-    -- Sync loot window isOpen with player looting state
-    local lootWin = windows.loot
-    if lootWin then
-        lootWin.isOpen = hud_loot_panel.isOpen()
-    end
+    syncLootAndCargoWindows()
 
     local ordered = {}
     for _, win in pairs(windows) do
@@ -170,6 +199,10 @@ function window_manager.isWindowOpen(id)
     if not win then
         return false
     end
+
+    -- Keep dynamic loot/cargo coupling in sync even during render-only code
+    -- paths (game_render queries isWindowOpen each frame).
+    syncLootAndCargoWindows()
 
     return win.isOpen and true or false
 end
