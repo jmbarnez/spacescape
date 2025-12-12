@@ -13,14 +13,14 @@ local resourceDefs = require("src.data.mining.resources")
 local item_icons = require("src.render.item_icons")
 local hud_cargo = require("src.render.hud.cargo")
 
--- Panel configuration
-local SLOT_SIZE = 90
-local SLOT_PADDING = 8
+-- Note: SLOT_SIZE is intentionally large so the wreck grid feels bold and readable.
+local SLOT_SIZE = 144
+local SLOT_PADDING = 6
 local COLS = 4
 local ROWS = 4
-local PANEL_PADDING = 20
-local TOP_BAR_HEIGHT = 40
-local BOTTOM_BAR_HEIGHT = 36
+local PANEL_PADDING = 14
+local TOP_BAR_HEIGHT = 28
+local BOTTOM_BAR_HEIGHT = 24
 local GRID_WIDTH = COLS * SLOT_SIZE + (COLS - 1) * SLOT_PADDING
 local GRID_HEIGHT = ROWS * SLOT_SIZE + (ROWS - 1) * SLOT_PADDING
 local PANEL_WIDTH = GRID_WIDTH + PANEL_PADDING * 2
@@ -147,12 +147,12 @@ local getLootAllButtonRect
 local function drawSlot(x, y, slot, isHovered)
     -- Slot background
     love.graphics.setColor(1, 1, 1, 0.06)
-    love.graphics.rectangle("fill", x, y, SLOT_SIZE, SLOT_SIZE, 6, 6)
+    love.graphics.rectangle("fill", x, y, SLOT_SIZE, SLOT_SIZE)
 
     -- Slot border
     love.graphics.setColor(1, 1, 1, 0.12)
     love.graphics.setLineWidth(1)
-    love.graphics.rectangle("line", x, y, SLOT_SIZE, SLOT_SIZE, 6, 6)
+    love.graphics.rectangle("line", x, y, SLOT_SIZE, SLOT_SIZE)
 
     -- Draw item if present
     if slot and slot.id and slot.quantity and slot.quantity > 0 then
@@ -175,7 +175,7 @@ local function drawSlot(x, y, slot, isHovered)
     if isHovered then
         love.graphics.setColor(0.2, 0.9, 1.0, 0.9)
         love.graphics.setLineWidth(2)
-        love.graphics.rectangle("line", x, y, SLOT_SIZE, SLOT_SIZE, 6, 6)
+        love.graphics.rectangle("line", x, y, SLOT_SIZE, SLOT_SIZE)
     end
 end
 
@@ -228,6 +228,10 @@ function loot_panel.draw(player, colors)
         showCloseButton = true,
     }, colors)
 
+    if hud_cargo and hud_cargo.dockNextToLoot then
+        hud_cargo.dockNextToLoot(layout)
+    end
+
     -- Single 4x4 wreck grid, centered in the window content area so the
     -- wreck inventory feels like a dedicated panel separate from player cargo.
     local innerWidth = layout.contentWidth - PANEL_PADDING * 2
@@ -251,9 +255,9 @@ function loot_panel.draw(player, colors)
         else
             love.graphics.setColor(0.2, 0.4, 0.2, 0.85)
         end
-        love.graphics.rectangle("fill", btnX, btnY, btnW, btnH, 4, 4)
+        love.graphics.rectangle("fill", btnX, btnY, btnW, btnH)
         love.graphics.setColor(0.5, 0.8, 0.5, 0.8)
-        love.graphics.rectangle("line", btnX, btnY, btnW, btnH, 4, 4)
+        love.graphics.rectangle("line", btnX, btnY, btnW, btnH)
         love.graphics.setColor(1, 1, 1, 1)
         love.graphics.print("Loot All", btnX + 10, btnY + 5)
     end
@@ -263,7 +267,7 @@ function loot_panel.draw(player, colors)
         local mx = dragState.mouseX or 0
         local my = dragState.mouseY or 0
         love.graphics.setColor(0.2, 0.25, 0.3, 0.9)
-        love.graphics.rectangle("fill", mx - SLOT_SIZE / 2, my - SLOT_SIZE / 2, SLOT_SIZE, SLOT_SIZE, 4, 4)
+        love.graphics.rectangle("fill", mx - SLOT_SIZE / 2, my - SLOT_SIZE / 2, SLOT_SIZE, SLOT_SIZE)
         drawResourceIcon(dragState.item.id, mx, my - 4, SLOT_SIZE * 0.4)
         love.graphics.setColor(1, 1, 1, 1)
         love.graphics.print(tostring(dragState.item.quantity), mx + SLOT_SIZE / 2 - 12, my + SLOT_SIZE / 2 - 14)

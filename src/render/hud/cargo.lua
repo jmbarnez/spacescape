@@ -17,16 +17,20 @@ local windowState = {
     isDragging = false,
     dragOffsetX = 0,
     dragOffsetY = 0,
+    userAnchored = false,
 }
 
--- Layout constants (4x4 grid)
-local SLOT_SIZE = 90
-local SLOT_PADDING = 8
+-- SLOT_SIZE controls the on-screen size of each cargo tile. Keeping this
+-- shared between layout math and draw logic ensures the window always hugs
+-- the grid tightly. This value is tuned so the cargo window footprint stays
+-- compact while keeping items readable.
+local SLOT_SIZE = 72
+local SLOT_PADDING = 6
 local COLS = 4
 local ROWS = 4
-local PANEL_PADDING = 20
-local TOP_BAR_HEIGHT = 40
-local BOTTOM_BAR_HEIGHT = 36
+local PANEL_PADDING = 14
+local TOP_BAR_HEIGHT = 28
+local BOTTOM_BAR_HEIGHT = 24
 local CLOSE_BUTTON_SIZE = 24
 
 -- Calculate panel dimensions
@@ -339,6 +343,31 @@ function hud_cargo.tryAcceptExternalResourceStack(resourceId, quantity, x, y)
     return quantity
 end
 
+function hud_cargo.dockNextToLoot(lootLayout)
+    if not lootLayout or windowState.userAnchored then
+        return
+    end
+
+    local screenW = love.graphics.getWidth()
+    local screenH = love.graphics.getHeight()
+    local margin = 16
+
+    local desiredX = lootLayout.panelX + lootLayout.panelWidth + margin
+    local desiredY = lootLayout.panelY
+
+    if desiredX + PANEL_WIDTH > screenW then
+        local leftX = lootLayout.panelX - margin - PANEL_WIDTH
+        if leftX >= 0 then
+            desiredX = leftX
+        else
+            desiredX = math.max(0, math.min(screenW - PANEL_WIDTH, desiredX))
+        end
+    end
+
+    windowState.x = math.max(0, math.min(screenW - PANEL_WIDTH, desiredX))
+    windowState.y = math.max(0, math.min(screenH - PANEL_HEIGHT, desiredY))
+end
+
 --------------------------------------------------------------------------------
 -- MOUSE HANDLING
 --------------------------------------------------------------------------------
@@ -358,6 +387,9 @@ function hud_cargo.mousepressed(x, y, button)
     -- If the click initiated a frame drag or closed the window, we do not
     -- start an inventory drag.
     if result == "close" or result == "drag" then
+        if result == "drag" then
+            windowState.userAnchored = true
+        end
         clearDragState()
         return result
     end
@@ -576,6 +608,7 @@ end
 
 function hud_cargo.reset()
     window_frame.reset(windowState)
+    windowState.userAnchored = false
     clearDragState()
 end
 
@@ -596,7 +629,6 @@ function hud_cargo.draw(player, colors)
         fixedWidth = PANEL_WIDTH,
         fixedHeight = PANEL_HEIGHT,
         title = "CARGO",
-        hint = "TAB to close  •  Drag title bar to move",
     }, colors)
 
     local panelX = layout.panelX
@@ -631,10 +663,10 @@ function hud_cargo.draw(player, colors)
         -- Slot background is always drawn so the full 4x4 grid is visible even
         -- when the inventory is empty.
         love.graphics.setColor(1, 1, 1, 0.06)
-        love.graphics.rectangle("fill", slotX, slotY, SLOT_SIZE, SLOT_SIZE, 6, 6)
+        love.graphics.rectangle("fill", slotX, slotY, SLOT_SIZE, SLOT_SIZE)
         love.graphics.setColor(1, 1, 1, 0.12)
         love.graphics.setLineWidth(1)
-        love.graphics.rectangle("line", slotX, slotY, SLOT_SIZE, SLOT_SIZE, 6, 6)
+        love.graphics.rectangle("line", slotX, slotY, SLOT_SIZE, SLOT_SIZE)
 
         local slot = slots[index]
         if slot and slot.id and slot.quantity and slot.quantity > 0 then
@@ -659,7 +691,8 @@ function hud_cargo.draw(player, colors)
             local label = (visual and visual.label) or tostring(slot.id)
             local labelWidth = font:getWidth(label)
             love.graphics.setColor(colors.uiText[1], colors.uiText[2], colors.uiText[3], 0.8)
-            love.graphics.print(label, slotCenterX - labelWidth / 2, slotY + SLOT_SIZE - font:getHeight() - 4)
+            love.graphics.print(label, slotCenterX - labelWidth / 2,
+                slotY + SLOT_SIZE - font:getHeight() - 4)
         end
 
         -- Hover highlight: when the mouse is over a slot inside the panel,
@@ -668,7 +701,7 @@ function hud_cargo.draw(player, colors)
         if hoveredIndex == index and mouseInsidePanel then
             love.graphics.setColor(0.2, 0.9, 1.0, 0.9)
             love.graphics.setLineWidth(2)
-            love.graphics.rectangle("line", slotX, slotY, SLOT_SIZE, SLOT_SIZE, 6, 6)
+            love.graphics.rectangle("line", slotX, slotY, SLOT_SIZE, SLOT_SIZE)
         end
     end
 
@@ -697,7 +730,7 @@ function hud_cargo.draw(player, colors)
         if not dragInsidePanel then
             love.graphics.setColor(1.0, 0.35, 0.25, 0.95)
             love.graphics.setLineWidth(2)
-            love.graphics.rectangle("line", panelX - 2, panelY - 2, panelW + 4, panelH + 4, 8, 8)
+            love.graphics.rectangle("line", panelX - 2, panelY - 2, panelW + 4, panelH + 4)
         end
     end
 

@@ -110,6 +110,17 @@ function projectile.draw(colors)
     local projectiles = ecsWorld:query({ "projectile", "position" }) or {}
 
     for _, e in ipairs(projectiles) do
+        -- Projectiles can be flagged for removal during collision processing
+        -- (via utils.removeEntity setting e._removed and calling e:destroy()).
+        -- Concord applies removals on the next ECS flush, which means the
+        -- entity can still show up in queries for the remainder of the frame.
+        --
+        -- If we don't guard against that, beam-style projectiles can appear
+        -- to get "stuck" at the impact point until the next ECS update.
+        if e._removed or e.removed then
+            goto continue
+        end
+
         local px = e.position.x
         local py = e.position.y
         local angle = e.rotation and e.rotation.angle or 0
@@ -132,6 +143,8 @@ function projectile.draw(colors)
         love.graphics.setColor(color)
         love.graphics.setLineWidth(width)
         love.graphics.line(px, py, tailX, tailY)
+
+        ::continue::
     end
 
     love.graphics.setLineWidth(1)

@@ -47,15 +47,37 @@ function MovementSystem:update(dt)
     -- Update positions from velocity
     for i = 1, self.movers.size do
         local e = self.movers[i]
+
+        -- Projectiles with Box2D bodies are simulated by the physics step.
+        -- If we also integrate position here, we'll effectively double-move
+        -- them and/or desync the ECS transform from the physics transform.
+        --
+        -- We instead let the physics body be authoritative for projectile
+        -- movement, then copy body position -> ECS position in the sync loop.
+        if e.projectile and e.physics and e.physics.body then
+            goto continue
+        end
+
         e.position.x = e.position.x + e.velocity.vx * dt
         e.position.y = e.position.y + e.velocity.vy * dt
+
+        ::continue::
     end
 
     -- Sync physics bodies with positions
     for i = 1, self.physicsBodies.size do
         local e = self.physicsBodies[i]
         if e.physics.body then
-            e.physics.body:setPosition(e.position.x, e.position.y)
+            if e.projectile then
+                -- For projectiles, the physics body drives motion.
+                -- Keep ECS position in lockstep with Box2D for consistent
+                -- rendering + collision radius math.
+                local bx, by = e.physics.body:getPosition()
+                e.position.x = bx
+                e.position.y = by
+            else
+                e.physics.body:setPosition(e.position.x, e.position.y)
+            end
         end
     end
 end
@@ -99,12 +121,25 @@ function ProjectileSystem:update(dt)
         local e = self.projectiles[i]
         local data = e.projectileData
 
-        -- Track distance traveled
+        -- Track distance traveled for hit-chance calculations and any
+        -- range-based effects. We intentionally **do not** destroy
+        -- projectiles purely because they exceeded weapon.maxRange here;
+        -- that value is treated as an accuracy falloff range, while the
+        -- actual lifetime/removal of projectiles is handled by:
+        --   - collision resolution (on impact), and
+        --   - the legacy projectileModule.update() offscreen cleanup
+        --     which culls bullets once they leave the world bounds.
+        --
+        -- This ensures enemy basic shots can travel the full distance to
+        -- the player even when fired from far away, instead of vanishing
+        -- early once distanceTraveled >= maxRange.
         local dx = e.velocity.vx * dt
         local dy = e.velocity.vy * dt
         data.distanceTraveled = data.distanceTraveled + math.sqrt(dx * dx + dy * dy)
 
-        -- Homing behavior: adjust velocity towards target
+        -- Homing behavior: adjust velocity towards target while the
+        -- projectile is alive. Lifetime is governed by collision/offscreen
+        -- systems, not this movement pass.
         if data.target and data.target.position then
             local tx = data.target.position.x
             local ty = data.target.position.y
@@ -120,6 +155,15 @@ function ProjectileSystem:update(dt)
                 local speed = math.sqrt(e.velocity.vx ^ 2 + e.velocity.vy ^ 2)
                 e.velocity.vx = math.cos(angle) * speed
                 e.velocity.vy = math.sin(angle) * speed
+
+                if e.physics and e.physics.body then
+                    -- Critical: update Box2D linear velocity so homing is
+                    -- reflected in the actual physics simulation.
+                    -- Without this, projectiles keep traveling along their
+                    -- original spawn heading and can appear to "freeze" at a
+                    -- stale aim point when the target moves.
+                    e.physics.body:setLinearVelocity(e.velocity.vx, e.velocity.vy)
+                end
 
                 if e.rotation then
                     e.rotation.angle = angle

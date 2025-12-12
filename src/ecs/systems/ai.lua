@@ -157,11 +157,17 @@ function FiringSystem:update(dt, playerEntity)
         -- Check that the player is at least within this enemy's detection radius
         -- so they start shooting as soon as they "see" the player, instead of
         -- waiting until a tighter attack/optimal range.
+        --
+        -- IMPORTANT: detection range should NOT be used as the firing range.
+        -- Using detectionRange here allows enemies to shoot from very far away
+        -- (often off-screen), especially with per-level detection scaling.
         local dx = playerX - e.position.x
         local dy = playerY - e.position.y
         local distSq = dx * dx + dy * dy
-        local detectionRange = e.aiState.detectionRange or config.enemy.detectionRange or 1000
-        if distSq > detectionRange * detectionRange then goto continue end
+
+        local attackRange = (e.aiState and e.aiState.attackRange) or config.enemy.attackRange or 350
+        local fireRange = attackRange * (config.enemy.attackTooFarFactor or 1.0)
+        if distSq > fireRange * fireRange then goto continue end
 
         local weapon = e.weapon
         local weaponData = weapon.data or {}

@@ -30,6 +30,10 @@ local floatingText = require("src.entities.floating_text")
 local gameRender = require("src.states.game_render")
 local ecsWorld = require("src.ecs.world")
 
+local ecsPlayerProxy = {
+	position = { x = 0, y = 0 }
+}
+
 -- Module definition
 local game = {}
 
@@ -191,7 +195,12 @@ function game.update(dt)
 	systems.runUpdate(dt, updateCtx)
 
 	-- ECS world update (emits update to all systems)
-	ecsWorld:emit("update", dt, playerModule.state)
+	if playerModule.state then
+		ecsPlayerProxy.position.x = playerModule.state.x
+		ecsPlayerProxy.position.y = playerModule.state.y
+	end
+
+	ecsWorld:emit("update", dt, ecsPlayerProxy)
 
 	game.checkCollisions()
 end

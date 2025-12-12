@@ -286,7 +286,7 @@ function handlers.handleEnemyProjectileVsPlayer(projectile, player, contactX, co
     local playerRadius = player.size or utils.getBoundingRadius(player)
 
     handlers.resolveProjectileHit(projectile, player, contactX, contactY, playerRadius, {
-        canMiss = true,
+        canMiss = false,
         missOptions = { bgColor = MISS_BG_COLOR },
         damageTextColor = DAMAGE_COLOR_PLAYER,
         impactColor = context.currentColors and context.currentColors.projectile or nil,

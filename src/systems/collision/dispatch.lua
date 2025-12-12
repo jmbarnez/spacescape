@@ -4,6 +4,7 @@
 --------------------------------------------------------------------------------
 
 local handlers = require("src.systems.collision.handlers")
+local utils = require("src.systems.collision.utils")
 
 local dispatch = {}
 
@@ -99,6 +100,14 @@ local function processCollision(dataA, dataB, contactX, contactY, context)
             entry.handler(entityA, entityB, contactX, contactY, context)
         else
             entry.handler(entityB, entityA, contactX, contactY, context)
+        end
+    else
+        if context and context.bullets then
+            if typeA == "playerprojectile" or typeA == "enemyprojectile" then
+                utils.removeEntity(context.bullets, entityA)
+            elseif typeB == "playerprojectile" or typeB == "enemyprojectile" then
+                utils.removeEntity(context.bullets, entityB)
+            end
         end
     end
 end

@@ -15,8 +15,11 @@ ui_theme.window = {
     topBar = {0.05, 0.05, 0.05, 0.95},
     -- Bottom bar: matches top for symmetry
     bottomBar = {0.03, 0.03, 0.03, 0.95},
-    -- Shared rounded corner radius
-    radius = 6,
+    -- Shared corner radius (0 for sharp, squared-off panels)
+    radius = 0,
+    -- Slightly more compact bars for a tighter HUD footprint
+    topBarHeight = 28,
+    bottomBarHeight = 24,
     -- Border: thin cyan accent line
     border = {0.60, 0.60, 0.60, 0.6},
     -- Close button: minimal, appears on hover

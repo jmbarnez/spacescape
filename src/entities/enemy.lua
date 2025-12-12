@@ -23,7 +23,11 @@ function enemy.getList()
     local all = ecsWorld:query({ "ship", "faction", "position" }) or {}
     local enemies = {}
     for _, e in ipairs(all) do
-        if e.faction and e.faction.name == "enemy" then
+        -- Entities can be flagged for removal (or destroyed) during collision
+        -- resolution, but still appear in queries until the ECS flush.
+        -- Filtering them here prevents legacy callers from touching entities
+        -- whose physics bodies were already destroyed.
+        if e.faction and e.faction.name == "enemy" and not e._removed and not e.removed then
             table.insert(enemies, e)
         end
     end
@@ -184,22 +188,13 @@ end
 --------------------------------------------------------------------------------
 
 function enemy.update(dt, playerState, world)
-    -- Convert player state to ECS-compatible format for AI system
-    local playerEntity = ecsWorld:getPlayer()
-
-    -- If no ECS player yet, create a temporary wrapper for AI to use
-    if not playerEntity and playerState then
-        playerEntity = {
-            position = { x = playerState.x, y = playerState.y }
-        }
-    end
-
-    -- Run AI and movement via ECS world emit
-    ecsWorld:emit("update", dt, playerEntity)
-
     -- Handle world boundaries
     local enemies = enemy.getList()
     for _, e in ipairs(enemies) do
+        if e._removed or e.removed then
+            goto continue
+        end
+
         if world and e.position then
             local pos = e.position
             local radius = e.collisionRadius and e.collisionRadius.radius or 20
@@ -222,9 +217,17 @@ function enemy.update(dt, playerState, world)
 
             -- Sync physics body
             if e.physics and e.physics.body then
-                e.physics.body:setPosition(pos.x, pos.y)
+                -- Box2D bodies can be destroyed before the ECS entity is
+                -- flushed/removed. Accessing a destroyed body throws.
+                if e.physics.body.isDestroyed and e.physics.body:isDestroyed() then
+                    e.physics.body = nil
+                else
+                    e.physics.body:setPosition(pos.x, pos.y)
+                end
             end
         end
+
+        ::continue::
     end
 end
 

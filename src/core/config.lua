@@ -68,7 +68,7 @@ local config = {
         levelMin = 1,
         levelMax = 3,
         -- Multipliers per level step for core behaviors
-        detectionRangePerLevel = 0.5,  -- +50% detection per level above 1
+        detectionRangePerLevel = 0.0,  -- no detection scaling; keep aggro distance consistent
         attackRangePerLevel = 0.3,     -- +30% attack range per level above 1
         healthPerLevel = 0.8,          -- +80% max health per level above 1
         weaponDamagePerLevel = 0.6,    -- +60% weapon damage per level above 1

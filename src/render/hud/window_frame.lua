@@ -117,7 +117,7 @@ end
 --                        bottomBarY, bottomBarHeight, topBarHeight }
 function window_frame.draw(state, opts, colors)
     local windowStyle = ui_theme.window
-    local radius = windowStyle.radius or 6
+    local radius = windowStyle.radius or 0
 
     local layout = computeLayout(state, opts)
 
@@ -248,7 +248,7 @@ function window_frame.draw(state, opts, colors)
             windowStyle.closeButtonBg[4]
         )
     end
-    love.graphics.rectangle("fill", closeX, closeY, closeW, closeH, 4, 4)
+    love.graphics.rectangle("fill", closeX, closeY, closeW, closeH)
 
     love.graphics.setLineWidth(2)
     local xColor = hovered and windowStyle.closeButtonXHover or windowStyle.closeButtonX
