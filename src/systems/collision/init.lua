@@ -24,6 +24,7 @@ local config = require("src.core.config")
 local projectileModule = require("src.entities.projectile")
 local asteroidModule = require("src.entities.asteroid")
 local ecsWorld = require("src.ecs.world")
+ local ecsCollisionQueue = require("src.ecs.box2d_collision_queue")
 
 local utils = require("src.systems.collision.utils")
 local handlers = require("src.systems.collision.handlers")
@@ -72,6 +73,10 @@ end
 --- @param contact userdata Box2D contact object
 function collision.onBeginContact(dataA, dataB, contact)
     dispatch.onBeginContact(dataA, dataB, contact)
+    -- Also feed collisions into the ECS queue so ECS-vs-ECS contacts can be
+    -- processed by the ECS collision system while we continue migrating away
+    -- from the legacy dispatcher.
+    ecsCollisionQueue.onBeginContact(dataA, dataB, contact)
 end
 
 --- Update the collision system
@@ -154,6 +159,7 @@ end
 --- Clear all pending collisions (call on game restart)
 function collision.clear()
     dispatch.clearPending()
+    ecsCollisionQueue.clear()
     playerDiedThisFrame = false
 end
 

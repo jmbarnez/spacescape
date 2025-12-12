@@ -11,7 +11,7 @@ local CollisionSystem = Concord.system({
     -- Projectiles that can deal damage
     projectiles = { "projectile", "position", "damage", "faction" },
     -- Entities that can take damage
-    damageables = { "damageable", "position", "health", "faction" },
+    damageables = { "damageable", "position", "health" },
     -- Ships for ramming
     ships = { "ship", "position", "faction", "health" },
 })
@@ -64,8 +64,8 @@ end
 --- @param contactY number Contact point Y
 function CollisionSystem:handleProjectileHit(projectile, target, contactX, contactY)
     -- Faction check: ignore friendly fire
-    local projectileFaction = projectile.faction.name
-    local targetFaction = target.faction.name
+    local projectileFaction = (projectile.faction and projectile.faction.name) or "neutral"
+    local targetFaction = (target.faction and target.faction.name) or "neutral"
 
     if projectileFaction == targetFaction then
         return -- Same faction, ignore

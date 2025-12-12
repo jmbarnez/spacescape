@@ -263,8 +263,6 @@ function handlers.handlePlayerProjectileVsEnemy(projectile, enemy, contactX, con
                 local xp = config.player.xpPerEnemy or 0
                 local tokens = config.player.tokensPerEnemy or 0
                 damageModule.awardXpAndTokensOnKill(xp, tokens)
-                local resources = damageModule.computeEnemyResourceYield(target, radius)
-                damageModule.spawnResourceChunksAt(tx, ty, resources)
                 -- Spawn cargo wreck for looting
                 damageModule.spawnEnemyWreck(tx, ty, target, radius)
             end
@@ -371,8 +369,6 @@ function handlers.handlePlayerVsEnemy(player, enemy, contactX, contactY, context
     local xp = config.player.xpPerEnemy or 0
     local tokens = config.player.tokensPerEnemy or 0
     damageModule.awardXpAndTokensOnKill(xp, tokens)
-    local resources = damageModule.computeEnemyResourceYield(enemy, enemyRadius)
-    damageModule.spawnResourceChunksAt(ex, ey, resources)
     -- Spawn cargo wreck for looting
     damageModule.spawnEnemyWreck(ex, ey, enemy, enemyRadius)
 

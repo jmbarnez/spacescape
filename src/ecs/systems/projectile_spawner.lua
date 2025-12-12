@@ -9,9 +9,12 @@ local ProjectileSpawnerSystem = Concord.system({})
 
 -- Handle fireProjectile event from FiringSystem
 function ProjectileSpawnerSystem:fireProjectile(shooter, targetX, targetY, targetEntity)
-    -- Lazy require to avoid circular dependency
-    local projectileModule = require("src.entities.projectile")
-    projectileModule.spawn(shooter, targetX, targetY, targetEntity)
+    -- ECS-first: projectiles are authoritative ECS entities.
+    -- This removes the last dependency on the legacy projectile module wrapper.
+    local world = self:getWorld()
+    if world and world.spawnProjectile then
+        world:spawnProjectile(shooter, targetX, targetY, targetEntity)
+    end
 end
 
 return ProjectileSpawnerSystem

@@ -11,6 +11,30 @@ local RewardSystem = Concord.system({
     rewardable = { "xpReward" },
 })
 
+ local function clampDropChance(value)
+     if value == nil then
+         return nil
+     end
+
+     local chance = tonumber(value)
+     if not chance then
+         return nil
+     end
+
+     -- Support either 0..1 or 0..100 style values.
+     if chance > 1 then
+         chance = chance / 100
+     end
+
+     if chance < 0 then
+         chance = 0
+     elseif chance > 1 then
+         chance = 1
+     end
+
+     return chance
+ end
+
 --- Handle entity death - award XP and tokens to killer
 --- Called via world:emit("onDeath", entity, killerFaction)
 function RewardSystem:onDeath(entity, killerFaction)
@@ -37,13 +61,28 @@ function RewardSystem:onDeath(entity, killerFaction)
             entity.resourceYield.resources)
     end
 
-    -- Spawn loot wreck for ships
+    -- Spawn loot wreck for ships.
+    --
+    -- Loot is data-driven via enemy definitions. We keep the drop chance on the
+    -- loot component (or resolve it from enemyDef) so this system does not
+    -- depend on any legacy collision reward code.
     if entity.ship and entity.loot and entity.position then
-        world:emit("spawnWreck",
-            entity.position.x,
-            entity.position.y,
-            entity.loot.cargo,
-            entity.loot.coins)
+        local chance = nil
+        if entity.loot and entity.loot.dropChance ~= nil then
+            chance = entity.loot.dropChance
+        elseif entity.enemyDef and entity.enemyDef.rewards and entity.enemyDef.rewards.loot then
+            chance = entity.enemyDef.rewards.loot.dropChance
+        end
+
+        chance = clampDropChance(chance)
+
+        if chance and chance > 0 and math.random() < chance then
+            world:emit("spawnWreck",
+                entity.position.x,
+                entity.position.y,
+                entity.loot.cargo,
+                entity.loot.coins)
+        end
     end
 
     -- Spawn explosion VFX
@@ -52,7 +91,7 @@ function RewardSystem:onDeath(entity, killerFaction)
         world:emit("spawnExplosion",
             entity.position.x,
             entity.position.y,
-            entity.faction and entity.faction.name or "enemy",
+            (entity.faction and entity.faction.name) or "neutral",
             radius)
     end
 

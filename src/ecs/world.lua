@@ -13,8 +13,10 @@ local collision = require("src.ecs.systems.collision")
 local movement = require("src.ecs.systems.movement")
 local render = require("src.ecs.systems.render")
 local reward = require("src.ecs.systems.reward")
+local rewardBridge = require("src.ecs.systems.reward_bridge")
 local ai = require("src.ecs.systems.ai")
 local projectileSpawner = require("src.ecs.systems.projectile_spawner")
+local box2dCollisionProcessor = require("src.ecs.systems.box2d_collision_processor")
 local respawner = require("src.ecs.systems.respawner")
 
 -- Load assemblages
@@ -38,8 +40,11 @@ world:addSystems(
 
     -- Combat
     projectileSpawner,
+    -- Process Box2D beginContact queue after the physics step.
+    box2dCollisionProcessor,
     collision.CollisionSystem,
     reward,
+    rewardBridge,
     respawner, -- Added respawner system
     collision.CleanupSystem,
 

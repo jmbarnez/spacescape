@@ -74,6 +74,10 @@ function dispatch.onBeginContact(dataA, dataB, contact)
     })
 end
 
+local function isEcsEntity(e)
+    return type(e) == "table" and e.__isEntity == true
+end
+
 --- Process a single collision between two entities
 --- @param dataA table UserData from fixture A
 --- @param dataB table UserData from fixture B
@@ -84,6 +88,10 @@ local function processCollision(dataA, dataB, contactX, contactY, context)
     local entityA = dataA.entity
     local entityB = dataB.entity
     if not entityA or not entityB or entityA._removed or entityB._removed then
+        return
+    end
+
+    if isEcsEntity(entityA) and isEcsEntity(entityB) then
         return
     end
 
