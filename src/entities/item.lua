@@ -118,6 +118,9 @@ local function applyPickupEffect(pickup, player)
         return
     end
 
+    local px = (player.position and player.position.x) or player.x
+    local py = (player.position and player.position.y) or player.y
+
     if pickup.itemType == "resource" then
         local amount = pickup.amount or 0
         local resourceType = pickup.resourceType or "resource"
@@ -128,30 +131,34 @@ local function applyPickupEffect(pickup, player)
                 local label = def.displayName or def.name or tostring(resourceType)
                 local baseText = label
                 local textColor = colors.health or colors.white
-                floatingText.spawn(baseText, player.x, player.y, nil, {
-                    duration = 1.1,
-                    riseSpeed = 26,
-                    scale = 0.8,
-                    alpha = 1.0,
-                    bgColor = { 0, 0, 0, 0 },
-                    textColor = textColor,
-                    stackKey = "resource:" .. tostring(resourceType),
-                    stackValueIncrement = math.floor(added + 0.5),
-                    stackBaseText = baseText,
-                })
+                if px and py then
+                    floatingText.spawn(baseText, px, py, nil, {
+                        duration = 1.1,
+                        riseSpeed = 26,
+                        scale = 0.8,
+                        alpha = 1.0,
+                        bgColor = { 0, 0, 0, 0 },
+                        textColor = textColor,
+                        stackKey = "resource:" .. tostring(resourceType),
+                        stackValueIncrement = math.floor(added + 0.5),
+                        stackBaseText = baseText,
+                    })
+                end
             else
                 -- Cargo is full: provide minimal feedback so the player understands
                 -- why the pickup did not increase their stored resources.
                 local text = "Cargo Full"
                 local textColor = colors.health or colors.white
-                floatingText.spawn(text, player.x, player.y, nil, {
-                    duration = 1.0,
-                    riseSpeed = 20,
-                    scale = 0.75,
-                    alpha = 1.0,
-                    bgColor = { 0, 0, 0, 0.4 },
-                    textColor = textColor,
-                })
+                if px and py then
+                    floatingText.spawn(text, px, py, nil, {
+                        duration = 1.0,
+                        riseSpeed = 20,
+                        scale = 0.75,
+                        alpha = 1.0,
+                        bgColor = { 0, 0, 0, 0.4 },
+                        textColor = textColor,
+                    })
+                end
             end
         end
     elseif pickup.itemType == "xp" then
@@ -178,17 +185,19 @@ local function applyPickupEffect(pickup, player)
             local baseText = "XP"
             local textColor = colors.health or colors.white
 
-            floatingText.spawn(baseText, player.x, player.y, nil, {
-                duration = 1.1,
-                riseSpeed = 26,
-                scale = leveledUp and 0.95 or 0.8,
-                alpha = 1.0,
-                bgColor = { 0, 0, 0, 0 },
-                textColor = textColor,
-                stackKey = "xp_total",
-                stackValueIncrement = value,
-                stackBaseText = baseText,
-            })
+            if px and py then
+                floatingText.spawn(baseText, px, py, nil, {
+                    duration = 1.1,
+                    riseSpeed = 26,
+                    scale = leveledUp and 0.95 or 0.8,
+                    alpha = 1.0,
+                    bgColor = { 0, 0, 0, 0 },
+                    textColor = textColor,
+                    stackKey = "xp_total",
+                    stackValueIncrement = value,
+                    stackBaseText = baseText,
+                })
+            end
         end
     end
 end
@@ -219,8 +228,14 @@ function item.update(dt, player, world)
     -- Magnet tuning: radius controls how far away pickups begin to feel the
     -- pull, pickupRadius controls how close they have to get before they
     -- instantly collect.
-    local magnetRadius = player.magnetRadius or playerCfg.magnetRadius or 220
-    local pickupRadius = player.magnetPickupRadius or playerCfg.magnetPickupRadius or 32
+    local magnetRadius = (player.magnet and player.magnet.radius) or player.magnetRadius or playerCfg.magnetRadius or 220
+    local pickupRadius = (player.magnet and player.magnet.pickupRadius) or player.magnetPickupRadius or playerCfg.magnetPickupRadius or 32
+
+    local playerX = (player.position and player.position.x) or player.x
+    local playerY = (player.position and player.position.y) or player.y
+    if playerX == nil or playerY == nil then
+        return
+    end
 
     -- Movement tuning for how strongly items accelerate toward the player and
     -- how quickly their velocity is damped when outside the magnet radius.
@@ -239,8 +254,8 @@ function item.update(dt, player, world)
         if maxLifetime > 0 and it.age >= maxLifetime then
             table.remove(item.list, i)
         else
-            local dx = player.x - it.x
-            local dy = player.y - it.y
+            local dx = playerX - it.x
+            local dy = playerY - it.y
             local distanceSq = dx * dx + dy * dy
             local distance = math.sqrt(distanceSq)
 

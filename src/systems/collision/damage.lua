@@ -85,10 +85,17 @@ end
 --- @param xp number XP amount
 --- @param tokens number Token amount
 function damage.awardXpAndTokensOnKill(xp, tokens)
-    local playerState = playerModule and playerModule.state or nil
-    if not playerState then
+    local playerEntity = nil
+    if playerModule and playerModule.getEntity then
+        playerEntity = playerModule.getEntity()
+    end
+
+    if not playerEntity then
         return
     end
+
+    local px = utils.getX(playerEntity)
+    local py = utils.getY(playerEntity)
 
     local ecsWorld = worldRef.get()
 
@@ -96,7 +103,7 @@ function damage.awardXpAndTokensOnKill(xp, tokens)
         ecsWorld:emit("awardXp", xp)
         local value = math.floor(xp + 0.5)
         local baseText = "XP"
-        floatingText.spawn(baseText, playerState.x, playerState.y - 22, nil, {
+        floatingText.spawn(baseText, px, py - 22, nil, {
             duration = 1.1,
             riseSpeed = 26,
             scale = 0.8,
@@ -114,7 +121,7 @@ function damage.awardXpAndTokensOnKill(xp, tokens)
         ecsWorld:emit("awardTokens", tokens)
         local value = math.floor(tokens + 0.5)
         local baseText = "Tokens"
-        floatingText.spawn(baseText, playerState.x, playerState.y - 8, nil, {
+        floatingText.spawn(baseText, px, py - 8, nil, {
             duration = 1.1,
             riseSpeed = 26,
             scale = 0.8,

@@ -13,6 +13,18 @@ local damageModule = require("src.systems.collision.damage")
 
 local handlers = {}
 
+local function isPlayerShip(ship)
+    if not ship then
+        return false
+    end
+
+    if playerModule and playerModule.getEntity then
+        return ship == playerModule.getEntity()
+    end
+
+    return false
+end
+
 --------------------------------------------------------------------------------
 -- COLOR CONSTANTS
 --------------------------------------------------------------------------------
@@ -399,11 +411,11 @@ function handlers.handlePlayerVsEnemy(player, enemy, contactX, contactY, context
 
     -- Hull damage text (red for player)
     if hullDamage and hullDamage > 0 then
-        damageModule.spawnDamageText(hullDamage, player.x, player.y, player.size, DAMAGE_COLOR_PLAYER, nil)
+        damageModule.spawnDamageText(hullDamage, px, py, playerSize, DAMAGE_COLOR_PLAYER, nil)
     end
 
     if died then
-        explosionFx.spawn(player.x, player.y, context.currentColors.ship, player.size * 2.2)
+        explosionFx.spawn(px, py, context.currentColors.ship, playerSize * 2.2)
         context.playerDiedThisFrame = true
     end
 end
@@ -499,10 +511,11 @@ function handlers.resolveShipVsAsteroid(ship, asteroid, contactX, contactY, cont
         -- Enemies keep their existing sliding behavior so they do not jitter
         -- around asteroids as aggressively.
         ------------------------------------------------------------------
-        if ship == playerModule.state and ship.shield and ship.shield > 0 then
+        local shield = utils.getShield(ship)
+        if isPlayerShip(ship) and shield and shield > 0 then
             if shieldImpactFx and shieldImpactFx.spawn then
-                local sx = ship.x
-                local sy = ship.y
+                local sx = utils.getX(ship)
+                local sy = utils.getY(ship)
                 local ix = sparkX
                 local iy = sparkY
                 local shieldRadius = utils.getBoundingRadius(ship)
@@ -522,8 +535,8 @@ function handlers.resolveShipVsAsteroid(ship, asteroid, contactX, contactY, cont
             -- Reflect the player's velocity around the contact normal so that
             -- the ship "bounces" off the asteroid surface while losing a bit
             -- of speed according to the configured bounceFactor.
-            local vx = ship.vx or 0
-            local vy = ship.vy or 0
+            local vx = utils.getVX(ship)
+            local vy = utils.getVY(ship)
             local speedSq = vx * vx + vy * vy
             if speedSq > 0 then
                 local nx = dx * invDist
@@ -535,8 +548,10 @@ function handlers.resolveShipVsAsteroid(ship, asteroid, contactX, contactY, cont
                     local bounce = config.player.bounceFactor or 0.5
                     local rvx = vx - 2 * dot * nx
                     local rvy = vy - 2 * dot * ny
-                    ship.vx = rvx * bounce
-                    ship.vy = rvy * bounce
+                    if ship.velocity then
+                        ship.velocity.vx = rvx * bounce
+                        ship.velocity.vy = rvy * bounce
+                    end
                 end
             end
         end

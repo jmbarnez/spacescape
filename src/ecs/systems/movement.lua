@@ -112,7 +112,7 @@ function MovementSystem:prePhysics(dt, playerEntity, world)
         local thrust = e.thrust
 
         if thrust.isThrusting then
-            local angle = e.rotation.angle
+            local angle = thrust.thrustAngle or e.rotation.angle
             e.velocity.vx, e.velocity.vy = physics.applyThrust(
                 e.velocity.vx, e.velocity.vy,
                 angle,

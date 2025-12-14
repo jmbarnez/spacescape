@@ -44,9 +44,9 @@ world:addSystems(
 -- Movement and physics
     playerControl,
     asteroidBehavior,
+    movement.RotationSystem,
     movement.MovementSystem,
     worldBounds,
-    movement.RotationSystem,
     movement.ProjectileSystem,
 
 

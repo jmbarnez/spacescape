@@ -25,7 +25,7 @@ local function getClampMargin(player)
 end
 
 function input.update(dt, player, world, camera)
-    if coreInput.down("mouse_secondary") then
+    if coreInput.pressed("mouse_secondary") then
         local worldX, worldY = coreInput.getMouseWorld(camera)
         -- Clamp movement targets using the player's collision radius (derived
         -- from the owned ship layout) when available so clicks near the world
