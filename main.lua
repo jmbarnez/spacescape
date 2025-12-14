@@ -1,37 +1,11 @@
-local state_machine = require("src.core.state_machine")
+local Gamestate = require("lib.hump.gamestate")
+local GameState = require("src.states.game_state")
 
 function love.load()
-	state_machine.load()
-end
+	-- Register all Love callbacks (update/draw/keypressed/etc) so they forward
+	-- into the currently active HUMP state.
+	Gamestate.registerEvents()
 
-function love.update(dt)
-	state_machine.call("update", dt)
-end
-
-function love.draw()
-	state_machine.call("draw")
-end
-
-function love.keypressed(key)
-	state_machine.call("keypressed", key)
-end
-
-function love.mousepressed(x, y, button)
-	state_machine.call("mousepressed", x, y, button)
-end
-
-function love.wheelmoved(x, y)
-	state_machine.call("wheelmoved", x, y)
-end
-
-function love.resize(w, h)
-	state_machine.call("resize", w, h)
-end
-
-function love.mousereleased(x, y, button)
-	state_machine.call("mousereleased", x, y, button)
-end
-
-function love.mousemoved(x, y, dx, dy)
-	state_machine.call("mousemoved", x, y, dx, dy)
+	-- Start directly in gameplay for now (matching the previous boot flow).
+	Gamestate.switch(GameState)
 end

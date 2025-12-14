@@ -2,4 +2,4 @@
 trigger: always_on
 ---
 
-add tons of comments and keep organized
+Add comments for non-obvious logic; don’t comment obvious code; don’t rewrite existing comments unless needed
