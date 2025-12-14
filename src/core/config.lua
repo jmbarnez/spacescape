@@ -7,6 +7,7 @@ local config = {
         spawnInterval = 2,
         initialEnemyCount = 6,
         initialAsteroidCount = 80,
+        mithrilOreAsteroidChance = 0.06,
         safeEnemyRadius = 2500,
         maxEnemies = 6,
         enemiesPerSpawn = 1,

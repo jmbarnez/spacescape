@@ -150,7 +150,7 @@ about for window management. It is passed *by reference* so this module can
 update it in-place.
 
     uiCtx = {
-        gameState = "playing" | "paused" | "gameover",
+        gameState = "playing" | "paused" | "dead",
         pauseMenu = table,   -- pause menu state / items
         --
         -- Open / closed state for in-play overlays (cargo, map, etc.) is tracked
@@ -166,7 +166,6 @@ Each function in this module may mutate uiCtx and returns:
 Where:
     handled : boolean  - true if some HUD window consumed the event.
     action  : string?  - optional high-level intent for the game state:
-                         * "restart"          -> restart current run
                          * "quit_to_desktop" -> exit to desktop
 
 The game state module decides how to react to these actions; this manager only
@@ -211,9 +210,8 @@ end
 -- This is intended to be called from game.mousepressed before any gameplay
 -- input is processed.
 function window_manager.mousepressed(uiCtx, x, y, button)
-    -- Game-over mouse handling stays in the game state module for now so that
-    -- it remains obvious how to restart after death.
-    if uiCtx.gameState == "gameover" then
+    -- Death-screen mouse handling stays in the game state module.
+    if uiCtx.gameState == "dead" then
         return false, nil
     end
 
@@ -233,17 +231,12 @@ function window_manager.mousepressed(uiCtx, x, y, button)
     --------------------------------------------------------------------------
     if uiCtx.gameState == "paused" then
         -- If the frame did not consume the click, see if it landed on one of
-        -- the pause menu buttons (Resume / Restart / Quit).
+        -- the pause menu buttons (Resume / Quit).
         local index, item = hud_pause.hitTestPauseMenu(uiCtx.pauseMenu, x, y)
         if item then
             if item.id == "resume" then
                 uiCtx.gameState = "playing"
                 return true, nil
-            elseif item.id == "restart" then
-                -- Signal to the game state that the player requested a
-                -- restart. The game module will decide how to perform the
-                -- reset and which systems to touch.
-                return true, "restart"
             elseif item.id == "quit" then
                 -- Same idea: the actual quit call (love.event.quit) stays out
                 -- of the HUD layer.
@@ -304,7 +297,7 @@ end
 --- Handle mouse release for all HUD windows.
 -- This mirrors the pressed handler but only cares about drag / press state.
 function window_manager.mousereleased(uiCtx, x, y, button)
-    if uiCtx.gameState == "gameover" then
+    if uiCtx.gameState == "dead" then
         return false
     end
 
@@ -335,7 +328,7 @@ end
 -- camera zoom is applied. When the world map is open, the wheel should zoom
 -- the map instead of the gameplay camera.
 function window_manager.wheelmoved(uiCtx, x, y)
-    if uiCtx.gameState == "gameover" then
+    if uiCtx.gameState == "dead" then
         return false
     end
 
@@ -359,7 +352,7 @@ end
 -- Used primarily for window dragging; hover visuals stay in the individual
 -- window modules (they read the current mouse position directly).
 function window_manager.mousemoved(uiCtx, x, y, dx, dy)
-    if uiCtx.gameState == "gameover" then
+    if uiCtx.gameState == "dead" then
         return false
     end
 
@@ -408,7 +401,7 @@ end
 -- @return boolean handled  True if the key was consumed by a HUD window.
 -- @return string? action   Optional high-level intent (e.g., "close_window").
 function window_manager.keypressed(uiCtx, key)
-    -- Only intercept Escape while playing (not paused, not gameover)
+    -- Only intercept Escape while playing (not paused, not dead)
     if key ~= "escape" then
         return false, nil
     end

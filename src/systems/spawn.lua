@@ -99,7 +99,7 @@ end
 function spawn.reset()
     spawnTimer = 0
 
-    -- Reset the population so restarts are deterministic and don't accumulate.
+    -- Reset the population so spawns are deterministic and don't accumulate.
     local enemies = getEnemyEntities()
     for i = #enemies, 1, -1 do
         safeDestroyEcsEntity(enemies[i])

@@ -11,6 +11,7 @@ local physics = require("src.core.physics")
 local config = require("src.core.config")
 local colors = require("src.core.colors")
 local asteroid_generator = require("src.utils.procedural_asteroid_generator")
+local mithrilItem = require("src.data.items.mithril")
 
 asteroid.shader = nil
 
@@ -124,11 +125,44 @@ end
 -- @param x number World X coordinate
 -- @param y number World Y coordinate
 -- @param size number Asteroid size (optional, random if not provided)
+-- @param spec table Optional spawn spec (e.g. { variant = "mithril_ore" })
 -- @return entity The created asteroid entity
-function asteroid.spawn(x, y, size)
+function asteroid.spawn(x, y, size, spec)
+    -- Back-compat: allow (x, y, specTable)
+    if type(size) == "table" and spec == nil then
+        spec = size
+        size = nil
+    end
+
     size = size or (config.asteroid.minSize + math.random() * (config.asteroid.maxSize - config.asteroid.minSize))
 
-    local data = asteroid_generator.generate(size)
+    local options = nil
+    local variant = nil
+    if type(spec) == "table" then
+        variant = spec.variant or spec.type
+    end
+
+    -- Default to ice-rich asteroids until more types are added.
+    if variant == nil or variant == "ice" then
+        options = {
+            composition = {
+                mithrilChance = 0.0,
+                baseRockVsIce = 0.05 + math.random() * 0.35,
+            }
+        }
+        variant = variant or "ice"
+    elseif variant == "mithril_ore" then
+        options = {
+            composition = {
+                mithrilChance = 1.0,
+                minMithrilShare = 0.78,
+                maxMithrilShare = 1.00,
+                baseRockVsIce = 0.1 + math.random() * 0.6,
+            }
+        }
+    end
+
+    local data = asteroid_generator.generate(size, options)
     local collisionRadius = (data and data.shape and data.shape.boundingRadius) or size
 
     local t = calculateSizeInterpolation(size)
@@ -154,6 +188,17 @@ function asteroid.spawn(x, y, size)
         e.rotationSpeed = (math.random() - 0.5) * config.asteroid.rotationSpeedRange
         e.composition = composition
         e.data = data
+
+        if variant == "mithril_ore" then
+            e.asteroidVariant = "mithril_ore"
+            if mithrilItem and type(mithrilItem.color) == "table" then
+                e.data.glowColor = { mithrilItem.color[1], mithrilItem.color[2], mithrilItem.color[3] }
+            else
+                e.data.glowColor = { 0.35, 0.75, 1.0 }
+            end
+        elseif variant == "ice" then
+            e.asteroidVariant = "ice"
+        end
     end
 
     -- Resource yield from composition
@@ -162,6 +207,10 @@ function asteroid.spawn(x, y, size)
     end
 
     return e
+end
+
+function asteroid.spawnMithrilOre(x, y, size)
+    return asteroid.spawn(x, y, size, { variant = "mithril_ore" })
 end
 
 --------------------------------------------------------------------------------
@@ -180,10 +229,22 @@ function asteroid.populate(world, count)
 
     count = count or DEFAULT_ASTEROID_COUNT
 
-    for _ = 1, count do
+    local oreChance = (config.spawn and config.spawn.mithrilOreAsteroidChance) or 0
+
+    local spawnedOre = 0
+
+    for i = 1, count do
         local x = math.random(world.minX + SPAWN_MARGIN, world.maxX - SPAWN_MARGIN)
         local y = math.random(world.minY + SPAWN_MARGIN, world.maxY - SPAWN_MARGIN)
-        asteroid.spawn(x, y)
+
+        local forceOre = (oreChance > 0) and (spawnedOre == 0) and (i == count)
+
+        if forceOre or (oreChance > 0 and math.random() < oreChance) then
+            asteroid.spawn(x, y, { variant = "mithril_ore" })
+            spawnedOre = spawnedOre + 1
+        else
+            asteroid.spawn(x, y, { variant = "ice" })
+        end
     end
 end
 

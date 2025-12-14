@@ -3,66 +3,26 @@
 
 -- Module imports
 local playerModule = require("src.entities.player")
-local asteroidModule = require("src.entities.asteroid")
-local ui = require("src.render.hud")
 local windowManager = require("src.render.hud.window_manager")
-local projectileModule = require("src.entities.projectile")
-local particlesModule = require("src.entities.particles")
-local projectileShards = require("src.entities.projectile_shards")
-local starfield = require("src.render.starfield")
-local wreckModule = require("src.entities.wreck")
 local world = require("src.core.world")
 local camera = require("src.core.camera")
-local physics = require("src.core.physics")
 local config = require("src.core.config")
 local systems = require("src.core.systems")
-local spawnSystem = require("src.systems.spawn")
-local combatSystem = require("src.systems.combat")
-local collisionSystem = require("src.systems.collision")
 local inputSystem = require("src.systems.input")
 local abilitiesSystem = require("src.systems.abilities")
-local engineTrail = require("src.entities.engine_trail")
-local explosionFx = require("src.entities.explosion_fx")
-local shieldImpactFx = require("src.entities.shield_impact_fx")
-local floatingText = require("src.entities.floating_text")
-local gameRender = require("src.states.game_render")
-local ecsWorld = require("src.ecs.world")
 local input = require("src.core.input")
 local gameInput = require("src.states.game_input")
-
-local function getEnemyEntities()
-	local ships = ecsWorld:query({ "ship", "faction", "position" }) or {}
-	local enemies = {}
-	for _, e in ipairs(ships) do
-		if e.faction and e.faction.name == "enemy" and not e._removed and not e.removed then
-			table.insert(enemies, e)
-		end
-	end
-	return enemies
-end
-
-local function clearEnemyEntities()
-	local enemies = getEnemyEntities()
-	for i = #enemies, 1, -1 do
-		local e = enemies[i]
-		if e and e.physics and e.physics.body then
-			pcall(function()
-				if e.physics.body.isDestroyed and not e.physics.body:isDestroyed() then
-					e.physics.body:destroy()
-				end
-			end)
-		end
-		if e and e.destroy then
-			e:destroy()
-		end
-	end
-end
+local gameBootstrap = require("src.states.game_bootstrap")
+local gameDraw = require("src.states.game_draw")
+local gameRespawn = require("src.states.game_respawn")
 
 -- Module definition
 local game = {}
 
 -- Game state
-local gameState = "playing" -- "playing", "gameover", "paused"
+local gameState = "playing" -- "playing", "dead", "paused"
+
+local initialSpawn = { x = 0, y = 0 }
 
 local pauseMenu = {
 	items = {
@@ -99,14 +59,14 @@ local function processInputActions()
 		setGameState = function(nextState)
 			gameState = nextState
 		end,
+		respawn = function()
+			game.respawn()
+		end,
 		getPauseMenu = function()
 			return pauseMenu
 		end,
 		setPauseMenu = function(nextMenu)
 			pauseMenu = nextMenu
-		end,
-		restartGame = function()
-			game.restartGame()
 		end,
 		onQuit = function()
 			love.event.quit()
@@ -114,145 +74,12 @@ local function processInputActions()
 	})
 end
 
--- Color palette used for rendering
-local colors = require("src.core.colors")
-
-local function registerUpdateSystems()
-	systems.clear()
-
-	systems.registerUpdate("input", function(dt, ctx)
-		ctx.inputSystem.update(dt, ctx.player, ctx.world, ctx.camera)
-	end, 10)
-
-	-- Update kinematic transforms BEFORE stepping Box2D so beginContact events
-	-- are generated in the same frame (instead of one frame late).
-	-- Update kinematic transforms BEFORE stepping Box2D so beginContact events
-	-- are generated in the same frame (instead of one frame late).
-	-- [DELETED] Legacy playerModule.update (Moved to PlayerControlSystem)
-
-
-	-- ECS pre-physics: update AI/movement and sync ECS kinematic bodies into Box2D.
-	systems.registerUpdate("ecsPrePhysics", function(dt, ctx)
-		-- Removed proxy sync steps, as we use direct ECS components now.
-		if ecsWorld and ecsWorld.emit then
-			ecsWorld:emit("prePhysics", dt, ctx.player, ctx.world)
-		end
-	end, 25)
-
-
-	-- Asteroids still run through their legacy update loop, but are ECS-backed.
-	-- They must update BEFORE physics so their bodies are in the correct place
-	-- when Box2D evaluates contacts.
-	-- Asteroids still run through their legacy update loop, but are ECS-backed.
-	-- They must update BEFORE physics so their bodies are in the correct place
-	-- when Box2D evaluates contacts.
-	-- [DELETED] Legacy asteroidModule.update (Moved to ECS Systems)
-
-
-	-- Wrecks have sensor bodies; keep their transforms in sync before physics.
-	-- Wrecks have sensor bodies; keep their transforms in sync before physics.
-	-- [DELETED] Legacy wreckModule.update (Moved to ECS Systems)
-
-
-	systems.registerUpdate("physics", function(dt, ctx)
-		physics.update(dt)
-	end, 40)
-
-	-- ECS post-physics: drain Box2D collision queue + copy physics-driven bodies
-	-- (projectiles) back into ECS positions.
-	systems.registerUpdate("ecsPostPhysics", function(dt, ctx)
-		if ecsWorld and ecsWorld.emit then
-			ecsWorld:emit("postPhysics", dt, ctx.player, ctx.world)
-		end
-		-- Removed ECS -> playerModule.state sync.
-	end, 45)
-
-
-	systems.registerUpdate("engineTrail", function(dt, ctx)
-		engineTrail.update(dt, ctx.player, getEnemyEntities())
-	end, 40)
-
-	systems.registerUpdate("camera", function(dt, ctx)
-		camera.update(dt, ctx.player)
-	end, 50)
-
-	systems.registerUpdate("starfield", function(dt, ctx)
-		starfield.update(dt, ctx.camera.x, ctx.camera.y)
-	end, 60)
-
-	systems.registerUpdate("projectiles", function(dt, ctx)
-		-- Projectile lifetime/offscreen cleanup is handled by ECS systems.
-	end, 80)
-
-	systems.registerUpdate("projectileShards", function(dt, ctx)
-		projectileShards.update(dt)
-	end, 85)
-
-	systems.registerUpdate("particles", function(dt, ctx)
-		particlesModule.update(dt)
-	end, 100)
-
-	systems.registerUpdate("shieldImpactFx", function(dt, ctx)
-		shieldImpactFx.update(dt)
-	end, 105)
-
-	systems.registerUpdate("floatingText", function(dt, ctx)
-		floatingText.update(dt)
-	end, 110)
-
-	systems.registerUpdate("abilities", function(dt, ctx)
-		abilitiesSystem.update(dt, ctx.player, ctx.world, ctx.camera)
-	end, 120)
-
-	systems.registerUpdate("spawn", function(dt, ctx)
-		spawnSystem.update(dt)
-	end, 130)
-
-	systems.registerUpdate("combat", function(dt, ctx)
-		combatSystem.updateAutoShoot(dt, ctx.player)
-	end, 140)
-
-	-- Items / pickups are updated after ships so that magnets use the latest
-	-- player position, but before particles so they remain part of the core
-	-- world simulation rather than just an effect layer.
-	systems.registerUpdate("items", function(dt, ctx)
-		-- Item magnet + pickup resolution is handled by ECS systems.
-	end, 95)
-
-	-- NOTE: wrecks are updated in the pre-physics phase now.
-end
 --------------------------------------------------------------------------------
 -- Initialization
 --------------------------------------------------------------------------------
 
 function game.load()
-	love.window.setTitle("Spacescape")
-	math.randomseed(os.time())
-
-	local font = love.graphics.newFont("assets/fonts/Orbitron-Bold.ttf", 16)
-	love.graphics.setFont(font)
-
-	physics.init()
-	collisionSystem.init() -- Register collision callbacks with physics
-	playerModule.reset() -- Spawns new player ECS entity
-	local playerEntity = playerModule.getEntity()
-
-	world.initFromPlayer(playerEntity)
-	camera.centerOnEntity(playerEntity)
-
-	starfield.generate()
-	spawnSystem.reset()
-	combatSystem.reset()
-	particlesModule.load()
-	engineTrail.load()
-	engineTrail.reset()
-	explosionFx.load()
-	shieldImpactFx.load()
-	floatingText.clear()
-	abilitiesSystem.load(playerEntity)
-	asteroidModule.load()
-	gameRender.load()
-	registerUpdateSystems()
+	gameBootstrap.load(initialSpawn)
 end
 
 --------------------------------------------------------------------------------
@@ -263,7 +90,7 @@ function game.update(dt)
 	local playerEntity = playerModule.getEntity()
 
 	-- Update the input wrapper every frame so pressed/released transitions are
-	-- detected reliably, even while paused or on the game-over screen.
+	-- detected reliably, even while paused or on the death screen.
 	input.update(dt)
 
 	-- Process all UI + gameplay input as action checks (Baton) instead of Love
@@ -271,7 +98,7 @@ function game.update(dt)
 	processInputActions()
 
 	-- Ability casts are gated behind the "playing" state so the player cannot
-	-- trigger combat actions while paused or game-over.
+	-- trigger combat actions while paused or dead.
 	if gameState == "playing" then
 		if input.pressed("ability_overcharge") then
 			abilitiesSystem.castOvercharge(playerEntity)
@@ -301,8 +128,18 @@ end
 function game.checkCollisions()
 	local playerEntity = playerModule.getEntity()
 	if playerEntity and playerEntity.health and playerEntity.health.current and playerEntity.health.current <= 0 then
-		gameState = "gameover"
+		gameState = "dead"
 	end
+end
+
+function game.respawn()
+	if gameState ~= "dead" then
+		return
+	end
+
+	gameRespawn.respawn(initialSpawn)
+
+	gameState = "playing"
 end
 
 --------------------------------------------------------------------------------
@@ -336,74 +173,18 @@ function game.keyreleased(key)
 end
 
 function game.resize(w, h)
-	starfield.resize()
+	require("src.render.starfield").resize()
 end
 
 --------------------------------------------------------------------------------
 -- Game State Management
 --------------------------------------------------------------------------------
 
-function game.restartGame()
-	projectileModule.clear()
-
-	projectileShards.clear()
-	asteroidModule.clear()
-	particlesModule.clear()
-	wreckModule.clear()
-	engineTrail.reset()
-	explosionFx.clear()
-	shieldImpactFx.clear()
-	floatingText.clear()
-	collisionSystem.clear()
-	clearEnemyEntities()
-	-- Clear ECS entities before respawning the player so we don't delete the
-	-- newly spawned player entity.
-	ecsWorld:clear()
-	playerModule.entity = nil
-	playerModule.reset()
-	local playerEntity = playerModule.getEntity()
-	world.initFromPlayer(playerEntity)
-	camera.centerOnEntity(playerEntity)
-
-	spawnSystem.reset()
-	combatSystem.reset()
-	abilitiesSystem.reset(playerEntity)
-	gameState = "playing"
-	windowManager.setWindowOpen("cargo", false)
-	windowManager.setWindowOpen("map", false)
-end
-
 --- Rendering
 --------------------------------------------------------------------------------
 
 function game.draw()
-	starfield.draw()
-
-	local renderCtx = {
-		camera = camera,
-		ui = ui,
-		player = playerModule.getEntity(),
-		playerModule = playerModule,
-
-		asteroidModule = asteroidModule,
-		wreckModule = wreckModule,
-		projectileModule = projectileModule,
-		projectileShards = projectileShards,
-		enemyList = getEnemyEntities(),
-		engineTrail = engineTrail,
-		particlesModule = particlesModule,
-		explosionFx = explosionFx,
-		shieldImpactFx = shieldImpactFx,
-		floatingText = floatingText,
-		colors = colors,
-		gameState = gameState,
-		combatSystem = combatSystem,
-		pauseMenu = pauseMenu,
-		cargoOpen = windowManager.isWindowOpen("cargo"),
-		mapOpen = windowManager.isWindowOpen("map"),
-	}
-
-	gameRender.draw(renderCtx)
+	gameDraw.draw(gameState, pauseMenu, camera)
 end
 
 return game

@@ -337,7 +337,7 @@ local function drawWorldObjects(ctx)
 
     -- Determine which entity (if any) is currently hovered by the mouse
     -- cursor. We only compute this while the game is active; during menus or
-    -- game over the hover outline is suppressed.
+    -- the death overlay the hover outline is suppressed.
     local hoveredEntity = nil
     if gameState == "playing" or gameState == "paused" then
         hoveredEntity = findHoveredEntity(ctx)
@@ -468,8 +468,8 @@ local function drawOverlay(ctx)
         ui.drawWorldMap(player, colors, enemyListForHud, asteroidList)
     end
 
-    if gameState == "gameover" then
-        ui.drawGameOver(player)
+    if gameState == "dead" then
+        ui.drawDeath(player, colors)
     elseif gameState == "paused" then
         ui.drawPause(player, colors, pauseMenu)
     end

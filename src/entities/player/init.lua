@@ -23,18 +23,26 @@ player.entity = nil
 
 --- Reset the player (respawn).
 -- This destroys any old player entity and asks the world to spawn a new one.
-function player.reset()
+function player.reset(spawnX, spawnY)
     local ecsWorld = worldRef.get()
     if not ecsWorld then return end
 
     -- Clear old entity if it exists (though world:clear() usually handles this)
     if player.entity and player.entity.destroy then
+        if player.entity.physics and player.entity.physics.body then
+            pcall(function()
+                local body = player.entity.physics.body
+                if (not body.isDestroyed) or (not body:isDestroyed()) then
+                    body:destroy()
+                end
+            end)
+        end
         player.entity:destroy()
     end
 
     -- Spawn new player entity via the World helper
     -- Note: world.lua's spawnPlayer uses the "player" assemblage we just updated.
-    player.entity = ecsWorld:spawnPlayer(0, 0, nil)
+    player.entity = ecsWorld:spawnPlayer(spawnX or 0, spawnY or 0, nil)
 
 
     -- Ensure the camera knows about the new entity

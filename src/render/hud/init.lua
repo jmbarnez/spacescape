@@ -2,7 +2,7 @@ local hud = {}
 
 local hud_ingame = require("src.render.hud.ingame")
 local hud_pause = require("src.render.hud.pause")
-local hud_gameover = require("src.render.hud.gameover")
+local hud_death = require("src.render.hud.death")
 local hud_cargo = require("src.render.hud.cargo")
 local hud_world_map = require("src.render.hud.world_map")
 local hud_loot_panel = require("src.render.hud.loot_panel")
@@ -20,8 +20,8 @@ function hud.drawWorldMap(player, colors, enemyList, asteroidList)
     hud_world_map.draw(player, colors, enemyList, asteroidList)
 end
 
-function hud.drawGameOver(player)
-    hud_gameover.draw(player)
+function hud.drawDeath(player, colors)
+    hud_death.draw(player, colors)
 end
 
 function hud.drawPause(player, colors, menu)

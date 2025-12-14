@@ -4,6 +4,14 @@ local function lerp(a, b, t)
     return a + (b - a) * t
 end
 
+local function fract(x)
+    return x - math.floor(x)
+end
+
+local function seededRand(seed, n)
+    return fract(math.sin(seed * 12.9898 + n * 78.233) * 43758.5453)
+end
+
 local function flattenPoints(points)
     local flat = {}
     if not points then
@@ -51,6 +59,15 @@ local BASE_COLORS = {
     ice = {0.72, 0.80, 0.88},    -- bright, cool icy deposits
     mithril = {0.82, 0.96, 1.00} -- pale, luminous metal highlights
 }
+
+local function buildBaseRockColor(seed)
+    local base = BASE_COLORS.stone
+    local jitter = 0.06
+    local r = math.max(0, math.min(1, base[1] + (seededRand(seed, 101) - 0.5) * jitter))
+    local g = math.max(0, math.min(1, base[2] + (seededRand(seed, 102) - 0.5) * jitter))
+    local b = math.max(0, math.min(1, base[3] + (seededRand(seed, 103) - 0.5) * jitter))
+    return { r, g, b }
+end
 
 -- Build a stone/ice mix with an optional mithril component.
 -- options.composition (optional) can override the defaults:
@@ -137,6 +154,8 @@ function asteroid_generator.generate(size, options)
     options = options or {}
     size = size or 30
 
+    local seed = math.random() * 1000
+
     local complexity = options.complexity or (0.4 + math.random() * 0.6)
     local segments = 10 + math.floor(complexity * 10)
     local roughness = options.roughness or (0.6 + math.random() * 0.4)
@@ -166,7 +185,7 @@ function asteroid_generator.generate(size, options)
     -- corresponding surface color so HUD text and visuals stay in sync.
     local composition = generateComposition(options)
 
-    local color = blendColorFromComposition(composition)
+    local color = buildBaseRockColor(seed)
 
     local asteroid = {
         size = size,
@@ -175,7 +194,7 @@ function asteroid_generator.generate(size, options)
         shape = shape,
         color = color,
         composition = composition,
-        seed = math.random() * 1000
+        seed = seed,
     }
 
     return asteroid

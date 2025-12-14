@@ -64,7 +64,7 @@ function collision.update(player, particlesModule, colors, damagePerHit)
     return playerDiedThisFrame
 end
 
---- Clear all pending collisions (call on game restart)
+--- Clear all pending collisions
 function collision.clear()
     ecsCollisionQueue.clear()
     playerDiedThisFrame = false

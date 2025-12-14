@@ -48,8 +48,8 @@ local function processUiMouseButtons(deps)
 
 	if input.pressed("mouse_primary") then
 		local gameState = deps.getGameState()
-		if gameState == "gameover" then
-			deps.restartGame()
+		if gameState == "dead" then
+			deps.respawn()
 			return
 		end
 
@@ -59,9 +59,6 @@ local function processUiMouseButtons(deps)
 
 		if action == "quit_to_desktop" then
 			deps.onQuit()
-			return
-		elseif action == "restart" then
-			deps.restartGame()
 			return
 		end
 
@@ -120,6 +117,10 @@ local function processUiKeyboardActions(deps)
 
 	if input.pressed("pause") then
 		local gameState = deps.getGameState()
+		if gameState == "dead" then
+			deps.onQuit()
+			return
+		end
 		if gameState == "playing" then
 			local uiCtx = createUiContext(deps)
 			local handled = windowManager.keypressed(uiCtx, "escape")
