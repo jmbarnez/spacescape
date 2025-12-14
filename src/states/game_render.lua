@@ -8,6 +8,7 @@ local lockLabelLockedAt = nil
 local config = require("src.core.config")
 local ecsWorld = require("src.ecs.world")
 local coreInput = require("src.core.input")
+local windowManager = require("src.render.hud.window_manager")
 
 -- Rendering constants to avoid magic numbers throughout the module
 local RENDER_CONSTANTS = {
@@ -430,8 +431,6 @@ local function drawOverlay(ctx)
     local combatSystem = ctx.combatSystem
     local camera = ctx.camera
     local pauseMenu = ctx.pauseMenu
-    local cargoOpen = ctx.cargoOpen
-    local mapOpen = ctx.mapOpen
     local enemyList = ctx.enemyList
 
     drawTargetIndicator(colors, combatSystem, camera)
@@ -443,21 +442,7 @@ local function drawOverlay(ctx)
     local asteroidList = ecsWorld:query({ "asteroid", "position" }) or nil
     ui.drawHUD(player, colors, enemyListForHud, asteroidList)
 
-    -- Cargo window overlay (shown when Tab is pressed)
-    if cargoOpen and gameState == "playing" then
-        ui.drawCargo(player, colors)
-    end
-
-    -- Loot panel overlay (shown when player is looting a wreck)
-    if gameState == "playing" and player.isLooting and player.lootTarget then
-        ui.drawLootPanel(player, colors)
-    end
-
-    -- Full-screen world map overlay (toggled with M). This is rendered after
-    -- the regular HUD so it sits on top of other UI elements.
-    if mapOpen and gameState == "playing" then
-        ui.drawWorldMap(player, colors, enemyListForHud, asteroidList)
-    end
+    windowManager.drawOpenWindows(ctx, player, colors, enemyListForHud, asteroidList)
 
     if gameState == "dead" then
         ui.drawDeath(player, colors)

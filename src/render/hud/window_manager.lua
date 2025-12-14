@@ -4,6 +4,7 @@ local hud_pause
 local hud_cargo
 local hud_world_map
 local hud_loot_panel
+local hud_skills
 
 local windows
 
@@ -51,6 +52,7 @@ hud_pause = require("src.render.hud.pause")
 hud_cargo = require("src.render.hud.cargo")
 hud_world_map = require("src.render.hud.world_map")
 hud_loot_panel = require("src.render.hud.loot_panel")
+hud_skills = require("src.render.hud.skills")
 
 --------------------------------------------------------------------------------
 -- INTERNAL HELPERS / REGISTRY
@@ -74,6 +76,9 @@ windows = {
         id = "map",
         zIndex = 200,
         isOpen = false,
+        draw = function(player, colors, enemyList, asteroidList)
+            hud_world_map.draw(player, colors, enemyList, asteroidList)
+        end,
         mousepressed = function(x, y, button)
             return hud_world_map.mousepressed(x, y, button)
         end,
@@ -92,6 +97,9 @@ windows = {
         id = "cargo",
         zIndex = 100,
         isOpen = false,
+        draw = function(player, colors)
+            hud_cargo.draw(player, colors)
+        end,
         mousepressed = function(x, y, button)
             return hud_cargo.mousepressed(x, y, button)
         end,
@@ -108,6 +116,9 @@ windows = {
         zIndex = 150, -- Above cargo, below map
         -- isOpen is dynamically determined by player.isLooting
         isOpen = false,
+        draw = function(player, colors)
+            hud_loot_panel.draw(player, colors)
+        end,
         mousepressed = function(x, y, button)
             return hud_loot_panel.mousepressed(x, y, button)
         end,
@@ -116,6 +127,24 @@ windows = {
         end,
         mousemoved = function(x, y)
             hud_loot_panel.mousemoved(x, y)
+        end,
+    },
+
+    skills = {
+        id = "skills",
+        zIndex = 120,
+        isOpen = false,
+        draw = function(player, colors)
+            hud_skills.draw(player, colors)
+        end,
+        mousepressed = function(x, y, button)
+            return hud_skills.mousepressed(x, y, button)
+        end,
+        mousereleased = function(x, y, button)
+            hud_skills.mousereleased(x, y, button)
+        end,
+        mousemoved = function(x, y)
+            hud_skills.mousemoved(x, y)
         end,
     },
 }
@@ -135,6 +164,20 @@ local function getWindowsInZOrderDescending()
         local zb = b.zIndex or 0
         return za > zb
     end)
+
+    return ordered
+end
+
+local function getWindowsInZOrderAscending()
+    local ordered = getWindowsInZOrderDescending()
+
+    local i = 1
+    local j = #ordered
+    while i < j do
+        ordered[i], ordered[j] = ordered[j], ordered[i]
+        i = i + 1
+        j = j - 1
+    end
 
     return ordered
 end
@@ -204,6 +247,20 @@ function window_manager.isWindowOpen(id)
     syncLootAndCargoWindows()
 
     return win.isOpen and true or false
+end
+
+function window_manager.drawOpenWindows(ctx, player, colors, enemyList, asteroidList)
+    if not ctx or ctx.gameState ~= "playing" then
+        return
+    end
+
+    syncLootAndCargoWindows()
+
+    for _, win in ipairs(getWindowsInZOrderAscending()) do
+        if win.isOpen and win.draw then
+            win.draw(player, colors, enemyList, asteroidList)
+        end
+    end
 end
 
 --- Handle mouse press for all HUD windows.
@@ -388,6 +445,8 @@ function window_manager.resetWindow(id)
         require("src.render.hud.world_map").reset()
     elseif id == "pause" then
         require("src.render.hud.pause").reset()
+    elseif id == "skills" then
+        require("src.render.hud.skills").reset()
     end
 end
 

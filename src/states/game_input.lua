@@ -152,6 +152,11 @@ local function processUiKeyboardActions(deps)
 		windowManager.toggleWindow("map")
 		return
 	end
+
+	if input.pressed("toggle_skills") and deps.getGameState() == "playing" then
+		windowManager.toggleWindow("skills")
+		return
+	end
 end
 
 function game_input.process(deps)

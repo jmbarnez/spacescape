@@ -23,6 +23,7 @@ local worldBounds = require("src.ecs.systems.world_bounds")
 local asteroidBehavior = require("src.ecs.systems.asteroid_behavior")
 local itemPickups = require("src.ecs.systems.item_pickups")
 local projectileBounds = require("src.ecs.systems.projectile_bounds")
+local miningProgression = require("src.ecs.systems.mining_progression")
 
 
 -- Load assemblages
@@ -58,6 +59,7 @@ world:addSystems(
     box2dCollisionProcessor,
     collision.CollisionSystem,
     playerProgression,
+    miningProgression,
     reward,
     respawner, -- Added respawner system
     collision.CleanupSystem,

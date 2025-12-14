@@ -469,6 +469,7 @@ function assemblages.player(e, x, y, shipData)
         :give("experience", 0, 1)
         :give("currency", 0)
         :give("cargo", {}, 20)
+        :give("miningSkill", 0, 1)
         :give("magnet", config.player and config.player.magnetRadius, config.player and config.player.magnetPickupRadius)
         :give("weapon", weapons.pulseLaser)
 

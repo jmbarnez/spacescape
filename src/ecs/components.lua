@@ -197,6 +197,21 @@ Concord.component("cargo", function(c, slots, maxSlots)
     c.maxSlots = maxSlots or 20
 end)
 
+Concord.component("miningSkill", function(c, xp, level)
+    c.xp = xp or 0
+    c.level = level or 1
+
+    local base = 40
+    local growth = 18
+    local xpToNext = base + growth * ((c.level or 1) - 1)
+    if xpToNext <= 0 then
+        xpToNext = 1
+    end
+
+    c.xpToNext = xpToNext
+    c.xpRatio = math.max(0, math.min(1, (c.xp or 0) / xpToNext))
+end)
+
 Concord.component("magnet", function(c, radius, pickupRadius)
     c.radius = radius or 150
     c.pickupRadius = pickupRadius or 30

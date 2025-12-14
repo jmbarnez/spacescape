@@ -38,8 +38,6 @@ function game_draw.draw(gameState, pauseMenu, camera)
 		gameState = gameState,
 		combatSystem = combatSystem,
 		pauseMenu = pauseMenu,
-		cargoOpen = windowManager.isWindowOpen("cargo"),
-		mapOpen = windowManager.isWindowOpen("map"),
 	}
 
 	gameRender.draw(renderCtx)

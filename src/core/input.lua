@@ -31,6 +31,7 @@ local DEFAULT_CONTROLS = {
     toggle_fullscreen = { "key:f11" },
     toggle_cargo = { "key:tab" },
     toggle_map = { "key:m" },
+    toggle_skills = { "key:k" },
 
     -- Abilities
     ability_overcharge = { "key:q" },

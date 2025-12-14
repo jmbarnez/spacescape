@@ -6,6 +6,7 @@ local hud_death = require("src.render.hud.death")
 local hud_cargo = require("src.render.hud.cargo")
 local hud_world_map = require("src.render.hud.world_map")
 local hud_loot_panel = require("src.render.hud.loot_panel")
+local hud_skills = require("src.render.hud.skills")
 
 function hud.drawHUD(player, colors, enemyList, asteroidList)
     -- Pass through the optional enemy / asteroid lists so in-game HUD widgets
@@ -30,6 +31,10 @@ end
 
 function hud.drawCargo(player, colors)
     hud_cargo.draw(player, colors)
+end
+
+function hud.drawSkills(player, colors)
+    hud_skills.draw(player, colors)
 end
 
 function hud.drawLootPanel(player, colors)
