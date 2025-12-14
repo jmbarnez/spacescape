@@ -17,6 +17,7 @@ local render = require("src.ecs.systems.render")
 local playerProgression = require("src.ecs.systems.player_progression")
 local reward = require("src.ecs.systems.reward")
 local rewardBridge = require("src.ecs.systems.reward_bridge")
+local combatFeedbackBridge = require("src.ecs.systems.combat_feedback_bridge")
 local ai = require("src.ecs.systems.ai")
 local projectileSpawner = require("src.ecs.systems.projectile_spawner")
 local box2dCollisionProcessor = require("src.ecs.systems.box2d_collision_processor")
@@ -60,6 +61,7 @@ world:addSystems(
     box2dCollisionProcessor,
     collision.CollisionSystem,
     playerProgression,
+    combatFeedbackBridge,
     reward,
     rewardBridge,
     respawner, -- Added respawner system

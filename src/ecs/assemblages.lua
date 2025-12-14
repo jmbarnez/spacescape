@@ -86,7 +86,10 @@ function assemblages.projectile(e, shooter, targetX, targetY, targetEntity)
 
     if body then
         e:give("physics", body, shape and { shape } or nil, fixture and { fixture } or nil)
-        body:setLinearVelocity(math.cos(angle) * speed, math.sin(angle) * speed)
+        local setLinearVelocity = body["setLinearVelocity"]
+        if setLinearVelocity then
+            setLinearVelocity(body, math.cos(angle) * speed, math.sin(angle) * speed)
+        end
     end
 end
 
@@ -272,6 +275,45 @@ function assemblages.asteroid(e, x, y, asteroidData, size)
     local data = asteroidData or {}
     local collisionRadius = (data.shape and data.shape.boundingRadius) or s
 
+    local function calculateSizeInterpolation(value)
+        local minSize = config.asteroid and config.asteroid.minSize or 0
+        local maxSize = config.asteroid and config.asteroid.maxSize or minSize
+        local range = maxSize - minSize
+        if range <= 0 then
+            return 0
+        end
+        local t = (value - minSize) / range
+        return math.max(0, math.min(1, t))
+    end
+
+    local function buildCompositionText(asteroidVisualData)
+        if not asteroidVisualData or not asteroidVisualData.composition then
+            return "Stone and ice"
+        end
+
+        local c = asteroidVisualData.composition
+        local stone = c.stone or 0
+        local ice = c.ice or 0
+        local mithril = c.mithril or 0
+
+        local total = stone + ice + mithril
+        if total <= 0 then
+            return "Stone and ice"
+        end
+
+        local stonePercent = math.floor((stone / total) * 100 + 0.5)
+        local icePercent = math.floor((ice / total) * 100 + 0.5)
+        local mithrilPercent = math.floor((mithril / total) * 100 + 0.5)
+
+        if mithrilPercent >= 10 then
+            return string.format("Stone %d%%, Ice %d%%, Mithril %d%%", stonePercent, icePercent, mithrilPercent)
+        elseif mithrilPercent > 0 then
+            return string.format("Stone %d%%, Ice %d%%, traces of Mithril", stonePercent, icePercent)
+        end
+
+        return string.format("Stone %d%%, Ice %d%%", stonePercent, icePercent)
+    end
+
     -- Convert the asteroid's authored composition (0..1-ish weights) into a
     -- concrete integer resource yield so the ECS RewardSystem can spawn drops
     -- without depending on legacy collision reward code.
@@ -309,12 +351,29 @@ function assemblages.asteroid(e, x, y, asteroidData, size)
         end
     end
 
+    local t = calculateSizeInterpolation(s)
+    local minHealth = config.asteroid and config.asteroid.minHealth or (s * 2)
+    local maxHealthCfg = config.asteroid and config.asteroid.maxHealth or minHealth
+    local maxHealth = minHealth + t * (maxHealthCfg - minHealth)
+
+    local consts = physics.constants or {}
+    local minDrift = consts.asteroidMinDrift or 0
+    local maxDrift = consts.asteroidMaxDrift or minDrift
+    local driftSpeed = minDrift + math.random() * (maxDrift - minDrift)
+    local driftAngle = math.random() * math.pi * 2
+    local vx = math.cos(driftAngle) * driftSpeed
+    local vy = math.sin(driftAngle) * driftSpeed
+
+    local rotationSpeedRange = config.asteroid and config.asteroid.rotationSpeedRange or 0
+    local rotationSpeed = (math.random() - 0.5) * rotationSpeedRange
+    local compositionText = buildCompositionText(data)
+
     e:give("position", x, y)
-        :give("velocity", 0, 0)
+        :give("velocity", vx, vy)
         :give("rotation", math.random() * math.pi * 2)
         :give("asteroid")
         :give("damageable")
-        :give("health", s * 2, s * 2)
+        :give("health", maxHealth, maxHealth)
         :give("size", s)
         :give("collisionRadius", collisionRadius)
         :give("asteroidVisual", data)
@@ -325,6 +384,25 @@ function assemblages.asteroid(e, x, y, asteroidData, size)
     -- Resource yield based on composition
     if yield then
         e:give("resourceYield", yield)
+    end
+
+    e.rotationSpeed = rotationSpeed
+    e.composition = compositionText
+    e.data = data
+
+    local collisionVertices = data and data.shape and data.shape.flatPoints
+    local body, shapes, fixtures
+    if collisionVertices and #collisionVertices >= 6 then
+        body, shapes, fixtures = physics.createPolygonBody(x, y, collisionVertices, "ASTEROID", e, {})
+    else
+        local b, s2, f2 = physics.createCircleBody(x, y, collisionRadius, "ASTEROID", e, {})
+        body = b
+        shapes = s2 and { s2 } or nil
+        fixtures = f2 and { f2 } or nil
+    end
+
+    if body then
+        e:give("physics", body, shapes, fixtures)
     end
 end
 
@@ -385,6 +463,7 @@ function assemblages.player(e, x, y, shipData)
         :give("size", size)
         :give("collisionRadius", collisionRadius)
         :give("thrust", consts.playerThrust, consts.playerMaxSpeed)
+        :give("damping", consts.linearDamping)
         :give("shipVisual", ship)
         :give("destination")
         :give("experience", 0, 1)
@@ -392,6 +471,21 @@ function assemblages.player(e, x, y, shipData)
         :give("cargo", {}, 20)
         :give("magnet", config.player and config.player.magnetRadius, config.player and config.player.magnetPickupRadius)
         :give("weapon", weapons.pulseLaser)
+
+    local collisionVertices = ship and ship.collisionVertices
+    local body, shapes, fixtures
+    if collisionVertices and #collisionVertices >= 6 then
+        body, shapes, fixtures = physics.createPolygonBody(x, y, collisionVertices, "PLAYER", e, {})
+    else
+        local b, s, f = physics.createCircleBody(x, y, collisionRadius, "PLAYER", e, {})
+        body = b
+        shapes = s and { s } or nil
+        fixtures = f and { f } or nil
+    end
+
+    if body then
+        e:give("physics", body, shapes, fixtures)
+    end
 end
 
 --------------------------------------------------------------------------------

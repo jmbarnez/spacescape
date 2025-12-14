@@ -27,7 +27,14 @@ local function getEnemies()
 end
 
 local function getAsteroids()
-    return asteroidModule.getList and asteroidModule.getList() or asteroidModule.list or {}
+    local asteroids = ecsWorld:query({ "asteroid", "position" }) or {}
+    local out = {}
+    for _, a in ipairs(asteroids) do
+        if not a._removed and not a.removed then
+            out[#out + 1] = a
+        end
+    end
+    return out
 end
 
 local function getWrecks()

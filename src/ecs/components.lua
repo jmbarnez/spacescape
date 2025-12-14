@@ -229,4 +229,6 @@ Concord.component("respawnTimer", function(c, current, enemyDef, x, y)
     c.y = y or 0
 end)
 
+Concord.component("dead")
+
 return true

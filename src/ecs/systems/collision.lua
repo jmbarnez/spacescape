@@ -20,6 +20,26 @@ local CollisionSystem = Concord.system({
 -- DAMAGE APPLICATION
 --------------------------------------------------------------------------------
 
+local function getCollisionRadius(e)
+    if not e then
+        return 0
+    end
+
+    if e.collisionRadius then
+        return e.collisionRadius.radius or 0
+    end
+
+    if e.size then
+        return e.size.value or 0
+    end
+
+    return 0
+end
+
+local function isPlayerShip(e)
+    return e and (e.playerControlled == true or e.playerControlled ~= nil or (e.faction and e.faction.name == "player"))
+end
+
 --- Apply damage to an entity, shields first then hull
 --- @param entity table The entity to damage
 --- @param amount number The damage amount
@@ -126,6 +146,78 @@ function CollisionSystem:handleShipRam(attacker, defender, contactX, contactY)
     end
 end
 
+function CollisionSystem:handleShipVsAsteroid(ship, asteroid, contactX, contactY)
+    if not (ship and ship.position and ship.velocity and asteroid and asteroid.position) then
+        return
+    end
+
+    local shipRadius = getCollisionRadius(ship)
+    local asteroidRadius = getCollisionRadius(asteroid)
+    if shipRadius <= 0 or asteroidRadius <= 0 then
+        return
+    end
+
+    local shipX = ship.position.x
+    local shipY = ship.position.y
+    local astX = asteroid.position.x
+    local astY = asteroid.position.y
+
+    local dx = shipX - astX
+    local dy = shipY - astY
+    local distSq = dx * dx + dy * dy
+    if distSq <= 0 then
+        return
+    end
+
+    local distance = math.sqrt(distSq)
+    local minDist = shipRadius + asteroidRadius
+    if distance >= minDist then
+        return
+    end
+
+    local invDist = 1.0 / distance
+    local nx = dx * invDist
+    local ny = dy * invDist
+    local overlap = minDist - distance
+
+    -- Push ship out of the asteroid.
+    local newX = shipX + nx * overlap
+    local newY = shipY + ny * overlap
+    ship.position.x = newX
+    ship.position.y = newY
+
+    if ship.physics and ship.physics.body then
+        ship.physics.body:setPosition(newX, newY)
+    end
+
+    local shield = ship.shield and ship.shield.current or 0
+    if isPlayerShip(ship) and shield > 0 then
+        -- Reflect velocity along contact normal so the player "bounces".
+        local vx = ship.velocity.vx or 0
+        local vy = ship.velocity.vy or 0
+        local dot = vx * nx + vy * ny
+        if dot < 0 then
+            local bounce = (config.player and config.player.bounceFactor) or 0.5
+            local rvx = vx - 2 * dot * nx
+            local rvy = vy - 2 * dot * ny
+            ship.velocity.vx = rvx * bounce
+            ship.velocity.vy = rvy * bounce
+        end
+
+        local ix = contactX
+        local iy = contactY
+        if not ix or not iy then
+            ix = astX + nx * asteroidRadius
+            iy = astY + ny * asteroidRadius
+        end
+
+        local world = self:getWorld()
+        if world and world.emit then
+            world:emit("onAsteroidBump", ship, ix, iy)
+        end
+    end
+end
+
 --------------------------------------------------------------------------------
 -- BOX2D INTEGRATION
 --------------------------------------------------------------------------------
@@ -159,6 +251,14 @@ function CollisionSystem:processCollision(entityA, entityB, contactX, contactY)
         local cx = contactX or (entityA.position.x + entityB.position.x) / 2
         local cy = contactY or (entityA.position.y + entityB.position.y) / 2
         self:handleShipRam(entityA, entityB, cx, cy)
+        return
+    end
+
+    -- Ship vs Asteroid (bump/resolve)
+    local ship = (entityA.ship and entityA) or (entityB.ship and entityB)
+    local asteroid = (entityA.asteroid and entityA) or (entityB.asteroid and entityB)
+    if ship and asteroid then
+        self:handleShipVsAsteroid(ship, asteroid, contactX, contactY)
         return
     end
 end

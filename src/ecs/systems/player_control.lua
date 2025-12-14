@@ -84,6 +84,7 @@ function PlayerControlSystem:prePhysics(dt)
             local pos = e.position
             local vel = e.velocity
             local thrust = e.thrust
+            local damping = e.damping
 
             local dx = dest.x - pos.x
             local dy = dest.y - pos.y
@@ -93,16 +94,32 @@ function PlayerControlSystem:prePhysics(dt)
             -- Arrival parameters
             local stopRadius = config.player.stopRadius or 10
             local slowRadius = config.player.slowRadius or 200
+            local arrivalSpeedThreshold = config.player.arrivalSpeedThreshold or 10
+            local settleRadius = math.max(stopRadius * 3, stopRadius + 6)
+
+            if damping then
+                damping.base = damping.base or damping.value
+                local t = 1
+                if slowRadius > 0 then
+                    t = math.max(0, math.min(1, dist / slowRadius))
+                end
+                local maxDamping = (config.player and config.player.autopilotMaxDamping) or 6.0
+                damping.value = damping.base + (maxDamping - damping.base) * (1 - t)
+            end
 
             thrust.isThrusting = false
 
-            if dist < stopRadius and speed < (config.player.arrivalSpeedThreshold or 10) then
+            if (dist < stopRadius and speed < arrivalSpeedThreshold) or
+                (dist < settleRadius and speed < arrivalSpeedThreshold * 2) then
                 -- Arrived
                 vel.vx = 0
                 vel.vy = 0
                 dest.x = pos.x
                 dest.y = pos.y
                 dest.active = false
+                if damping and damping.base then
+                    damping.value = damping.base
+                end
             else
                 if dist > 0 then
                     local dirX = dx / dist
@@ -142,6 +159,9 @@ function PlayerControlSystem:prePhysics(dt)
         else
             -- No destination: ensure we don't keep thrusting from a previous frame.
             e.thrust.isThrusting = false
+            if e.damping and e.damping.base then
+                e.damping.value = e.damping.base
+            end
         end
     end
 end

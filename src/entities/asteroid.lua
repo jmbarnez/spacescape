@@ -139,43 +139,26 @@ function asteroid.spawn(x, y, size)
     local driftAngle = math.random() * math.pi * 2
     local composition = buildCompositionText(data)
 
-    -- Create ECS entity
-    local e = Concord.entity(ecsWorld)
-    e:give("position", x, y)
-        :give("velocity", math.cos(driftAngle) * driftSpeed, math.sin(driftAngle) * driftSpeed)
-        :give("rotation", math.random() * math.pi * 2)
-        :give("asteroid")
-        :give("damageable")
-        :give("health", maxHealth, maxHealth)
-        :give("size", size)
-        :give("collisionRadius", collisionRadius)
-        :give("asteroidVisual", data)
+    local e = ecsWorld:spawnAsteroid(x, y, data, size)
+
+    if e and e.velocity then
+        e.velocity.vx = math.cos(driftAngle) * driftSpeed
+        e.velocity.vy = math.sin(driftAngle) * driftSpeed
+    end
+    if e and e.health then
+        e.health.current = maxHealth
+        e.health.max = maxHealth
+    end
+
+    if e then
+        e.rotationSpeed = (math.random() - 0.5) * config.asteroid.rotationSpeedRange
+        e.composition = composition
+        e.data = data
+    end
 
     -- Resource yield from composition
-    if data and data.composition then
+    if e and data and data.composition and not e.resourceYield then
         e:give("resourceYield", data.composition)
-    end
-
-    -- Extra data for rendering/mining
-    e.rotationSpeed = (math.random() - 0.5) * config.asteroid.rotationSpeedRange
-    e.composition = composition
-    e.data = data
-
-    -- Create physics body
-    local collisionVertices = data and data.shape and data.shape.flatPoints
-    local body, shapes, fixtures
-
-    if collisionVertices and #collisionVertices >= 6 then
-        body, shapes, fixtures = physics.createPolygonBody(x, y, collisionVertices, "ASTEROID", e, {})
-    else
-        local b, s, f = physics.createCircleBody(x, y, collisionRadius, "ASTEROID", e, {})
-        body = b
-        shapes = s and { s } or nil
-        fixtures = f and { f } or nil
-    end
-
-    if body then
-        e:give("physics", body, shapes, fixtures)
     end
 
     return e

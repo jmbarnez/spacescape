@@ -10,8 +10,22 @@ local shieldImpactFx = require("src.entities.shield_impact_fx")
 local playerModule = require("src.entities.player")
 local utils = require("src.systems.collision.utils")
 local damageModule = require("src.systems.collision.damage")
+local worldRef = require("src.ecs.world_ref")
 
 local handlers = {}
+
+local function removeFromListOnly(list, entity)
+    if type(list) ~= "table" or not entity then
+        return
+    end
+
+    for i = #list, 1, -1 do
+        if list[i] == entity then
+            table.remove(list, i)
+            return
+        end
+    end
+end
 
 local function isPlayerShip(ship)
     if not ship then
@@ -265,18 +279,13 @@ function handlers.handlePlayerProjectileVsEnemy(projectile, enemy, contactX, con
         impactColor = context.currentColors and context.currentColors.projectile or nil,
         impactCount = 10,
         onKill = function(target, radius)
-            local tx, ty = utils.getX(target), utils.getY(target)
-            explosionFx.spawn(tx, ty, context.currentColors.enemy, radius * 1.4)
             utils.cleanupProjectilesForTarget(context.bullets, target)
-            utils.removeEntity(context.enemies, target)
+            removeFromListOnly(context.enemies, target)
             local owner = projectile.owner or (projectile.projectileData and projectile.projectileData.owner)
             local ownerFaction = owner and utils.getFaction(owner) or "player"
-            if ownerFaction ~= "enemy" then
-                local xp = config.player.xpPerEnemy or 0
-                local tokens = config.player.tokensPerEnemy or 0
-                damageModule.awardXpAndTokensOnKill(xp, tokens)
-                -- Spawn cargo wreck for looting
-                damageModule.spawnEnemyWreck(tx, ty, target, radius)
+            local ecsWorld = worldRef.get()
+            if ecsWorld and ecsWorld.emit then
+                ecsWorld:emit("onDeath", target, ownerFaction)
             end
         end,
     }, context)
@@ -339,20 +348,13 @@ function handlers.handleProjectileVsAsteroid(projectile, asteroid, contactX, con
         impactColor = context.currentColors and context.currentColors.projectile or nil,
         impactCount = 14,
         onKill = function(target, radius)
-            local tx, ty = utils.getX(target), utils.getY(target)
-            if context.currentParticles then
-                context.currentParticles.explosion(tx, ty, asteroidColor)
-            end
             utils.cleanupProjectilesForTarget(context.bullets, target)
-            utils.removeEntity(context.asteroids, target)
+            removeFromListOnly(context.asteroids, target)
             local owner = projectile.owner or (projectile.projectileData and projectile.projectileData.owner)
             local ownerFaction = owner and utils.getFaction(owner) or "player"
-            if ownerFaction ~= "enemy" then
-                local xp = config.player.xpPerAsteroid or 0
-                -- Asteroids should not award tokens/currency; only XP + item/resources.
-                damageModule.awardXpAndTokensOnKill(xp, 0)
-                local resources = damageModule.computeAsteroidResourceYield(target, radius)
-                damageModule.spawnResourceChunksAt(tx, ty, resources)
+            local ecsWorld = worldRef.get()
+            if ecsWorld and ecsWorld.emit then
+                ecsWorld:emit("onDeath", target, ownerFaction)
             end
         end,
     }, context)
@@ -374,15 +376,14 @@ function handlers.handlePlayerVsEnemy(player, enemy, contactX, contactY, context
     local px, py = utils.getX(player), utils.getY(player)
     local playerSize = utils.getSize(player)
 
-    -- Destroy the enemy on contact
-    explosionFx.spawn(ex, ey, context.currentColors.enemy, enemyRadius * 1.4)
+    -- Destroy the enemy on contact (legacy behavior).
+    -- Reward + VFX consequences are owned by ECS RewardSystem via onDeath.
     utils.cleanupProjectilesForTarget(context.bullets, enemy)
-    utils.removeEntity(context.enemies, enemy)
-    local xp = config.player.xpPerEnemy or 0
-    local tokens = config.player.tokensPerEnemy or 0
-    damageModule.awardXpAndTokensOnKill(xp, tokens)
-    -- Spawn cargo wreck for looting
-    damageModule.spawnEnemyWreck(ex, ey, enemy, enemyRadius)
+    removeFromListOnly(context.enemies, enemy)
+    local ecsWorld = worldRef.get()
+    if ecsWorld and ecsWorld.emit then
+        ecsWorld:emit("onDeath", enemy, utils.getFaction(player) or "player")
+    end
 
     -- Damage the player; shields absorb before hull
     local damageAmt = context.currentDamagePerHit

@@ -429,8 +429,8 @@ function game.update(dt)
 end
 
 function game.checkCollisions()
-	local playerDied = collisionSystem.update(playerModule.getEntity(), particlesModule, colors, DAMAGE_PER_HIT)
-	if playerDied then
+	local playerEntity = playerModule.getEntity()
+	if playerEntity and playerEntity.health and playerEntity.health.current and playerEntity.health.current <= 0 then
 		gameState = "gameover"
 	end
 end

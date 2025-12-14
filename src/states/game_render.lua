@@ -174,8 +174,11 @@ local function findHoveredEntity(ctx)
     end
 
     -- Check all active asteroids
-    for _, a in ipairs(asteroidModule.list or {}) do
-        considerEntity(a)
+    local asteroids = ecsWorld:query({ "asteroid", "position" }) or {}
+    for _, a in ipairs(asteroids) do
+        if not a._removed and not a.removed then
+            considerEntity(a)
+        end
     end
 
     -- Check all active loot containers / wrecks
@@ -449,7 +452,7 @@ local function drawOverlay(ctx)
     -- minimap can optionally render blips for them without reaching into
     -- global modules directly.
     local enemyListForHud = enemyList
-    local asteroidList = asteroidModule and asteroidModule.list or nil
+    local asteroidList = ecsWorld:query({ "asteroid", "position" }) or nil
     ui.drawHUD(player, colors, enemyListForHud, asteroidList)
 
     -- Cargo window overlay (shown when Tab is pressed)

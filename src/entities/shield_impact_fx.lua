@@ -144,9 +144,14 @@ function shield_impact_fx.draw()
             local centerY = hit.cy
 
             local follower = hit.followEntity
-            if follower and follower.x and follower.y then
-                centerX = follower.x
-                centerY = follower.y
+            if follower then
+                if follower.position and follower.position.x and follower.position.y then
+                    centerX = follower.position.x
+                    centerY = follower.position.y
+                elseif follower.x and follower.y then
+                    centerX = follower.x
+                    centerY = follower.y
+                end
             end
 
             ------------------------------------------------------------------
