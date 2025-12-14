@@ -358,24 +358,6 @@ local function drawWorldObjects(ctx)
 
     if gameState == "playing" or gameState == "paused" then
         engineTrail.draw()
-        -- Player draw is now ECS handled, but we might still draw local visual effects
-        -- like the ship sprite if not using a pure RenderSystem yet.
-        -- For now, we manually draw the ship using the Entity data.
-        if player and player.shipVisual then
-            -- We can use a helper or just rely on the ECS emit("draw") if we moved player to that.
-            -- But let's assume we keep the manual draw call for the main player to ensure camera
-            -- centering works perfectly without lag.
-
-            -- ACTUALLY: The easiest fix is to call the old draw function but pass the entity
-            -- acting as state (since field access is similar if we add fallbacks or update call).
-            -- But wait, we removed the legacy draw module or need to update it?
-            -- Let's update the call to use the utility we know exists or just emit 'draw'.
-            --
-            -- However, 'ecsWorld:emit("draw")' handles all ships. If player is just a ship,
-            -- it will be drawn there!
-            -- So we might simply NOT call playerModule.draw() anymore if Player is in the ECS world query.
-        end
-        -- NOTE: Player is now drawn by ecsWorld:emit("draw") along with other ships.
     end
 
 

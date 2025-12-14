@@ -8,7 +8,6 @@ local player = {}
 local worldRef = require("src.ecs.world_ref")
 local shipModule = require("src.entities.player.ship")
 local config = require("src.core.config")
-local playerDroneDef = require("src.data.ships.player_drone")
 
 
 -- The current active player entity.
@@ -35,7 +34,7 @@ function player.reset()
 
     -- Spawn new player entity via the World helper
     -- Note: world.lua's spawnPlayer uses the "player" assemblage we just updated.
-    player.entity = ecsWorld:spawnPlayer(0, 0, playerDroneDef)
+    player.entity = ecsWorld:spawnPlayer(0, 0, nil)
 
 
     -- Ensure the camera knows about the new entity
@@ -48,7 +47,7 @@ end
 -- Helper to ensure we have a valid entity reference
 -- (e.g., if the world was reloaded from outside this module)
 function player.getEntity()
-    if player.entity and not player.entity.removed then
+    if player.entity and not player.entity._removed and not player.entity.removed then
         return player.entity
     end
 
@@ -56,6 +55,10 @@ function player.getEntity()
     local ecsWorld = worldRef.get()
     if ecsWorld then
         player.entity = ecsWorld:getPlayer()
+    end
+
+    if not player.entity then
+        player.reset()
     end
 
     return player.entity

@@ -41,11 +41,13 @@ end
 
 -- Helper: get a stable player position for spawn calculations.
 local function getPlayerPos()
-    local p = playerModule and playerModule.state or nil
+    local p = playerModule and playerModule.getEntity and playerModule.getEntity() or nil
     if not p then
         return world.centerX or 0, world.centerY or 0
     end
-    return p.x or (world.centerX or 0), p.y or (world.centerY or 0)
+    local px = (p.position and p.position.x) or p.x or (world.centerX or 0)
+    local py = (p.position and p.position.y) or p.y or (world.centerY or 0)
+    return px, py
 end
 
 -- Helper: pick a random point in the world bounds, attempting to stay outside

@@ -157,7 +157,7 @@ local function processUiMouseButtons()
 		end
 
 		-- Gameplay left-click: loot/target selection.
-		inputSystem.mousepressed(pressX, pressY, 1, playerModule.state, world, camera)
+		inputSystem.mousepressed(pressX, pressY, 1, playerModule.getEntity(), world, camera)
 	end
 
 	-- Release: always forward to HUD so it can clear any drag state.
@@ -171,7 +171,7 @@ local function processUiMouseButtons()
 	-- press *and* while the button is held. We keep the press behavior here so
 	-- quick taps still move the ship.
 	if input.pressed("mouse_secondary") and gameState == "playing" then
-		inputSystem.mousepressed(rightPressX, rightPressY, 2, playerModule.state, world, camera)
+		inputSystem.mousepressed(rightPressX, rightPressY, 2, playerModule.getEntity(), world, camera)
 	end
 end
 
@@ -193,6 +193,13 @@ local function processUiMouseWheel()
 end
 
 local function processUiKeyboardActions()
+	-- Fullscreen toggle (F11)
+	if input.pressed("toggle_fullscreen") then
+		local isFullscreen = love.window.getFullscreen()
+		love.window.setFullscreen(not isFullscreen, "desktop")
+		return
+	end
+
 	-- Escape: close top-most in-play overlay first (cargo/map), otherwise toggle
 	-- pause.
 	if input.pressed("pause") then
@@ -380,6 +387,8 @@ end
 --------------------------------------------------------------------------------
 
 function game.update(dt)
+	local playerEntity = playerModule.getEntity()
+
 	-- Update the input wrapper every frame so pressed/released transitions are
 	-- detected reliably, even while paused or on the game-over screen.
 	input.update(dt)
@@ -395,10 +404,10 @@ function game.update(dt)
 	-- trigger combat actions while paused or game-over.
 	if gameState == "playing" then
 		if input.pressed("ability_overcharge") then
-			abilitiesSystem.castOvercharge(playerModule.state)
+			abilitiesSystem.castOvercharge(playerEntity)
 		end
 		if input.pressed("ability_vector_dash") then
-			abilitiesSystem.castVectorDash(playerModule.state, world, camera)
+			abilitiesSystem.castVectorDash(playerEntity, world, camera)
 		end
 	end
 
@@ -407,7 +416,7 @@ function game.update(dt)
 	end
 
 	local updateCtx = {
-		player = playerModule.getEntity(),
+		player = playerEntity,
 		world = world,
 		camera = camera,
 		inputSystem = inputSystem,
@@ -420,7 +429,7 @@ function game.update(dt)
 end
 
 function game.checkCollisions()
-	local playerDied = collisionSystem.update(playerModule.state, particlesModule, colors, DAMAGE_PER_HIT)
+	local playerDied = collisionSystem.update(playerModule.getEntity(), particlesModule, colors, DAMAGE_PER_HIT)
 	if playerDied then
 		gameState = "gameover"
 	end
@@ -465,11 +474,6 @@ end
 --------------------------------------------------------------------------------
 
 function game.restartGame()
-	playerModule.reset()
-	local playerEntity = playerModule.getEntity()
-	world.initFromPlayer(playerEntity)
-	camera.centerOnEntity(playerEntity)
-
 	projectileModule.clear()
 
 	projectileShards.clear()
@@ -483,11 +487,18 @@ function game.restartGame()
 	floatingText.clear()
 	collisionSystem.clear()
 	clearEnemyEntities()
+	-- Clear ECS entities before respawning the player so we don't delete the
+	-- newly spawned player entity.
 	ecsWorld:clear()
+	playerModule.entity = nil
+	playerModule.reset()
+	local playerEntity = playerModule.getEntity()
+	world.initFromPlayer(playerEntity)
+	camera.centerOnEntity(playerEntity)
 
 	spawnSystem.reset()
 	combatSystem.reset()
-	abilitiesSystem.reset(playerModule.state)
+	abilitiesSystem.reset(playerEntity)
 	gameState = "playing"
 	windowManager.setWindowOpen("cargo", false)
 	windowManager.setWindowOpen("map", false)

@@ -28,6 +28,7 @@ local input = {}
 local DEFAULT_CONTROLS = {
     -- Global / UI-ish actions
     pause = { "key:escape" },
+    toggle_fullscreen = { "key:f11" },
     toggle_cargo = { "key:tab" },
     toggle_map = { "key:m" },
 

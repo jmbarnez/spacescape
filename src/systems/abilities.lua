@@ -11,16 +11,6 @@ local function initIfNeeded()
         return
     end
 
-function abilities.castOvercharge(player)
-    initIfNeeded()
-    tryCastQ(player)
-end
-
-function abilities.castVectorDash(player, world, camera)
-    initIfNeeded()
-    tryCastE(player, world, camera)
-end
-
     for id, def in pairs(abilitiesData) do
         instances[id] = {
             def = def,
@@ -141,6 +131,16 @@ local function tryCastE(player, world, camera)
     if body then
         body:setPosition(nx, ny)
     end
+end
+
+function abilities.castOvercharge(player)
+    initIfNeeded()
+    tryCastQ(player)
+end
+
+function abilities.castVectorDash(player, world, camera)
+    initIfNeeded()
+    tryCastE(player, world, camera)
 end
 
 function abilities.keypressed(key, player, world, camera)

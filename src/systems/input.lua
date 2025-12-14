@@ -7,13 +7,30 @@ local input = {}
 
 local SELECTION_RADIUS = config.input.selectionRadius
 
+local function getClampMargin(player)
+    if not player then
+        return 0
+    end
+
+    if player.collisionRadius then
+        return type(player.collisionRadius) == "table" and (player.collisionRadius.value or player.collisionRadius.radius or 0)
+            or player.collisionRadius
+    end
+    if player.size then
+        return type(player.size) == "table" and (player.size.value or player.size.radius or 0)
+            or player.size
+    end
+
+    return 0
+end
+
 function input.update(dt, player, world, camera)
     if coreInput.down("mouse_secondary") then
         local worldX, worldY = coreInput.getMouseWorld(camera)
         -- Clamp movement targets using the player's collision radius (derived
         -- from the owned ship layout) when available so clicks near the world
         -- edge behave consistently with the physical ship size.
-        worldX, worldY = world.clampToWorld(worldX, worldY, player.collisionRadius or player.size)
+        worldX, worldY = world.clampToWorld(worldX, worldY, getClampMargin(player))
         playerModule.setTarget(worldX, worldY)
     end
 end
@@ -22,7 +39,7 @@ function input.mousepressed(x, y, button, player, world, camera)
     local worldX, worldY = camera.screenToWorld(x, y)
     -- Same clamp logic as in update(): prefer the collision radius so the
     -- click target never places the ship partially outside the world.
-    worldX, worldY = world.clampToWorld(worldX, worldY, player.collisionRadius or player.size)
+    worldX, worldY = world.clampToWorld(worldX, worldY, getClampMargin(player))
 
     -- Handle movement: RIGHT CLICK
     if button == 2 then

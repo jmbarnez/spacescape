@@ -11,11 +11,30 @@ local world = {
     maxY = 0
 }
 
+ local function resolveMargin(margin)
+     if margin == nil then
+         return 0, 0
+     end
+
+     if type(margin) == "number" then
+         return margin, margin
+     end
+
+     if type(margin) == "table" then
+         local mx = margin.x or margin[1] or margin.value or margin.radius or 0
+         local my = margin.y or margin[2] or mx
+         return tonumber(mx) or 0, tonumber(my) or 0
+     end
+
+     local n = tonumber(margin) or 0
+     return n, n
+ end
+
 function world.initFromPlayer(player)
     local px, py
     if player then
-        px = player.x or 0
-        py = player.y or 0
+        px = (player.position and player.position.x) or player.x or 0
+        py = (player.position and player.position.y) or player.y or 0
     end
 
     if not px or not py then
@@ -33,9 +52,9 @@ function world.initFromPlayer(player)
 end
 
 function world.clampToWorld(x, y, margin)
-    margin = margin or 0
-    x = math.max(world.minX + margin, math.min(world.maxX - margin, x))
-    y = math.max(world.minY + margin, math.min(world.maxY - margin, y))
+    local mx, my = resolveMargin(margin)
+    x = math.max(world.minX + mx, math.min(world.maxX - mx, x))
+    y = math.max(world.minY + my, math.min(world.maxY - my, y))
     return x, y
 end
 

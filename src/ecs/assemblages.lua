@@ -10,6 +10,7 @@ local weapons = require("src.core.weapons")
 local ship_generator = require("src.utils.procedural_ship_generator")
 local core_ship = require("src.core.ship")
 local enemyDefs = require("src.data.enemies")
+local player_drone = require("src.data.ships.player_drone")
 
 local assemblages = {}
 
@@ -333,7 +334,40 @@ end
 
 function assemblages.player(e, x, y, shipData)
     local size = config.player.size or 20
-    local ship = shipData or ship_generator.generate(size)
+
+    local function looksLikeNormalizedBlueprint(data)
+        if type(data) ~= "table" then
+            return false
+        end
+        if not (data.hull and data.hull.points and data.hull.points[1]) then
+            return false
+        end
+
+        local p = data.hull.points[1]
+        if type(p) ~= "table" then
+            return false
+        end
+
+        local px = tonumber(p[1]) or 0
+        local py = tonumber(p[2]) or 0
+
+        -- Normalized authored blueprints use values around [-1.5, 1.5].
+        -- World-space instances use values scaled by ship size (e.g. 30+).
+        return math.abs(px) <= 3 and math.abs(py) <= 3
+    end
+
+    local ship = nil
+    if shipData then
+        if looksLikeNormalizedBlueprint(shipData) then
+            ship = core_ship.buildInstanceFromBlueprint(shipData, size)
+        else
+            ship = shipData
+        end
+    end
+
+    ship = ship or core_ship.buildInstanceFromBlueprint(player_drone, size)
+    ship = ship or ship_generator.generate(size)
+
     local maxHealth = config.player.maxHealth or 100
     local maxShield = config.player.maxShield or 50
     local collisionRadius = (ship and ship.boundingRadius) or size

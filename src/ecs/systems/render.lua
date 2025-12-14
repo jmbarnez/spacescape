@@ -20,6 +20,7 @@ function ShipRenderSystem:draw(colors)
 
     for i = 1, self.ships.size do
         local e = self.ships[i]
+
         local px = e.position.x
         local py = e.position.y
         local angle = e.rotation.angle
