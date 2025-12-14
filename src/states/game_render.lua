@@ -324,7 +324,6 @@ local function drawWorldObjects(ctx)
     local player = ctx.player
     local playerModule = ctx.playerModule
     local asteroidModule = ctx.asteroidModule
-    local itemModule = ctx.itemModule
     local projectileModule = ctx.projectileModule
     local projectileShards = ctx.projectileShards
     local engineTrail = ctx.engineTrail
@@ -346,9 +345,7 @@ local function drawWorldObjects(ctx)
 
     drawMovementIndicator(player, colors)
     asteroidModule.draw(camera)
-    if itemModule and itemModule.draw then
-        itemModule.draw(colors)
-    end
+    -- Items are ECS entities now and are rendered by ECS systems.
     local wreckModule = ctx.wreckModule
     if wreckModule and wreckModule.draw then
         wreckModule.draw()

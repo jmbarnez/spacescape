@@ -25,6 +25,8 @@ local respawner = require("src.ecs.systems.respawner")
 local playerControl = require("src.ecs.systems.player_control")
 local worldBounds = require("src.ecs.systems.world_bounds")
 local asteroidBehavior = require("src.ecs.systems.asteroid_behavior")
+local itemPickups = require("src.ecs.systems.item_pickups")
+local projectileBounds = require("src.ecs.systems.projectile_bounds")
 
 
 -- Load assemblages
@@ -50,6 +52,10 @@ world:addSystems(
     worldBounds,
     movement.ProjectileSystem,
 
+    -- Item and projectile lifecycle
+    itemPickups,
+    projectileBounds,
+
 
     -- AI and behavior
     ai.AISystem,
@@ -70,6 +76,7 @@ world:addSystems(
     -- Rendering (order matters - drawn back to front)
     render.ShipRenderSystem,
     render.HealthBarSystem,
+    render.ItemRenderSystem,
     render.ProjectileRenderSystem
 )
 

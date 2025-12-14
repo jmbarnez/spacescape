@@ -9,7 +9,6 @@ local windowManager = require("src.render.hud.window_manager")
 local projectileModule = require("src.entities.projectile")
 local particlesModule = require("src.entities.particles")
 local projectileShards = require("src.entities.projectile_shards")
-local itemModule = require("src.entities.item")
 local starfield = require("src.render.starfield")
 local wreckModule = require("src.entities.wreck")
 local world = require("src.core.world")
@@ -308,7 +307,7 @@ local function registerUpdateSystems()
 	end, 60)
 
 	systems.registerUpdate("projectiles", function(dt, ctx)
-		projectileModule.update(dt, ctx.world)
+		-- Projectile lifetime/offscreen cleanup is handled by ECS systems.
 	end, 80)
 
 	systems.registerUpdate("projectileShards", function(dt, ctx)
@@ -343,7 +342,7 @@ local function registerUpdateSystems()
 	-- player position, but before particles so they remain part of the core
 	-- world simulation rather than just an effect layer.
 	systems.registerUpdate("items", function(dt, ctx)
-		itemModule.update(dt, ctx.player, ctx.world)
+		-- Item magnet + pickup resolution is handled by ECS systems.
 	end, 95)
 
 	-- NOTE: wrecks are updated in the pre-physics phase now.
@@ -479,7 +478,6 @@ function game.restartGame()
 	projectileShards.clear()
 	asteroidModule.clear()
 	particlesModule.clear()
-	itemModule.clear()
 	wreckModule.clear()
 	engineTrail.reset()
 	explosionFx.clear()
@@ -517,7 +515,6 @@ function game.draw()
 		playerModule = playerModule,
 
 		asteroidModule = asteroidModule,
-		itemModule = itemModule,
 		wreckModule = wreckModule,
 		projectileModule = projectileModule,
 		projectileShards = projectileShards,

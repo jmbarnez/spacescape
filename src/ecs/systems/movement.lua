@@ -237,8 +237,8 @@ function ProjectileSystem:prePhysics(dt)
         -- that value is treated as an accuracy falloff range, while the
         -- actual lifetime/removal of projectiles is handled by:
         --   - collision resolution (on impact), and
-        --   - the legacy projectileModule.update() offscreen cleanup
-        --     which culls bullets once they leave the world bounds.
+        --   - the ECS projectile_bounds system which culls bullets once
+        --     they leave the world bounds.
         --
         -- This ensures enemy basic shots can travel the full distance to
         -- the player even when fired from far away, instead of vanishing

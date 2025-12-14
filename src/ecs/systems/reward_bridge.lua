@@ -41,21 +41,6 @@ local colors = require("src.core.colors")
 --   modules on-demand inside handler calls.
 --------------------------------------------------------------------------------
 
-local itemModule = nil
-
-local function getItemModule()
-    if itemModule then
-        return itemModule
-    end
-
-    local ok, mod = pcall(require, "src.entities.item")
-    if ok then
-        itemModule = mod
-    end
-
-    return itemModule
-end
-
 local explosionFx = require("src.entities.explosion_fx")
 
 local RewardBridgeSystem = Concord.system({})
@@ -123,8 +108,8 @@ function RewardBridgeSystem:spawnResources(x, y, resources)
         return
     end
 
-    local items = getItemModule()
-    if not (items and items.spawnResourceChunk) then
+    local world = self:getWorld()
+    if not (world and world.spawnItem) then
         return
     end
 
@@ -134,15 +119,15 @@ function RewardBridgeSystem:spawnResources(x, y, resources)
     local baseChunks = 4
     local normalized = normalizeResourceYield(resources, baseChunks)
 
-    -- Spawn one pickup per resource type (amount stored on pickup).
+    -- Spawn one ECS item per resource type (amount stored on resourceYield).
     if normalized.stone and normalized.stone > 0 then
-        items.spawnResourceChunk(x, y, "stone", normalized.stone)
+        world:spawnItem(x, y, "stone", normalized.stone)
     end
     if normalized.ice and normalized.ice > 0 then
-        items.spawnResourceChunk(x, y, "ice", normalized.ice)
+        world:spawnItem(x, y, "ice", normalized.ice)
     end
     if normalized.mithril and normalized.mithril > 0 then
-        items.spawnResourceChunk(x, y, "mithril", normalized.mithril)
+        world:spawnItem(x, y, "mithril", normalized.mithril)
     end
 end
 

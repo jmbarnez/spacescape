@@ -5,6 +5,7 @@
 
 local Concord = require("lib.concord")
 local ship_renderer = require("src.render.ship_renderer")
+local icon_renderer = require("src.render.icon_renderer")
 local baseColors = require("src.core.colors")
 
 --------------------------------------------------------------------------------
@@ -77,6 +78,55 @@ function HealthBarSystem:draw(colors)
 end
 
 --------------------------------------------------------------------------------
+-- ITEM RENDER SYSTEM
+--------------------------------------------------------------------------------
+
+local ItemRenderSystem = Concord.system({
+    items = { "item", "position", "collisionRadius", "resourceYield" },
+})
+
+local function getFirstResourceType(e)
+    if not (e and e.resourceYield and e.resourceYield.resources) then
+        return nil
+    end
+
+    for resourceType, amount in pairs(e.resourceYield.resources) do
+        if (tonumber(amount) or 0) > 0 then
+            return tostring(resourceType)
+        end
+    end
+
+    return nil
+end
+
+function ItemRenderSystem:draw(colors)
+    for i = 1, self.items.size do
+        local e = self.items[i]
+        local px = e.position.x
+        local py = e.position.y
+
+        local baseRadius = (e.collisionRadius and e.collisionRadius.radius) or 6
+
+        local age = e.age or 0
+        local pulse = (math.sin(age * 3.2) + 1) * 0.5
+
+        local resourceType = getFirstResourceType(e)
+        if resourceType then
+            icon_renderer.draw(resourceType, {
+                x = px,
+                y = py,
+                size = baseRadius,
+                context = "inspace",
+                age = age,
+                pulse = pulse,
+            })
+        else
+            icon_renderer.drawUnknown(px, py, baseRadius)
+        end
+    end
+end
+
+--------------------------------------------------------------------------------
 -- PROJECTILE RENDER SYSTEM
 --------------------------------------------------------------------------------
 
@@ -118,5 +168,6 @@ end
 return {
     ShipRenderSystem = ShipRenderSystem,
     HealthBarSystem = HealthBarSystem,
+    ItemRenderSystem = ItemRenderSystem,
     ProjectileRenderSystem = ProjectileRenderSystem,
 }

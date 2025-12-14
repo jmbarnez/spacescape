@@ -4,7 +4,7 @@ local ui_theme = require("src.core.ui_theme")
 local window_frame = require("src.render.hud.window_frame")
 local camera = require("src.core.camera")
 local coreInput = require("src.core.input")
-local itemModule = require("src.entities.item")
+local worldRef = require("src.ecs.world_ref")
 local itemDefs = require("src.data.items")
 local icon_renderer = require("src.render.icon_renderer")
 
@@ -412,8 +412,9 @@ function hud_cargo.mousereleased(x, y, button)
         -- slot when the drag began.
         ----------------------------------------------------------------------
         local worldX, worldY = camera.screenToWorld(x, y)
-        if itemModule and itemModule.spawnResourceChunk then
-            itemModule.spawnResourceChunk(worldX, worldY, dragged.id, dragged.quantity)
+        local ecsWorld = worldRef.get and worldRef.get() or nil
+        if ecsWorld and ecsWorld.spawnItem then
+            ecsWorld:spawnItem(worldX, worldY, dragged.id, dragged.quantity)
         end
 
         clearDragState()
