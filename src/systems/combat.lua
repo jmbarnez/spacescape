@@ -176,9 +176,11 @@ function combat.updateAutoShoot(dt, player)
     -- Resolve the effective fire interval for the current weapon, including
     -- any attack-speed bonuses the player might have.
     local interval = fireInterval
-    if player.weapon and player.weapon.fireInterval then
-        interval = player.weapon.fireInterval
+    if player.weapon then
+        -- Handle both direct component fields (ECS) and legacy table data
+        interval = player.weapon.fireInterval or (player.weapon.data and player.weapon.data.fireInterval) or interval
     end
+
 
     local bonus = player.attackSpeedBonus or 0
     if bonus > 0 then
@@ -341,9 +343,10 @@ function combat.getWeaponCooldownState(player)
     -- bonuses into account.
     local interval = fireInterval
 
-    if player and player.weapon and player.weapon.fireInterval then
-        interval = player.weapon.fireInterval
+    if player and player.weapon then
+        interval = player.weapon.fireInterval or (player.weapon.data and player.weapon.data.fireInterval) or interval
     end
+
 
     local bonus = 0
     if player and player.attackSpeedBonus then

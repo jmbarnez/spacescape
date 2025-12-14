@@ -68,9 +68,12 @@ function target_panel.draw(colors)
     -- Name / description line
     local nameParts = {}
 
-    if target.level then
-        table.insert(nameParts, string.format("Lv.%d", target.level))
+    -- Level
+    local level = target.level or (target.enemyLevel and target.enemyLevel.level)
+    if level then
+        table.insert(nameParts, string.format("Lv.%d", level))
     end
+
 
     -- Basic size info for flavor (use radius or size)
     -- Handle ECS components (tables) or legacy number values

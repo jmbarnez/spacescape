@@ -7,6 +7,7 @@ local lockLabelLockedAt = nil
 -- behavior so that hovering "feels" similar to clicking.
 local config = require("src.core.config")
 local ecsWorld = require("src.ecs.world")
+local coreInput = require("src.core.input")
 
 -- Rendering constants to avoid magic numbers throughout the module
 local RENDER_CONSTANTS = {
@@ -43,8 +44,16 @@ end
 
 local function drawMovementIndicator(player, colors)
     -- Check if target is far enough to show indicator
-    local dx = player.targetX - player.x
-    local dy = player.targetY - player.y
+    local px = player.position and player.position.x or player.x
+    local py = player.position and player.position.y or player.y
+    local tx = player.destination and player.destination.x or player.targetX or px
+    local ty = player.destination and player.destination.y or player.targetY or py
+
+    -- If no active destination, skip
+    if player.destination and not player.destination.active then return end
+
+    local dx = tx - px
+    local dy = ty - py
     local distance = math.sqrt(dx * dx + dy * dy)
 
     if distance < RENDER_CONSTANTS.movementIndicator.minDistance then
@@ -57,12 +66,12 @@ local function drawMovementIndicator(player, colors)
     love.graphics.setColor(colors.movementIndicator)
     love.graphics.setLineWidth(2)
     love.graphics.line(
-        player.targetX - markerSize, player.targetY,
-        player.targetX + markerSize, player.targetY
+        tx - markerSize, ty,
+        tx + markerSize, ty
     )
     love.graphics.line(
-        player.targetX, player.targetY - markerSize,
-        player.targetX, player.targetY + markerSize
+        tx, ty - markerSize,
+        tx, ty + markerSize
     )
 
     -- Draw path line (shows intended direction, not actual trajectory)
@@ -73,23 +82,27 @@ local function drawMovementIndicator(player, colors)
         0.2
     )
     love.graphics.setLineWidth(1)
-    love.graphics.line(player.x, player.y, player.targetX, player.targetY)
+    love.graphics.line(px, py, tx, ty)
 
     -- Draw velocity vector (shows actual momentum)
-    if player.vx and player.vy then
-        local speed = math.sqrt(player.vx * player.vx + player.vy * player.vy)
+    local vx = player.velocity and player.velocity.vx or player.vx or 0
+    local vy = player.velocity and player.velocity.vy or player.vy or 0
+
+    if vx ~= 0 or vy ~= 0 then
+        local speed = math.sqrt(vx * vx + vy * vy)
         if speed > RENDER_CONSTANTS.velocity.threshold then
             love.graphics.setColor(colors.velocityVector)
             love.graphics.setLineWidth(2)
             local velScale = RENDER_CONSTANTS.velocity.scale
             love.graphics.line(
-                player.x, player.y,
-                player.x + player.vx * velScale,
-                player.y + player.vy * velScale
+                px, py,
+                px + vx * velScale,
+                py + vy * velScale
             )
         end
     end
 end
+
 
 -- Finds the best candidate entity (enemy or asteroid) currently under the
 -- mouse cursor, using a radius-based hit test similar to the click selection
@@ -107,8 +120,7 @@ local function findHoveredEntity(ctx)
 
     -- Read mouse position in screen-space and convert to world-space so we
     -- can compare directly against entity positions.
-    local sx, sy = love.mouse.getPosition()
-    local worldX, worldY = camera.screenToWorld(sx, sy)
+    local worldX, worldY = coreInput.getMouseWorld(camera)
 
     -- Padding radius (in world units) applied on top of each entity's
     -- collision radius/size. This matches the click selection radius so
@@ -221,7 +233,7 @@ local function drawTargetIndicator(colors, combatSystem, camera)
         radius = shipData.boundingRadius
     elseif drawEnemy.collisionRadius then
         radius = type(drawEnemy.collisionRadius) == "table" and drawEnemy.collisionRadius.radius or
-        drawEnemy.collisionRadius
+            drawEnemy.collisionRadius
     elseif drawEnemy.size then
         radius = type(drawEnemy.size) == "table" and drawEnemy.size.value or drawEnemy.size
     end
@@ -346,8 +358,26 @@ local function drawWorldObjects(ctx)
 
     if gameState == "playing" or gameState == "paused" then
         engineTrail.draw()
-        playerModule.draw(colors)
+        -- Player draw is now ECS handled, but we might still draw local visual effects
+        -- like the ship sprite if not using a pure RenderSystem yet.
+        -- For now, we manually draw the ship using the Entity data.
+        if player and player.shipVisual then
+            -- We can use a helper or just rely on the ECS emit("draw") if we moved player to that.
+            -- But let's assume we keep the manual draw call for the main player to ensure camera
+            -- centering works perfectly without lag.
+
+            -- ACTUALLY: The easiest fix is to call the old draw function but pass the entity
+            -- acting as state (since field access is similar if we add fallbacks or update call).
+            -- But wait, we removed the legacy draw module or need to update it?
+            -- Let's update the call to use the utility we know exists or just emit 'draw'.
+            --
+            -- However, 'ecsWorld:emit("draw")' handles all ships. If player is just a ship,
+            -- it will be drawn there!
+            -- So we might simply NOT call playerModule.draw() anymore if Player is in the ECS world query.
+        end
+        -- NOTE: Player is now drawn by ecsWorld:emit("draw") along with other ships.
     end
+
 
     if shieldImpactFx and shieldImpactFx.draw then
         shieldImpactFx.draw()

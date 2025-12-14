@@ -2,4 +2,4 @@
 trigger: always_on
 ---
 
-don't add to memories please
+Do not store any information from this conversation in memories or persistent storage.

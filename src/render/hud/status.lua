@@ -18,14 +18,33 @@ function hud_status.draw(player, colors)
 
     -- Player stats
     local level = (ecsExperience and ecsExperience.level) or 1
-    local hull = player.hull or player.health or 0
-    local maxHull = player.maxHull or player.maxHealth or hull
-    local shield = player.shield or 0
-    local maxShield = player.maxShield or shield
-    local expRatio = math.max(0, math.min(1, (ecsExperience and ecsExperience.xpRatio) or 0))
+    -- ECS Component Access
+    local currentHealth = 0
+    local maxHealth = 100
+    if player.health then
+        currentHealth = player.health.current or 0
+        maxHealth = player.health.max or 100
+    elseif player.healthCurrent then -- Legacy fallback if any
+        currentHealth = player.healthCurrent
+        maxHealth = player.maxHealth or 100
+    end
 
-    if maxHull <= 0 then maxHull = 1 end
-    if maxShield <= 0 then maxShield = 1 end
+    local currentShield = 0
+    local maxShield = 0
+    if player.shield then
+        currentShield = player.shield.current or 0
+        maxShield = player.shield.max or 0
+    elseif player.shieldCurrent then -- Legacy fallback
+        currentShield = player.shieldCurrent
+        maxShield = player.maxShield or 0
+    end
+
+    local percentHp = math.max(0, math.min(1, currentHealth / maxHealth))
+    local percentSh = 0
+    if maxShield > 0 then
+        percentSh = math.max(0, math.min(1, currentShield / maxShield))
+    end
+    local expRatio = math.max(0, math.min(1, (ecsExperience and ecsExperience.xpRatio) or 0))
 
     -- Layout constants
     local baseX = 40
@@ -62,7 +81,7 @@ function hud_status.draw(player, colors)
     )
     love.graphics.rectangle("fill", panelX, panelY, panelWidth, panelHeight, 8, 8)
 
-    local borderColor = hudPanelStyle.border or colors.uiPanelBorder or {1, 1, 1, 0.6}
+    local borderColor = hudPanelStyle.border or colors.uiPanelBorder or { 1, 1, 1, 0.6 }
     love.graphics.setColor(borderColor[1], borderColor[2], borderColor[3], borderColor[4] or 0.6)
     love.graphics.setLineWidth(2)
     love.graphics.rectangle("line", panelX, panelY, panelWidth, panelHeight, 8, 8)
@@ -112,7 +131,9 @@ function hud_status.draw(player, colors)
     local barsY = baseY
 
     -- Hull bar
-    local hullRatio = math.max(0, math.min(1, hull / maxHull))
+    -- Hull bar
+    local hullRatio = percentHp
+
 
     love.graphics.setColor(
         hudPanelStyle.barBackground[1],
@@ -131,8 +152,10 @@ function hud_status.draw(player, colors)
     love.graphics.rectangle("line", barsX, barsY, barWidth, barHeight, 4, 4)
 
     -- Shield bar
+    -- Shield bar
     local shieldBarY = barsY + barHeight + barSpacing
-    local shieldRatio = math.max(0, math.min(1, shield / maxShield))
+    local shieldRatio = percentSh
+
 
     love.graphics.setColor(0, 0, 0, 0.5)
     love.graphics.rectangle("fill", barsX, shieldBarY, barWidth, barHeight, 4, 4)
@@ -166,7 +189,8 @@ function hud_status.draw(player, colors)
 
     -- XP highlight
     love.graphics.setColor(0.8, 1.0, 0.8, 0.85)
-    love.graphics.circle("fill", xpIconCenterX - iconRadius * 0.35, xpIconCenterY - iconRadius * 0.25, iconRadius * 0.4, 16)
+    love.graphics.circle("fill", xpIconCenterX - iconRadius * 0.35, xpIconCenterY - iconRadius * 0.25, iconRadius * 0.4,
+        16)
 
     -- XP outline
     love.graphics.setColor(0.0, 0.25, 0.0, 0.9)

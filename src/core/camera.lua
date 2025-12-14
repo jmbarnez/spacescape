@@ -9,12 +9,31 @@ local camera = {
     maxScale = config.camera.maxScale
 }
 
-function camera.centerOnPlayer(player)
-    camera.x = player.x
-    camera.y = player.y
+function camera.centerOnEntity(entity)
+    camera.target = entity
+    -- Teleport immediately
+    if entity then
+        local ex = entity.position and entity.position.x or entity.x or 0
+        local ey = entity.position and entity.position.y or entity.y or 0
+        camera.x = ex
+        camera.y = ey
+    end
 end
 
-function camera.update(dt, player)
+function camera.update(dt)
+    -- Follow target if we have one
+    if camera.target then
+        local t = camera.target
+        local tx = t.position and t.position.x or t.x or 0
+        local ty = t.position and t.position.y or t.y or 0
+
+        -- Lerp towards target
+        local lerp = config.camera.lerpSpeed or 5
+        local speed = lerp * dt
+        camera.x = camera.x + (tx - camera.x) * speed
+        camera.y = camera.y + (ty - camera.y) * speed
+    end
+
     local width = love.graphics.getWidth()
     local height = love.graphics.getHeight()
     local scale = camera.scale or 1
@@ -26,16 +45,17 @@ function camera.update(dt, player)
     local minCamY = world.minY + halfH
     local maxCamY = world.maxY - halfH
 
+    -- Clamp camera to world bounds
     if world.width <= width / scale then
         camera.x = world.centerX
     else
-        camera.x = math.max(minCamX, math.min(maxCamX, player.x))
+        camera.x = math.max(minCamX, math.min(maxCamX, camera.x))
     end
 
     if world.height <= height / scale then
         camera.y = world.centerY
     else
-        camera.y = math.max(minCamY, math.min(maxCamY, player.y))
+        camera.y = math.max(minCamY, math.min(maxCamY, camera.y))
     end
 end
 

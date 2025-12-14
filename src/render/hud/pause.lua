@@ -2,6 +2,7 @@ local hud_pause = {}
 
 local ui_theme = require("src.core.ui_theme")
 local window_frame = require("src.render.hud.window_frame")
+local coreInput = require("src.core.input")
 
 -- Pause menu uses the shared window_frame helper so it visually matches other
 -- HUD windows while remaining simple (no dragging / close button logic at the
@@ -83,7 +84,7 @@ end
 function hud_pause.draw(player, colors, menu)
 	local font = love.graphics.getFont()
 	local hudPanelStyle = ui_theme.hudPanel
-	local mx, my = love.mouse.getPosition()
+	local mx, my = coreInput.getMousePosition()
 
 	if not colors then
 		return

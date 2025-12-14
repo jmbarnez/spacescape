@@ -8,6 +8,7 @@ local window_frame = {}
 -- consistent framing and behavior.
 
 local ui_theme = require("src.core.ui_theme")
+local coreInput = require("src.core.input")
 
 --------------------------------------------------------------------------------
 -- INTERNAL LAYOUT HELPERS
@@ -240,7 +241,7 @@ function window_frame.draw(state, opts, colors)
 
     -- Close button
     local closeX, closeY, closeW, closeH = getCloseButtonRect(layout)
-    local mx, my = love.mouse.getPosition()
+    local mx, my = coreInput.getMousePosition()
     local hovered = isPointInRect(mx, my, closeX, closeY, closeW, closeH)
 
     if hovered then

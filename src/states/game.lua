@@ -28,6 +28,7 @@ local shieldImpactFx = require("src.entities.shield_impact_fx")
 local floatingText = require("src.entities.floating_text")
 local gameRender = require("src.states.game_render")
 local ecsWorld = require("src.ecs.world")
+local input = require("src.core.input")
 
 local function getEnemyEntities()
 	local ships = ecsWorld:query({ "ship", "faction", "position" }) or {}
@@ -88,6 +89,148 @@ local function applyUiContext(uiCtx)
 	pauseMenu = uiCtx.pauseMenu
 end
 
+--------------------------------------------------------------------------------
+-- INPUT PROCESSING (ACTION-BASED)
+--
+-- We intentionally process gameplay + HUD input once per frame using the
+-- src.core.input wrapper (Baton + mouse/wheel helpers) instead of spreading
+-- logic across Love callbacks.
+--
+-- Key invariants:
+--   - HUD gets first chance to consume left-clicks / wheel input.
+--   - Esc closes top-most in-play overlay first; otherwise it toggles pause.
+--   - Game simulation only advances when gameState == "playing".
+--------------------------------------------------------------------------------
+
+local function processUiMouseMove()
+	local mx, my = input.getMousePosition()
+	local dx, dy = input.getMouseDelta()
+
+	-- Mouse-move is primarily used for dragging HUD windows (pause/cargo/map).
+	-- Even if dx/dy is 0, the handlers are cheap and keep logic consistent.
+	local uiCtx = createUiContext()
+	windowManager.mousemoved(uiCtx, mx, my, dx, dy)
+	applyUiContext(uiCtx)
+end
+
+local function processUiMouseButtons()
+	local mx, my = input.getMousePosition()
+	local pressX, pressY = input.getMousePressedPosition(1)
+	local releaseX, releaseY = input.getMouseReleasedPosition(1)
+	local rightPressX, rightPressY = input.getMousePressedPosition(2)
+	if not pressX then
+		pressX, pressY = mx, my
+	end
+	if not releaseX then
+		releaseX, releaseY = mx, my
+	end
+	if not rightPressX then
+		rightPressX, rightPressY = mx, my
+	end
+
+	-- Press: route left-click into the HUD first, then (if unhandled) into
+	-- gameplay selection.
+	if input.pressed("mouse_primary") then
+		if gameState == "gameover" then
+			game.restartGame()
+			return
+		end
+
+		local uiCtx = createUiContext()
+		local handled, action = windowManager.mousepressed(uiCtx, pressX, pressY, 1)
+		applyUiContext(uiCtx)
+
+		if action == "quit_to_desktop" then
+			love.event.quit()
+			return
+		elseif action == "restart" then
+			game.restartGame()
+			return
+		end
+
+		if handled then
+			return
+		end
+
+		if gameState ~= "playing" then
+			return
+		end
+
+		-- Gameplay left-click: loot/target selection.
+		inputSystem.mousepressed(pressX, pressY, 1, playerModule.state, world, camera)
+	end
+
+	-- Release: always forward to HUD so it can clear any drag state.
+	if input.released("mouse_primary") then
+		local uiCtx = createUiContext()
+		windowManager.mousereleased(uiCtx, releaseX, releaseY, 1)
+		applyUiContext(uiCtx)
+	end
+
+	-- Right-click movement: the legacy input system sets the move target on
+	-- press *and* while the button is held. We keep the press behavior here so
+	-- quick taps still move the ship.
+	if input.pressed("mouse_secondary") and gameState == "playing" then
+		inputSystem.mousepressed(rightPressX, rightPressY, 2, playerModule.state, world, camera)
+	end
+end
+
+local function processUiMouseWheel()
+	local wx, wy = input.getWheelDelta()
+	if (not wy) or wy == 0 then
+		return
+	end
+
+	local uiCtx = createUiContext()
+	local handled = windowManager.wheelmoved(uiCtx, wx, wy)
+	applyUiContext(uiCtx)
+
+	-- If no HUD overlay consumed the wheel event, treat it as gameplay camera
+	-- zoom (matching the legacy inputSystem.wheelmoved behavior).
+	if not handled and gameState == "playing" then
+		camera.zoom(wy * config.camera.zoomWheelScale)
+	end
+end
+
+local function processUiKeyboardActions()
+	-- Escape: close top-most in-play overlay first (cargo/map), otherwise toggle
+	-- pause.
+	if input.pressed("pause") then
+		if gameState == "playing" then
+			local uiCtx = createUiContext()
+			local handled = windowManager.keypressed(uiCtx, "escape")
+			applyUiContext(uiCtx)
+
+			if handled then
+				return
+			end
+
+			gameState = "paused"
+			windowManager.setWindowOpen("cargo", false)
+			return
+		elseif gameState == "paused" then
+			gameState = "playing"
+			return
+		end
+	end
+
+	-- Cargo overlay toggle (Tab)
+	if input.pressed("toggle_cargo") and gameState == "playing" then
+		local nowOpen = not windowManager.isWindowOpen("cargo")
+		windowManager.setWindowOpen("cargo", nowOpen)
+		if not nowOpen then
+			windowManager.resetWindow("cargo")
+		end
+		return
+	end
+
+	-- Galaxy/world map overlay toggle (M)
+	if input.pressed("toggle_map") and gameState == "playing" then
+		windowManager.toggleWindow("map")
+		return
+	end
+end
+
 -- Color palette used for rendering
 local colors = require("src.core.colors")
 
@@ -103,32 +246,33 @@ local function registerUpdateSystems()
 
 	-- Update kinematic transforms BEFORE stepping Box2D so beginContact events
 	-- are generated in the same frame (instead of one frame late).
-	systems.registerUpdate("player", function(dt, ctx)
-		playerModule.update(dt, ctx.world)
-	end, 20)
+	-- Update kinematic transforms BEFORE stepping Box2D so beginContact events
+	-- are generated in the same frame (instead of one frame late).
+	-- [DELETED] Legacy playerModule.update (Moved to PlayerControlSystem)
+
 
 	-- ECS pre-physics: update AI/movement and sync ECS kinematic bodies into Box2D.
 	systems.registerUpdate("ecsPrePhysics", function(dt, ctx)
-		if playerModule.state then
-			ecsPlayerProxy.position.x = playerModule.state.x
-			ecsPlayerProxy.position.y = playerModule.state.y
-		end
+		-- Removed proxy sync steps, as we use direct ECS components now.
 		if ecsWorld and ecsWorld.emit then
-			ecsWorld:emit("prePhysics", dt, ecsPlayerProxy, ctx.world)
+			ecsWorld:emit("prePhysics", dt, ctx.player, ctx.world)
 		end
 	end, 25)
+
 
 	-- Asteroids still run through their legacy update loop, but are ECS-backed.
 	-- They must update BEFORE physics so their bodies are in the correct place
 	-- when Box2D evaluates contacts.
-	systems.registerUpdate("asteroids", function(dt, ctx)
-		asteroidModule.update(dt, ctx.world)
-	end, 28)
+	-- Asteroids still run through their legacy update loop, but are ECS-backed.
+	-- They must update BEFORE physics so their bodies are in the correct place
+	-- when Box2D evaluates contacts.
+	-- [DELETED] Legacy asteroidModule.update (Moved to ECS Systems)
+
 
 	-- Wrecks have sensor bodies; keep their transforms in sync before physics.
-	systems.registerUpdate("wrecks", function(dt, ctx)
-		wreckModule.update(dt, ctx.world)
-	end, 29)
+	-- Wrecks have sensor bodies; keep their transforms in sync before physics.
+	-- [DELETED] Legacy wreckModule.update (Moved to ECS Systems)
+
 
 	systems.registerUpdate("physics", function(dt, ctx)
 		physics.update(dt)
@@ -138,9 +282,11 @@ local function registerUpdateSystems()
 	-- (projectiles) back into ECS positions.
 	systems.registerUpdate("ecsPostPhysics", function(dt, ctx)
 		if ecsWorld and ecsWorld.emit then
-			ecsWorld:emit("postPhysics", dt, ecsPlayerProxy, ctx.world)
+			ecsWorld:emit("postPhysics", dt, ctx.player, ctx.world)
 		end
+		-- Removed ECS -> playerModule.state sync.
 	end, 45)
+
 
 	systems.registerUpdate("engineTrail", function(dt, ctx)
 		engineTrail.update(dt, ctx.player, getEnemyEntities())
@@ -208,9 +354,12 @@ function game.load()
 
 	physics.init()
 	collisionSystem.init() -- Register collision callbacks with physics
-	playerModule.reset()
-	world.initFromPlayer(playerModule.state)
-	camera.centerOnPlayer(playerModule.state)
+	playerModule.reset() -- Spawns new player ECS entity
+	local playerEntity = playerModule.getEntity()
+
+	world.initFromPlayer(playerEntity)
+	camera.centerOnEntity(playerEntity)
+
 	starfield.generate()
 	spawnSystem.reset()
 	combatSystem.reset()
@@ -220,7 +369,7 @@ function game.load()
 	explosionFx.load()
 	shieldImpactFx.load()
 	floatingText.clear()
-	abilitiesSystem.load(playerModule.state)
+	abilitiesSystem.load(playerEntity)
 	asteroidModule.load()
 	gameRender.load()
 	registerUpdateSystems()
@@ -231,16 +380,39 @@ end
 --------------------------------------------------------------------------------
 
 function game.update(dt)
+	-- Update the input wrapper every frame so pressed/released transitions are
+	-- detected reliably, even while paused or on the game-over screen.
+	input.update(dt)
+
+	-- Process all UI + gameplay input as action checks (Baton) instead of Love
+	-- callbacks.
+	processUiMouseMove()
+	processUiMouseButtons()
+	processUiMouseWheel()
+	processUiKeyboardActions()
+
+	-- Ability casts are gated behind the "playing" state so the player cannot
+	-- trigger combat actions while paused or game-over.
+	if gameState == "playing" then
+		if input.pressed("ability_overcharge") then
+			abilitiesSystem.castOvercharge(playerModule.state)
+		end
+		if input.pressed("ability_vector_dash") then
+			abilitiesSystem.castVectorDash(playerModule.state, world, camera)
+		end
+	end
+
 	if gameState ~= "playing" then
 		return
 	end
 
 	local updateCtx = {
-		player = playerModule.state,
+		player = playerModule.getEntity(),
 		world = world,
 		camera = camera,
 		inputSystem = inputSystem,
 	}
+
 
 	systems.runUpdate(dt, updateCtx)
 
@@ -259,129 +431,29 @@ end
 --------------------------------------------------------------------------------
 
 function game.mousepressed(x, y, button)
-	if gameState == "gameover" then
-		if button == 1 then
-			game.restartGame()
-		end
-		return
-	end
-
-	-- Route all HUD window-style input through the centralized window manager so
-	-- the game state no longer needs to know per-window frame details.
-	local uiCtx = createUiContext()
-
-	local handled, action = windowManager.mousepressed(uiCtx, x, y, button)
-
-	-- Persist any changes the window manager made to the HUD-related state.
-	applyUiContext(uiCtx)
-
-	if action == "quit_to_desktop" then
-		love.event.quit()
-		return
-	end
-
-	if handled then
-		return
-	end
-
-	if gameState ~= "playing" then
-		return
-	end
-
-	inputSystem.mousepressed(x, y, button, playerModule.state, world, camera)
+	input.mousepressed(x, y, button)
 end
 
 function game.mousereleased(x, y, button)
-	if gameState == "gameover" then
-		return
-	end
-
-	local uiCtx = createUiContext()
-
-	local handled = windowManager.mousereleased(uiCtx, x, y, button)
-
-	applyUiContext(uiCtx)
-
-	if handled then
-		return
-	end
+	input.mousereleased(x, y, button)
 end
 
 function game.mousemoved(x, y, dx, dy)
-	if gameState == "gameover" then
-		return
-	end
-
-	local uiCtx = createUiContext()
-
-	local handled = windowManager.mousemoved(uiCtx, x, y, dx, dy)
-
-	applyUiContext(uiCtx)
-
-	if handled then
-		return
-	end
+	-- Intentionally handled by polling in game.update().
 end
 
 function game.wheelmoved(x, y)
-	if gameState ~= "playing" then
-		return
-	end
-
-	local uiCtx = createUiContext()
-	local handled = windowManager.wheelmoved(uiCtx, x, y)
-	applyUiContext(uiCtx)
-	if handled then
-		return
-	end
-
-	inputSystem.wheelmoved(x, y, camera)
+	-- Wheel is event-driven in LOVE, so we forward it into the input wrapper
+	-- which records a per-frame delta consumed in game.update().
+	input.wheelmoved(x, y)
 end
 
 function game.keypressed(key)
-	-- Delegate keyboard input to the window manager first. This allows Escape
-	-- to close in-play overlay windows (cargo, map) before toggling pause.
-	local uiCtx = createUiContext()
-	local handled, action = windowManager.keypressed(uiCtx, key)
-	applyUiContext(uiCtx)
+	input.keypressed(key)
+end
 
-	if handled then
-		-- An in-play window was closed; do not proceed to pause toggle.
-		return
-	end
-
-	if key == "escape" then
-		if gameState == "playing" then
-			gameState = "paused"
-			windowManager.setWindowOpen("cargo", false) -- Close cargo when pausing
-		elseif gameState == "paused" then
-			gameState = "playing"
-		end
-		return
-	end
-
-	if key == "tab" and gameState == "playing" then
-		local nowOpen = not windowManager.isWindowOpen("cargo")
-		windowManager.setWindowOpen("cargo", nowOpen)
-		if not nowOpen then
-			windowManager.resetWindow("cargo") -- Use centralized reset
-		end
-		return
-	end
-
-	-- Toggle the full-screen world map overlay. We treat this similarly to the
-	-- cargo window: it is an overlay drawn during normal gameplay, without
-	-- changing the core game state.
-	if key == "m" and gameState == "playing" then
-		windowManager.toggleWindow("map")
-		return
-	end
-
-	if gameState ~= "playing" then
-		return
-	end
-
-	abilitiesSystem.keypressed(key, playerModule.state, world, camera)
+function game.keyreleased(key)
+	input.keyreleased(key)
 end
 
 function game.resize(w, h)
@@ -394,10 +466,12 @@ end
 
 function game.restartGame()
 	playerModule.reset()
-	world.initFromPlayer(playerModule.state)
-	camera.centerOnPlayer(playerModule.state)
+	local playerEntity = playerModule.getEntity()
+	world.initFromPlayer(playerEntity)
+	camera.centerOnEntity(playerEntity)
 
 	projectileModule.clear()
+
 	projectileShards.clear()
 	asteroidModule.clear()
 	particlesModule.clear()
@@ -428,8 +502,9 @@ function game.draw()
 	local renderCtx = {
 		camera = camera,
 		ui = ui,
-		player = playerModule.state,
+		player = playerModule.getEntity(),
 		playerModule = playerModule,
+
 		asteroidModule = asteroidModule,
 		itemModule = itemModule,
 		wreckModule = wreckModule,

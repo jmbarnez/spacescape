@@ -356,6 +356,8 @@ function assemblages.player(e, x, y, shipData)
         :give("experience", 0, 1)
         :give("currency", 0)
         :give("cargo", {}, 20)
+        :give("magnet", config.player and config.player.magnetRadius, config.player and config.player.magnetPickupRadius)
+        :give("weapon", weapons.pulseLaser)
 end
 
 --------------------------------------------------------------------------------
@@ -384,8 +386,9 @@ function assemblages.wreck(e, x, y, cargo, coins)
 
     -- Drift velocity is stored as plain fields to avoid being double-integrated
     -- by the ECS movement system and the legacy wreck update loop.
-    e.vx = math.cos(driftAngle) * driftSpeed
-    e.vy = math.sin(driftAngle) * driftSpeed
+    -- UPDATE: Now using ECS MovementSystem, so we give Velocity component.
+    e:give("velocity", math.cos(driftAngle) * driftSpeed, math.sin(driftAngle) * driftSpeed)
+
 
     -- Store total lifetime as a plain entity field so legacy-style draw code
     -- can fade out near expiry without needing a second ECS component.

@@ -1,121 +1,112 @@
 -- Player module
--- Main entry point that ties together all player submodules
+-- Now refactored to be a thin wrapper around the ECS Player Entity.
+-- Instead of maintaining its own state table, it exposes the current
+-- player entity and provides helpers to interact with it.
 
 local player = {}
 
-local physics = require("src.core.physics")
-local weapons = require("src.core.weapons")
-local config = require("src.core.config")
 local worldRef = require("src.ecs.world_ref")
-
--- Load submodules
-local cargo = require("src.entities.player.cargo")
-local movement = require("src.entities.player.movement")
 local shipModule = require("src.entities.player.ship")
-local drawModule = require("src.entities.player.draw")
+local config = require("src.core.config")
+local playerDroneDef = require("src.data.ships.player_drone")
 
--- Player state: the central state table shared across all submodules
-player.state = {
-    x = 0,
-    y = 0,
-    -- Velocity components for zero-g physics
-    vx = 0,
-    vy = 0,
-    -- Target position (where player clicked)
-    targetX = 0,
-    targetY = 0,
-    -- Physics properties (movement for the player "pilot" driving a ship)
-    thrust = physics.constants.shipThrust,
-    maxSpeed = physics.constants.shipMaxSpeed,
-    size = config.player.size, -- Base visual / spawn size used when building the ship
-    angle = 0,
-    targetAngle = 0,
-    approachAngle = nil,
-    health = config.player.maxHealth,
-    maxHealth = config.player.maxHealth,
-    shield = config.player.maxShield or 0,
-    maxShield = config.player.maxShield or 0,
-    -- Ship ownership: blueprint describes the chassis, ship is the concrete
-    -- scaled layout instance used for rendering and collisions.
-    shipBlueprint = shipModule.getDefaultBlueprint(), -- Current ship blueprint table the player is piloting
-    ship = nil,                                       -- core.ship layout instance (built from shipBlueprint)
-    -- Simple cargo component for storing mined / salvaged resources on the
-    -- currently piloted ship. This is now backed by a fixed-size slot array so
-    -- the HUD can render a 4x4 inventory grid that supports drag-and-drop and
-    -- future per-slot behaviors.
-    cargo = {
-        maxSlots = 16,
-        slots = {},
-    },
-    -- Magnet component: these radii are used by the item system to attract
-    -- nearby pickups (XP shards, resources) toward the ship and decide when
-    -- they are actually collected.
-    magnetRadius = config.player.magnetRadius,
-    magnetPickupRadius = config.player.magnetPickupRadius,
-    isThrusting = false,
-    body = nil,
-    shapes = nil,            -- Table of shapes (polygon body may have multiple)
-    fixtures = nil,          -- Table of fixtures
-    collisionVertices = nil, -- Stored collision vertices (flat array) for physics
-    collisionRadius = nil,   -- Cached radius derived from ship / collision vertices
-    weapon = weapons.pulseLaser,
-    -- Loot interaction state
-    lootTarget = nil,  -- Reference to the wreck we're flying towards
-    isLooting = false, -- Whether loot panel is open
-}
+
+-- The current active player entity.
+-- Access this for reading position/components.
+player.entity = nil
+
+-- Legacy state table is removed.
+-- Any code accessing player.state.x must now access player.entity.position.x
 
 --------------------------------------------------------------------------------
--- PUBLIC API: Wrappers around submodule functions that pass player.state
+-- LIFECYCLE
+--------------------------------------------------------------------------------
+
+--- Reset the player (respawn).
+-- This destroys any old player entity and asks the world to spawn a new one.
+function player.reset()
+    local ecsWorld = worldRef.get()
+    if not ecsWorld then return end
+
+    -- Clear old entity if it exists (though world:clear() usually handles this)
+    if player.entity and player.entity.destroy then
+        player.entity:destroy()
+    end
+
+    -- Spawn new player entity via the World helper
+    -- Note: world.lua's spawnPlayer uses the "player" assemblage we just updated.
+    player.entity = ecsWorld:spawnPlayer(0, 0, playerDroneDef)
+
+
+    -- Ensure the camera knows about the new entity
+    local camera = require("src.core.camera")
+    if camera and player.entity and player.entity.position then
+        camera.centerOnEntity(player.entity)
+    end
+end
+
+-- Helper to ensure we have a valid entity reference
+-- (e.g., if the world was reloaded from outside this module)
+function player.getEntity()
+    if player.entity and not player.entity.removed then
+        return player.entity
+    end
+
+    -- Try to find it in the world
+    local ecsWorld = worldRef.get()
+    if ecsWorld then
+        player.entity = ecsWorld:getPlayer()
+    end
+
+    return player.entity
+end
+
+--------------------------------------------------------------------------------
+-- GAMEPLAY API (Wrappers for Components)
 --------------------------------------------------------------------------------
 
 --- Add a quantity of a specific resource type to the player's cargo.
--- @param resourceType string Resource identifier (e.g. "stone", "ice", "mithril")
--- @param amount number Amount to add (ignored if nil or <= 0)
--- @return number The amount that was actually added (for feedback)
 function player.addCargoResource(resourceType, amount)
-    return cargo.addResource(player.state, resourceType, amount)
+    local e = player.getEntity()
+    if not (e and e.cargo) then return 0 end
+
+    local cargoComp = e.cargo
+    local slots = cargoComp.slots
+    local maxSlots = cargoComp.maxSlots
+    local key = tostring(resourceType)
+
+    -- Similar logic to old cargo.lua, but operating on component data
+    -- 1. Find existing stack
+    for _, slot in ipairs(slots) do
+        if slot.id == key then
+            slot.quantity = (slot.quantity or 0) + amount
+            return amount
+        end
+    end
+
+    -- 2. Find empty slot
+    if #slots < maxSlots then
+        table.insert(slots, { id = key, quantity = amount })
+        return amount
+    end
+
+    return 0 -- Full
 end
 
---- Add experience points to the player, handling level-ups.
--- @param amount number XP to add
--- @return boolean True if the player leveled up
 function player.addExperience(amount)
-    if not amount or amount <= 0 then
-        return false
-    end
-
     local ecsWorld = worldRef.get()
-    if not (ecsWorld and ecsWorld.emit) then
-        return false
+    if ecsWorld and ecsWorld.emit then
+        ecsWorld:emit("awardXp", amount)
     end
-
-    local e = worldRef.getPlayerProgressEntity and worldRef.getPlayerProgressEntity() or nil
-    local prevLevel = (e and e.experience and e.experience.level) or 1
-    ecsWorld:emit("awardXp", amount)
-
-    local e2 = worldRef.getPlayerProgressEntity and worldRef.getPlayerProgressEntity() or nil
-    local newLevel = (e2 and e2.experience and e2.experience.level) or prevLevel
-    return newLevel > prevLevel
 end
 
---- Add currency to the player.
--- @param amount number Amount to add
--- @return number The amount that was actually added
 function player.addCurrency(amount)
-    if not amount or amount <= 0 then
-        return 0
-    end
-
     local ecsWorld = worldRef.get()
-    if not (ecsWorld and ecsWorld.emit) then
-        return 0
+    if ecsWorld and ecsWorld.emit then
+        ecsWorld:emit("awardTokens", amount)
     end
-
-    ecsWorld:emit("awardTokens", amount)
-    return amount
 end
 
---- Reset all progression state to initial values.
 function player.resetExperience()
     local ecsWorld = worldRef.get()
     if ecsWorld and ecsWorld.emit then
@@ -123,103 +114,77 @@ function player.resetExperience()
     end
 end
 
---- Center the player in the window.
 function player.centerInWindow()
-    local p = player.state
-    p.x = love.graphics.getWidth() / 2
-    p.y = love.graphics.getHeight() / 2
-    p.targetX = p.x
-    p.targetY = p.y
+    -- Meaningless for ECS, usually handled by Camera centering on Entity.
 end
 
---- Reset the player to initial state.
-function player.reset()
-    local p = player.state
-    player.centerInWindow()
-    player.resetExperience()
-    p.health = p.maxHealth
-    p.shield = p.maxShield
-    -- Reset velocity for zero-g
-    p.vx = 0
-    p.vy = 0
-    p.isThrusting = false
-    p.angle = 0
-    p.targetAngle = 0
-    p.approachAngle = nil
-    shipModule.createBody(p)
-    p.weapon = weapons.pulseLaser
-end
-
---- Change the player's ship blueprint at runtime.
--- @param blueprint table|nil Ship blueprint table. If nil, falls back to default.
 function player.setShipBlueprint(blueprint)
-    shipModule.setBlueprint(player.state, blueprint)
+    -- This would require swapping the 'shipVisual' and rebuilding physics.
+    -- TODO: Implement if needed.
 end
 
---- Update player each frame.
--- @param dt number Delta time
--- @param world table|nil World bounds table
+-- Update is handled by ECS Systems now.
 function player.update(dt, world)
-    movement.update(player.state, dt, world)
+    -- Deprecated
 end
 
---- Set the player's movement target position.
--- @param x number Target X position
--- @param y number Target Y position
 function player.setTarget(x, y)
-    movement.setTarget(player.state, x, y)
-    -- Clear loot target when player clicks somewhere else
-    player.state.lootTarget = nil
-    player.state.isLooting = false
-end
+    local e = player.getEntity()
+    if e and e.destination then
+        e.destination.x = x
+        e.destination.y = y
+        e.destination.active = true
 
---- Set a wreck as the loot target (player will fly to it)
---- @param wreck table The wreck entity to loot
-function player.setLootTarget(wreck)
-    if not wreck then return end
-    local p = player.state
-    p.lootTarget = wreck
-    p.isLooting = false
-    -- Set movement target to the wreck position (ECS position component)
-    local wx = wreck.position and wreck.position.x or wreck.x
-    local wy = wreck.position and wreck.position.y or wreck.y
-    if wx and wy then
-        movement.setTarget(p, wx, wy)
+        -- Clear interaction targets
+        if e.lootTarget then e.lootTarget = nil end
+        if e.isLooting then e.isLooting = false end
     end
 end
 
---- Clear the current loot target
+function player.setLootTarget(wreck)
+    local e = player.getEntity()
+    if e then
+        -- We can store this on the entity for the InteractionSystem
+        e.lootTarget = wreck
+        e.isLooting = false
+
+        -- Set movement destination
+        if wreck and (wreck.position or wreck.x) then
+            local wx = wreck.position and wreck.position.x or wreck.x
+            local wy = wreck.position and wreck.position.y or wreck.y
+            player.setTarget(wx, wy)
+        end
+    end
+end
+
 function player.clearLootTarget()
-    local p = player.state
-    p.lootTarget = nil
-    p.isLooting = false
+    local e = player.getEntity()
+    if e then
+        e.lootTarget = nil
+        e.isLooting = false
+    end
 end
 
---- Get the current loot target
---- @return table|nil The loot target wreck
 function player.getLootTarget()
-    return player.state.lootTarget
+    local e = player.getEntity()
+    return e and e.lootTarget
 end
 
---- Check if player is currently looting
---- @return boolean True if loot panel should be open
 function player.isPlayerLooting()
-    return player.state.isLooting
+    local e = player.getEntity()
+    return e and e.isLooting
 end
 
---- Set looting state
---- @param isLooting boolean Whether the player is looting
 function player.setLooting(isLooting)
-    player.state.isLooting = isLooting
+    local e = player.getEntity()
+    if e then
+        e.isLooting = isLooting
+    end
 end
 
---- Draw the player ship.
--- @param colors table Color palette to use
 function player.draw(colors)
-    drawModule.draw(player.state, colors, shipModule)
+    -- Deprecated: Systems handle drawing.
+    -- But for now, game_render might still call this if we missed an update.
 end
-
--- Expose renderDrone for preview use (e.g., skin selection)
-player.renderDrone = drawModule.renderDrone
 
 return player

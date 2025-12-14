@@ -54,6 +54,12 @@ function gameState:keypressed(key)
 	end
 end
 
+function gameState:keyreleased(key)
+	if game.keyreleased then
+		return game.keyreleased(key)
+	end
+end
+
 function gameState:mousepressed(x, y, button)
 	if game.mousepressed then
 		return game.mousepressed(x, y, button)

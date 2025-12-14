@@ -7,6 +7,7 @@ local loot_panel = {}
 
 local ui_theme = require("src.core.ui_theme")
 local window_frame = require("src.render.hud.window_frame")
+local coreInput = require("src.core.input")
 local playerModule = require("src.entities.player")
 local wreckModule = require("src.entities.wreck")
 local itemDefs = require("src.data.items")
@@ -183,7 +184,7 @@ local function drawGrid(gridX, slots, maxSlots, gridId)
     })
 
     -- Draw slots
-    local mx, my = love.mouse.getPosition()
+    local mx, my = coreInput.getMousePosition()
     for row = 0, ROWS - 1 do
         for col = 0, COLS - 1 do
             local slotIndex = row * COLS + col + 1
@@ -268,7 +269,7 @@ function loot_panel.draw(player, colors)
     -- has cargo so the action is always meaningful.
     if wreckHasCargoSlots(wreck) then
         local btnX, btnY, btnW, btnH = getLootAllButtonRect(layout)
-        local mx, my = love.mouse.getPosition()
+        local mx, my = coreInput.getMousePosition()
         local btnHovered = mx >= btnX and mx <= btnX + btnW and my >= btnY and my <= btnY + btnH
 
         if btnHovered then
@@ -332,7 +333,7 @@ end
 local function hitTestLootAllButton(layout)
     if not layout then return false end
     local btnX, btnY, btnW, btnH = getLootAllButtonRect(layout)
-    local mx, my = love.mouse.getPosition()
+    local mx, my = coreInput.getMousePosition()
     return mx >= btnX and mx <= btnX + btnW and my >= btnY and my <= btnY + btnH
 end
 
@@ -370,7 +371,8 @@ local function lootAllFromWreck(player, wreck)
 end
 
 function loot_panel.mousepressed(x, y, button)
-    local player = playerModule.state
+    local player = playerModule.getEntity()
+
     if not player or not player.isLooting or not player.lootTarget then
         return false
     end
@@ -420,7 +422,7 @@ function loot_panel.mousepressed(x, y, button)
 
         local slot = cargo and cargo[wreckSlot]
         if slot and slot.id and slot.quantity and slot.quantity > 0 then
-            local isShift = love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift")
+            local isShift = coreInput.down("modifier_shift")
             if isShift then
                 local added = playerModule.addCargoResource(slot.id, slot.quantity)
                 if added and added > 0 then
@@ -453,7 +455,8 @@ function loot_panel.mousepressed(x, y, button)
 end
 
 function loot_panel.mousereleased(x, y, button)
-    local player = playerModule.state
+    local player = playerModule.getEntity()
+
     if not player or not player.isLooting then
         return
     end
@@ -501,7 +504,8 @@ function loot_panel.mousereleased(x, y, button)
 end
 
 function loot_panel.mousemoved(x, y)
-    local player = playerModule.state
+    local player = playerModule.getEntity()
+
     if not player or not player.isLooting then
         return
     end
@@ -526,7 +530,8 @@ function loot_panel.reset()
 end
 
 function loot_panel.isOpen()
-    local player = playerModule.state
+    local player = playerModule.getEntity()
+
     local open = player and player.isLooting and player.lootTarget ~= nil
     if not open then
         cargoDockedForLootSession = false

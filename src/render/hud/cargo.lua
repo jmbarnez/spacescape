@@ -3,6 +3,7 @@ local hud_cargo = {}
 local ui_theme = require("src.core.ui_theme")
 local window_frame = require("src.render.hud.window_frame")
 local camera = require("src.core.camera")
+local coreInput = require("src.core.input")
 local itemModule = require("src.entities.item")
 local itemDefs = require("src.data.items")
 local icon_renderer = require("src.render.icon_renderer")
@@ -313,7 +314,7 @@ function hud_cargo.mousepressed(x, y, button)
                     -- stack has more than one unit, we begin a drag with half the
                     -- stack (rounded down, minimum 1) and leave the remainder in the
                     -- origin slot.
-                    local isShift = love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift")
+                    local isShift = coreInput.down("modifier_shift")
                     local quantity = slot.quantity or 0
 
                     if isShift and quantity > 1 then
@@ -555,7 +556,7 @@ function hud_cargo.draw(player, colors)
     local totalSlots = math.min(maxSlots, COLS * ROWS)
 
     -- Mouse position for hover feedback / jettison hints.
-    local mouseX, mouseY = love.mouse.getPosition()
+    local mouseX, mouseY = coreInput.getMousePosition()
     local mouseInsidePanel = mouseX >= panelX and mouseX <= panelX + panelW and mouseY >= panelY and mouseY <= panelY + panelH
     local hoveredIndex = hitTestSlot(layout, mouseX, mouseY, maxSlots)
 

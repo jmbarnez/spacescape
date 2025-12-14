@@ -44,6 +44,25 @@ local DEFAULT_CONTROLS = {
     mouse_middle = { "mouse:3" },
 }
 
+-- Precompute a lookup table so Love callbacks (keypressed/mousepressed/etc.)
+-- can quickly mark actions as pressed/released without duplicating bindings.
+local function buildSourceActionMap(controls)
+    local map = {}
+
+    for action, sources in pairs(controls or {}) do
+        for _, source in ipairs(sources or {}) do
+            if type(source) == "string" then
+                map[source] = map[source] or {}
+                map[source][#map[source] + 1] = action
+            end
+        end
+    end
+
+    return map
+end
+
+local SOURCE_TO_ACTIONS = buildSourceActionMap(DEFAULT_CONTROLS)
+
 local function buildDefaultConfig()
     return {
         controls = DEFAULT_CONTROLS,
@@ -68,12 +87,33 @@ local wheelFrameX, wheelFrameY = 0, 0
 local lastMouseX, lastMouseY = nil, nil
 local mouseDx, mouseDy = 0, 0
 
+-- Event-driven pressed/released flags.
+--
+-- Baton is polling-based (love.keyboard.isDown/love.mouse.isDown). That is
+-- great for "held" states, but it can theoretically miss extremely fast
+-- press+release taps between frames.
+--
+-- To make UI clicks and toggles feel rock-solid, we also record Love callbacks
+-- into these per-frame tables. input.update() snapshots + clears them.
+local pendingPressed = {}
+local pendingReleased = {}
+local framePressed = {}
+local frameReleased = {}
+
+-- Mouse event positions (screen-space), captured at callback-time so we can
+-- pass the exact click coordinate through to HUD/gameplay systems.
+local pendingMousePressedPos = {}
+local pendingMouseReleasedPos = {}
+local frameMousePressedPos = {}
+local frameMouseReleasedPos = {}
+
 local function ensurePlayer()
     if player then
-        return
+        return player
     end
 
     player = baton.new(buildDefaultConfig())
+    return player
 end
 
 --------------------------------------------------------------------------------
@@ -82,7 +122,18 @@ end
 
 -- Call once per frame (ideally early in your update loop).
 function input.update(dt)
-    ensurePlayer()
+    local p = ensurePlayer()
+
+    -- Snapshot and clear event-driven input.
+    framePressed = pendingPressed
+    frameReleased = pendingReleased
+    frameMousePressedPos = pendingMousePressedPos
+    frameMouseReleasedPos = pendingMouseReleasedPos
+
+    pendingPressed = {}
+    pendingReleased = {}
+    pendingMousePressedPos = {}
+    pendingMouseReleasedPos = {}
 
     -- Promote wheel delta for this frame.
     wheelFrameX, wheelFrameY = wheelAccumX, wheelAccumY
@@ -98,7 +149,7 @@ function input.update(dt)
     lastMouseX, lastMouseY = mx, my
 
     -- Let Baton compute pressed/released transitions.
-    player:update()
+    p:update()
 end
 
 --------------------------------------------------------------------------------
@@ -111,38 +162,93 @@ function input.wheelmoved(x, y)
     wheelAccumY = wheelAccumY + (y or 0)
 end
 
+-- Record key presses/releases via Love callbacks.
+-- These are optional but strongly recommended for "tap" inputs.
+local function markActionsForSource(source, dest)
+    local actions = SOURCE_TO_ACTIONS[source]
+    if not actions then
+        return
+    end
+
+    for i = 1, #actions do
+        dest[actions[i]] = true
+    end
+end
+
+function input.keypressed(key)
+    if not key then
+        return
+    end
+
+    markActionsForSource("key:" .. key, pendingPressed)
+end
+
+function input.keyreleased(key)
+    if not key then
+        return
+    end
+
+    markActionsForSource("key:" .. key, pendingReleased)
+end
+
+function input.mousepressed(x, y, button)
+    if not button then
+        return
+    end
+
+    local source = "mouse:" .. tostring(button)
+    markActionsForSource(source, pendingPressed)
+    pendingMousePressedPos[button] = { x = x, y = y }
+end
+
+function input.mousereleased(x, y, button)
+    if not button then
+        return
+    end
+
+    local source = "mouse:" .. tostring(button)
+    markActionsForSource(source, pendingReleased)
+    pendingMouseReleasedPos[button] = { x = x, y = y }
+end
+
 --------------------------------------------------------------------------------
 -- ACTION API (BATON)
 --------------------------------------------------------------------------------
 
 function input.down(action)
-    ensurePlayer()
-    return player:down(action)
+    local p = ensurePlayer()
+    return p:down(action)
 end
 
 function input.pressed(action)
-    ensurePlayer()
-    return player:pressed(action)
+    local p = ensurePlayer()
+    if framePressed and framePressed[action] then
+        return true
+    end
+    return p:pressed(action)
 end
 
 function input.released(action)
-    ensurePlayer()
-    return player:released(action)
+    local p = ensurePlayer()
+    if frameReleased and frameReleased[action] then
+        return true
+    end
+    return p:released(action)
 end
 
 function input.get(action)
-    ensurePlayer()
-    return player:get(action)
+    local p = ensurePlayer()
+    return p:get(action)
 end
 
 function input.getRaw(action)
-    ensurePlayer()
-    return player:getRaw(action)
+    local p = ensurePlayer()
+    return p:getRaw(action)
 end
 
 function input.getActiveDevice()
-    ensurePlayer()
-    return player:getActiveDevice()
+    local p = ensurePlayer()
+    return p:getActiveDevice()
 end
 
 --------------------------------------------------------------------------------
@@ -151,6 +257,24 @@ end
 
 function input.getMousePosition()
     return love.mouse.getPosition()
+end
+
+function input.getMousePressedPosition(button)
+    local pos = frameMousePressedPos and frameMousePressedPos[button]
+    if not pos then
+        return nil, nil
+    end
+
+    return pos.x, pos.y
+end
+
+function input.getMouseReleasedPosition(button)
+    local pos = frameMouseReleasedPos and frameMouseReleasedPos[button]
+    if not pos then
+        return nil, nil
+    end
+
+    return pos.x, pos.y
 end
 
 function input.getMouseDelta()
@@ -180,8 +304,8 @@ end
 -- We don't currently use joystick input in Spacescape, but this hook keeps the
 -- wrapper ready for later.
 function input.setJoystick(joystick)
-    ensurePlayer()
-    player.config.joystick = joystick
+    local p = ensurePlayer()
+    p.config.joystick = joystick
 end
 
 return input

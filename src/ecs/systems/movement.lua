@@ -135,13 +135,6 @@ function MovementSystem:prePhysics(dt, playerEntity, world)
     for i = 1, self.movers.size do
         local e = self.movers[i]
 
-        -- Asteroids are still advanced by the legacy asteroid module so they
-        -- can maintain their own rotation and world-bounce behavior without
-        -- being double-integrated by both update paths.
-        if e.asteroid then
-            goto continue
-        end
-
         -- Projectiles with Box2D bodies are simulated by the physics step.
         -- If we also integrate position here, we'll effectively double-move
         -- them and/or desync the ECS transform from the physics transform.
@@ -155,12 +148,6 @@ function MovementSystem:prePhysics(dt, playerEntity, world)
         e.position.x = e.position.x + e.velocity.vx * dt
         e.position.y = e.position.y + e.velocity.vy * dt
 
-        -- Optional world bounds handling.
-        if world then
-            if e.ship then
-                applyEnemyWorldClamp(e, world)
-            end
-        end
 
         ::continue::
     end

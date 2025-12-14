@@ -197,8 +197,14 @@ Concord.component("cargo", function(c, slots, maxSlots)
     c.maxSlots = maxSlots or 20
 end)
 
+Concord.component("magnet", function(c, radius, pickupRadius)
+    c.radius = radius or 150
+    c.pickupRadius = pickupRadius or 30
+end)
+
 --------------------------------------------------------------------------------
 -- LIFETIME / CLEANUP
+
 --------------------------------------------------------------------------------
 
 Concord.component("lifetime", function(c, remaining)

@@ -21,6 +21,10 @@ local ai = require("src.ecs.systems.ai")
 local projectileSpawner = require("src.ecs.systems.projectile_spawner")
 local box2dCollisionProcessor = require("src.ecs.systems.box2d_collision_processor")
 local respawner = require("src.ecs.systems.respawner")
+local playerControl = require("src.ecs.systems.player_control")
+local worldBounds = require("src.ecs.systems.world_bounds")
+local asteroidBehavior = require("src.ecs.systems.asteroid_behavior")
+
 
 -- Load assemblages
 local assemblages = require("src.ecs.assemblages")
@@ -38,9 +42,13 @@ worldRef.set(world)
 
 world:addSystems(
 -- Movement and physics
+    playerControl,
+    asteroidBehavior,
     movement.MovementSystem,
+    worldBounds,
     movement.RotationSystem,
     movement.ProjectileSystem,
+
 
     -- AI and behavior
     ai.AISystem,

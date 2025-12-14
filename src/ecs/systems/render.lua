@@ -33,7 +33,7 @@ function ShipRenderSystem:draw(colors)
         if e.faction and e.faction.name == "enemy" then
             ship_renderer.drawEnemy(ship, colors)
         else
-            ship_renderer.draw(ship, colors)
+            ship_renderer.drawPlayer(ship, colors)
         end
 
         love.graphics.pop()

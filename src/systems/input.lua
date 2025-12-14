@@ -1,15 +1,15 @@
 local playerModule = require("src.entities.player")
 local combatSystem = require("src.systems.combat")
 local config = require("src.core.config")
+local coreInput = require("src.core.input")
 
 local input = {}
 
 local SELECTION_RADIUS = config.input.selectionRadius
 
 function input.update(dt, player, world, camera)
-    if love.mouse.isDown(2) then
-        local sx, sy = love.mouse.getPosition()
-        local worldX, worldY = camera.screenToWorld(sx, sy)
+    if coreInput.down("mouse_secondary") then
+        local worldX, worldY = coreInput.getMouseWorld(camera)
         -- Clamp movement targets using the player's collision radius (derived
         -- from the owned ship layout) when available so clicks near the world
         -- edge behave consistently with the physical ship size.
@@ -24,8 +24,24 @@ function input.mousepressed(x, y, button, player, world, camera)
     -- click target never places the ship partially outside the world.
     worldX, worldY = world.clampToWorld(worldX, worldY, player.collisionRadius or player.size)
 
+    -- Handle movement: RIGHT CLICK
     if button == 2 then
-        playerModule.setTarget(worldX, worldY)
+        if player and player.destination then
+            player.destination.x = worldX
+            player.destination.y = worldY
+            player.destination.active = true
+
+            -- Clear interaction state if present
+            if player.lootTarget then player.lootTarget = nil end
+            if player.isLooting then player.isLooting = false end
+
+            -- Legacy: clear legacy state if it exists (for safety)
+            if player.targetX then player.targetX = worldX end
+            if player.targetY then player.targetY = worldY end
+        elseif player and player.setTarget then
+            -- Fallback to module method if passed module instead of entity
+            player.setTarget(worldX, worldY)
+        end
     elseif button == 1 then
         -- Check for wreck first (loot interaction takes priority)
         local wreck = combatSystem.findWreckAtPosition(worldX, worldY, config.input.selectionRadius)

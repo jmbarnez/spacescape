@@ -2,4 +2,4 @@
 trigger: always_on
 ---
 
-Always suggest things that could improve anything about the code or codebase. 
+Proactively suggest improvements for code quality, architecture, performance, or maintainability when relevant opportunities arise.

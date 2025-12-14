@@ -1,5 +1,6 @@
 local abilitiesData = require("src.core.abilities")
 local combatSystem = require("src.systems.combat")
+local coreInput = require("src.core.input")
 
 local abilities = {}
 
@@ -9,6 +10,16 @@ local function initIfNeeded()
     if next(instances) ~= nil then
         return
     end
+
+function abilities.castOvercharge(player)
+    initIfNeeded()
+    tryCastQ(player)
+end
+
+function abilities.castVectorDash(player, world, camera)
+    initIfNeeded()
+    tryCastE(player, world, camera)
+end
 
     for id, def in pairs(abilitiesData) do
         instances[id] = {
@@ -84,11 +95,13 @@ local function tryCastE(player, world, camera)
 
     inst.cooldown = inst.def.cooldown or 0
 
-    local mx, my = love.mouse.getPosition()
-    local wx, wy = camera.screenToWorld(mx, my)
+    local wx, wy = coreInput.getMouseWorld(camera)
 
-    local dx = wx - player.x
-    local dy = wy - player.y
+    local px = player.position and player.position.x or player.x
+    local py = player.position and player.position.y or player.y
+
+    local dx = wx - px
+    local dy = wy - py
     local dist = math.sqrt(dx * dx + dy * dy)
     if dist == 0 then
         return
@@ -97,22 +110,36 @@ local function tryCastE(player, world, camera)
     local dashDistance = inst.def.dashDistance or 260
     local moveDist = math.min(dist, dashDistance)
 
-    local nx = player.x + (dx / dist) * moveDist
-    local ny = player.y + (dy / dist) * moveDist
+    -- Normalize and scale
+    local nx = px + (dx / dist) * moveDist
+    local ny = py + (dy / dist) * moveDist
 
-    if world and world.clampToWorld then
-        -- Clamp dash end position using the collision radius (from the owned
-        -- ship) when available so the ship does not overshoot the world edge.
-        nx, ny = world.clampToWorld(nx, ny, player.collisionRadius or player.size)
+    -- Ensure we don't dash outside world bounds
+    local radius = (player.collisionRadius and player.collisionRadius.value) or player.collisionRadius or
+    (player.size and player.size.value) or 20
+    if world.clampToWorld then
+        nx, ny = world.clampToWorld(nx, ny, radius)
     end
 
-    player.x = nx
-    player.y = ny
-    player.targetX = nx
-    player.targetY = ny
+    -- Teleport player ECS components
+    if player.position then
+        player.position.x = nx
+        player.position.y = ny
+    else
+        player.x = nx
+        player.y = ny
+    end
 
-    if player.body then
-        player.body:setPosition(nx, ny)
+    if player.destination then
+        player.destination.x = nx
+        player.destination.y = ny
+        player.destination.active = false -- Stop moving after dash
+    end
+
+    -- Teleport Physics Body
+    local body = player.physics and player.physics.body or player.body
+    if body then
+        body:setPosition(nx, ny)
     end
 end
 
@@ -124,9 +151,9 @@ function abilities.keypressed(key, player, world, camera)
     end
 
     if key == "q" then
-        tryCastQ(player)
+        abilities.castOvercharge(player)
     elseif key == "e" then
-        tryCastE(player, world, camera)
+        abilities.castVectorDash(player, world, camera)
     end
 end
 

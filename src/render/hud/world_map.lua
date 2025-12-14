@@ -2,6 +2,7 @@ local hud_world_map = {}
 
 local ui_theme = require("src.core.ui_theme")
 local window_frame = require("src.render.hud.window_frame")
+local coreInput = require("src.core.input")
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -450,7 +451,7 @@ function hud_world_map.wheelmoved(x, y)
         return false
     end
 
-    local mx, my = love.mouse.getPosition()
+    local mx, my = coreInput.getMousePosition()
     local mouseOverMap = isPointInRect(mx, my, mapX, mapY, mapW, mapH)
 
     local worldWidth = world.width or 1
