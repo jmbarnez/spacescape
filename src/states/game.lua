@@ -28,6 +28,7 @@ local floatingText = require("src.entities.floating_text")
 local gameRender = require("src.states.game_render")
 local ecsWorld = require("src.ecs.world")
 local input = require("src.core.input")
+local gameInput = require("src.states.game_input")
 
 local function getEnemyEntities()
 	local ships = ecsWorld:query({ "ship", "faction", "position" }) or {}
@@ -57,10 +58,6 @@ local function clearEnemyEntities()
 	end
 end
 
-local ecsPlayerProxy = {
-	position = { x = 0, y = 0 }
-}
-
 -- Module definition
 local game = {}
 
@@ -73,20 +70,6 @@ local pauseMenu = {
 		{ id = "quit",   label = "Quit to Desktop" },
 	},
 }
-
--- Helper to create UI context for window manager calls
-local function createUiContext()
-	return {
-		gameState = gameState,
-		pauseMenu = pauseMenu,
-	}
-end
-
--- Helper to apply UI context changes from window manager
-local function applyUiContext(uiCtx)
-	gameState = uiCtx.gameState
-	pauseMenu = uiCtx.pauseMenu
-end
 
 --------------------------------------------------------------------------------
 -- INPUT PROCESSING (ACTION-BASED)
@@ -101,147 +84,38 @@ end
 --   - Game simulation only advances when gameState == "playing".
 --------------------------------------------------------------------------------
 
-local function processUiMouseMove()
-	local mx, my = input.getMousePosition()
-	local dx, dy = input.getMouseDelta()
-
-	-- Mouse-move is primarily used for dragging HUD windows (pause/cargo/map).
-	-- Even if dx/dy is 0, the handlers are cheap and keep logic consistent.
-	local uiCtx = createUiContext()
-	windowManager.mousemoved(uiCtx, mx, my, dx, dy)
-	applyUiContext(uiCtx)
-end
-
-local function processUiMouseButtons()
-	local mx, my = input.getMousePosition()
-	local pressX, pressY = input.getMousePressedPosition(1)
-	local releaseX, releaseY = input.getMouseReleasedPosition(1)
-	local rightPressX, rightPressY = input.getMousePressedPosition(2)
-	if not pressX then
-		pressX, pressY = mx, my
-	end
-	if not releaseX then
-		releaseX, releaseY = mx, my
-	end
-	if not rightPressX then
-		rightPressX, rightPressY = mx, my
-	end
-
-	-- Press: route left-click into the HUD first, then (if unhandled) into
-	-- gameplay selection.
-	if input.pressed("mouse_primary") then
-		if gameState == "gameover" then
+local function processInputActions()
+	gameInput.process({
+		input = input,
+		windowManager = windowManager,
+		inputSystem = inputSystem,
+		playerModule = playerModule,
+		world = world,
+		camera = camera,
+		config = config,
+		getGameState = function()
+			return gameState
+		end,
+		setGameState = function(nextState)
+			gameState = nextState
+		end,
+		getPauseMenu = function()
+			return pauseMenu
+		end,
+		setPauseMenu = function(nextMenu)
+			pauseMenu = nextMenu
+		end,
+		restartGame = function()
 			game.restartGame()
-			return
-		end
-
-		local uiCtx = createUiContext()
-		local handled, action = windowManager.mousepressed(uiCtx, pressX, pressY, 1)
-		applyUiContext(uiCtx)
-
-		if action == "quit_to_desktop" then
+		end,
+		onQuit = function()
 			love.event.quit()
-			return
-		elseif action == "restart" then
-			game.restartGame()
-			return
-		end
-
-		if handled then
-			return
-		end
-
-		if gameState ~= "playing" then
-			return
-		end
-
-		-- Gameplay left-click: loot/target selection.
-		inputSystem.mousepressed(pressX, pressY, 1, playerModule.getEntity(), world, camera)
-	end
-
-	-- Release: always forward to HUD so it can clear any drag state.
-	if input.released("mouse_primary") then
-		local uiCtx = createUiContext()
-		windowManager.mousereleased(uiCtx, releaseX, releaseY, 1)
-		applyUiContext(uiCtx)
-	end
-
-	-- Right-click movement: the legacy input system sets the move target on
-	-- press *and* while the button is held. We keep the press behavior here so
-	-- quick taps still move the ship.
-	if input.pressed("mouse_secondary") and gameState == "playing" then
-		inputSystem.mousepressed(rightPressX, rightPressY, 2, playerModule.getEntity(), world, camera)
-	end
-end
-
-local function processUiMouseWheel()
-	local wx, wy = input.getWheelDelta()
-	if (not wy) or wy == 0 then
-		return
-	end
-
-	local uiCtx = createUiContext()
-	local handled = windowManager.wheelmoved(uiCtx, wx, wy)
-	applyUiContext(uiCtx)
-
-	-- If no HUD overlay consumed the wheel event, treat it as gameplay camera
-	-- zoom (matching the legacy inputSystem.wheelmoved behavior).
-	if not handled and gameState == "playing" then
-		camera.zoom(wy * config.camera.zoomWheelScale)
-	end
-end
-
-local function processUiKeyboardActions()
-	-- Fullscreen toggle (F11)
-	if input.pressed("toggle_fullscreen") then
-		local isFullscreen = love.window.getFullscreen()
-		love.window.setFullscreen(not isFullscreen, "desktop")
-		return
-	end
-
-	-- Escape: close top-most in-play overlay first (cargo/map), otherwise toggle
-	-- pause.
-	if input.pressed("pause") then
-		if gameState == "playing" then
-			local uiCtx = createUiContext()
-			local handled = windowManager.keypressed(uiCtx, "escape")
-			applyUiContext(uiCtx)
-
-			if handled then
-				return
-			end
-
-			gameState = "paused"
-			windowManager.setWindowOpen("cargo", false)
-			return
-		elseif gameState == "paused" then
-			gameState = "playing"
-			return
-		end
-	end
-
-	-- Cargo overlay toggle (Tab)
-	if input.pressed("toggle_cargo") and gameState == "playing" then
-		local nowOpen = not windowManager.isWindowOpen("cargo")
-		windowManager.setWindowOpen("cargo", nowOpen)
-		if not nowOpen then
-			windowManager.resetWindow("cargo")
-		end
-		return
-	end
-
-	-- Galaxy/world map overlay toggle (M)
-	if input.pressed("toggle_map") and gameState == "playing" then
-		windowManager.toggleWindow("map")
-		return
-	end
+		end,
+	})
 end
 
 -- Color palette used for rendering
 local colors = require("src.core.colors")
-
--- Constants
-local DAMAGE_PER_HIT = config.combat.damagePerHit
 
 local function registerUpdateSystems()
 	systems.clear()
@@ -394,10 +268,7 @@ function game.update(dt)
 
 	-- Process all UI + gameplay input as action checks (Baton) instead of Love
 	-- callbacks.
-	processUiMouseMove()
-	processUiMouseButtons()
-	processUiMouseWheel()
-	processUiKeyboardActions()
+	processInputActions()
 
 	-- Ability casts are gated behind the "playing" state so the player cannot
 	-- trigger combat actions while paused or game-over.
