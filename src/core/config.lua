@@ -3,6 +3,16 @@ local config = {
         width = 6000,
         height = 6000,
     },
+    sectors = {
+        enabled = true,
+        seed = 1337,
+        definitionId = "initial",
+        size = 6000,
+        activeRadius = 0,
+        cullRadius = 0,
+        edgeMargin = 140,
+        minSeparation = 22,
+    },
     spawn = {
         spawnInterval = 2,
         initialEnemyCount = 6,

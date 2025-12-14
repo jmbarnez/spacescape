@@ -7,7 +7,8 @@ local physics = require("src.core.physics")
 local config = require("src.core.config")
 local colors = require("src.core.colors")
 local shieldImpactFx = require("src.entities.shield_impact_fx")
-local wreckModule = require("src.entities.wreck")
+
+local DEFAULT_LOOT_RANGE = 90
 
 --- Set the player's movement target position.
 -- @param state table The player state table
@@ -156,7 +157,7 @@ function movement.update(state, dt, world)
             local ldx = lx - state.x
             local ldy = ly - state.y
             local lootDist = math.sqrt(ldx * ldx + ldy * ldy)
-            local lootRange = wreckModule.getLootRange()
+            local lootRange = (config.player and config.player.lootRange) or DEFAULT_LOOT_RANGE
             if lootDist <= lootRange then
                 state.isLooting = true
                 -- Stop movement when reaching the wreck
@@ -168,14 +169,8 @@ function movement.update(state, dt, world)
 
     -- Validate loot target still exists
     if state.lootTarget then
-        local found = false
-        for _, w in ipairs((wreckModule.getList and wreckModule.getList()) or wreckModule.list or {}) do
-            if w == state.lootTarget then
-                found = true
-                break
-            end
-        end
-        if not found then
+        local lt = state.lootTarget
+        if lt._removed or lt.removed then
             state.lootTarget = nil
             state.isLooting = false
         end

@@ -11,6 +11,7 @@ local shieldImpactFx = require("src.entities.shield_impact_fx")
 local floatingText = require("src.entities.floating_text")
 
 local spawnSystem = require("src.systems.spawn")
+local asteroidSectorSpawner = require("src.systems.asteroid_sector_spawner")
 local combatSystem = require("src.systems.combat")
 local abilitiesSystem = require("src.systems.abilities")
 
@@ -33,6 +34,10 @@ function game_update_pipeline.register()
 
 
 	-- ECS pre-physics: update AI/movement and sync ECS kinematic bodies into Box2D.
+	systems.registerUpdate("asteroidSectors", function(dt, ctx)
+		asteroidSectorSpawner.update(dt, ctx)
+	end, 20)
+
 	systems.registerUpdate("ecsPrePhysics", function(dt, ctx)
 		-- Removed proxy sync steps, as we use direct ECS components now.
 		if ecsWorld and ecsWorld.emit then

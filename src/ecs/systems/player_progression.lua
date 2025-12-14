@@ -6,10 +6,35 @@
 local Concord = require("lib.concord")
 local config = require("src.core.config")
 
+local colors = require("src.core.colors")
+local floatingText = require("src.entities.floating_text")
+
 local PlayerProgressionSystem = Concord.system({})
 
 local function isNumber(n)
     return type(n) == "number" and n == n
+end
+
+local function spawnAwardText(player, baseText, value, opts)
+    if not (player and player.position) then
+        return
+    end
+    if type(value) ~= "number" or value <= 0 then
+        return
+    end
+
+    floatingText.spawn(baseText, player.position.x, player.position.y + (opts.yOffset or 0), nil, {
+        duration = opts.duration,
+        riseSpeed = opts.riseSpeed,
+        scale = opts.scale,
+        alpha = opts.alpha,
+        bgColor = opts.bgColor,
+        textColor = opts.textColor,
+        stackKey = opts.stackKey,
+        stackValueIncrement = value,
+        stackBaseText = baseText,
+        iconPreset = opts.iconPreset,
+    })
 end
 
 local function recalcXpProgress(exp)
@@ -154,6 +179,19 @@ function PlayerProgressionSystem:awardXp(amount)
     end
 
     addExperience(player.experience, amount)
+
+    local value = math.floor(amount + 0.5)
+    spawnAwardText(player, "XP", value, {
+        yOffset = -22,
+        duration = 1.1,
+        riseSpeed = 26,
+        scale = 0.8,
+        alpha = 1.0,
+        bgColor = { 0, 0, 0, 0 },
+        textColor = colors.health or colors.white,
+        stackKey = "xp_total",
+        iconPreset = "xp_only",
+    })
 end
 
 function PlayerProgressionSystem:awardTokens(amount)
@@ -168,6 +206,19 @@ function PlayerProgressionSystem:awardTokens(amount)
     end
 
     addCurrency(player.currency, amount)
+
+    local value = math.floor(amount + 0.5)
+    spawnAwardText(player, "Tokens", value, {
+        yOffset = -8,
+        duration = 1.1,
+        riseSpeed = 26,
+        scale = 0.8,
+        alpha = 1.0,
+        bgColor = { 0, 0, 0, 0 },
+        textColor = colors.uiText or colors.white,
+        stackKey = "tokens_total",
+        iconPreset = "token_only",
+    })
 end
 
 function PlayerProgressionSystem:resetPlayerProgress()

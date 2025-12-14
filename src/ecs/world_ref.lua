@@ -48,22 +48,4 @@ function worldRef.query(componentList)
     return world:query(componentList) or {}
 end
 
-function worldRef.getPlayerProgressEntity()
-    local world = worldRef._world
-    if not world or not world.query then
-        return nil
-    end
-
-    local players = world:query({ "playerControlled" }) or {}
-
-    for i = 1, #players do
-        local e = players[i]
-        if e and (e.experience or e.currency) then
-            return e
-        end
-    end
-
-    return players[1] or nil
-end
-
 return worldRef

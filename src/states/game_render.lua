@@ -110,11 +110,9 @@ end
 -- if it would be easy to click something, it is also easy to hover it.
 local function findHoveredEntity(ctx)
     local enemyList = ctx.enemyList
-    local asteroidModule = ctx.asteroidModule
-    local wreckModule = ctx.wreckModule
     local camera = ctx.camera
 
-    if not enemyList or not asteroidModule or not camera then
+    if not enemyList or not camera then
         return nil
     end
 
@@ -182,8 +180,9 @@ local function findHoveredEntity(ctx)
     end
 
     -- Check all active loot containers / wrecks
-    if wreckModule and wreckModule.list then
-        for _, w in ipairs(wreckModule.list or {}) do
+    local wrecks = ecsWorld:query({ "wreck", "position" }) or {}
+    for _, w in ipairs(wrecks) do
+        if not w._removed and not w.removed then
             considerEntity(w)
         end
     end
@@ -323,8 +322,6 @@ end
 local function drawWorldObjects(ctx)
     local player = ctx.player
     local playerModule = ctx.playerModule
-    local asteroidModule = ctx.asteroidModule
-    local projectileModule = ctx.projectileModule
     local projectileShards = ctx.projectileShards
     local engineTrail = ctx.engineTrail
     local particlesModule = ctx.particlesModule
@@ -344,12 +341,7 @@ local function drawWorldObjects(ctx)
     end
 
     drawMovementIndicator(player, colors)
-    asteroidModule.draw(camera)
     -- Items are ECS entities now and are rendered by ECS systems.
-    local wreckModule = ctx.wreckModule
-    if wreckModule and wreckModule.draw then
-        wreckModule.draw()
-    end
     -- Draw all ECS-rendered entities (projectiles + enemy ships + ship health bars)
     ecsWorld:emit("draw", colors)
 
@@ -441,7 +433,6 @@ local function drawOverlay(ctx)
     local cargoOpen = ctx.cargoOpen
     local mapOpen = ctx.mapOpen
     local enemyList = ctx.enemyList
-    local asteroidModule = ctx.asteroidModule
 
     drawTargetIndicator(colors, combatSystem, camera)
 

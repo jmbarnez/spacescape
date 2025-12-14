@@ -6,6 +6,9 @@
 local Concord = require("lib.concord")
 local config = require("src.core.config")
 
+local colors = require("src.core.colors")
+local explosionFx = require("src.entities.explosion_fx")
+
 local RewardSystem = Concord.system({
     -- Entities that give rewards when killed
     rewardable = { "xpReward" },
@@ -54,11 +57,17 @@ function RewardSystem:onDeath(entity, killerFaction)
     end
 
     -- Spawn resource drops
-    if entity.resourceYield and entity.position then
-        world:emit("spawnResources",
-            entity.position.x,
-            entity.position.y,
-            entity.resourceYield.resources)
+    if entity.resourceYield and entity.position and world and world.spawnItem then
+        local res = entity.resourceYield.resources or {}
+        local x = entity.position.x
+        local y = entity.position.y
+
+        for resourceType, amount in pairs(res) do
+            local n = tonumber(amount) or 0
+            if n > 0 then
+                world:spawnItem(x, y, tostring(resourceType), n)
+            end
+        end
     end
 
     -- Spawn loot wreck for ships.
@@ -77,22 +86,28 @@ function RewardSystem:onDeath(entity, killerFaction)
         chance = clampDropChance(chance)
 
         if chance and chance > 0 and math.random() < chance then
-            world:emit("spawnWreck",
-                entity.position.x,
-                entity.position.y,
-                entity.loot.cargo,
-                entity.loot.coins)
+            if world and world.spawnWreck then
+                world:spawnWreck(
+                    entity.position.x,
+                    entity.position.y,
+                    entity.loot.cargo,
+                    entity.loot.coins)
+            end
         end
     end
 
     -- Spawn explosion VFX
     if entity.position then
         local radius = entity.collisionRadius and entity.collisionRadius.radius or 20
-        world:emit("spawnExplosion",
-            entity.position.x,
-            entity.position.y,
-            (entity.faction and entity.faction.name) or "neutral",
-            radius)
+        local faction = (entity.faction and entity.faction.name) or "neutral"
+        local color = colors.explosion
+        if faction == "enemy" then
+            color = colors.enemy
+        elseif faction == "player" then
+            color = colors.ship
+        end
+
+        explosionFx.spawn(entity.position.x, entity.position.y, color, radius)
     end
 
     -- Trigger Respawn

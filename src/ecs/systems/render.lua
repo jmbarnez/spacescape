@@ -7,6 +7,11 @@ local Concord = require("lib.concord")
 local ship_renderer = require("src.render.ship_renderer")
 local icon_renderer = require("src.render.icon_renderer")
 local baseColors = require("src.core.colors")
+local asteroid_generator = require("src.utils.procedural_asteroid_generator")
+
+local DEFAULT_WRECK_LIFETIME = 180
+local ASTEROID_HEALTH_BAR_HEIGHT = 4
+local ASTEROID_HEALTH_BAR_OFFSET_Y = 18
 
 --------------------------------------------------------------------------------
 -- SHIP RENDER SYSTEM
@@ -37,8 +42,133 @@ function ShipRenderSystem:draw(colors)
         else
             ship_renderer.drawPlayer(ship, colors)
         end
-
         love.graphics.pop()
+    end
+end
+
+--------------------------------------------------------------------------------
+-- ASTEROID RENDER SYSTEM
+--------------------------------------------------------------------------------
+
+local AsteroidRenderSystem = Concord.system({
+    asteroids = { "asteroid", "position", "rotation", "asteroidVisual", "health", "collisionRadius" },
+})
+
+local function drawAsteroidHealthBar(colors, px, py, radius, healthCurrent, healthMax)
+    if not (healthMax and healthMax > 0 and healthCurrent and healthCurrent >= 0) then
+        return
+    end
+
+    if healthCurrent >= healthMax then
+        return
+    end
+
+    local barWidth = radius * 0.9
+    local barX = px - barWidth
+    local barY = py - radius - ASTEROID_HEALTH_BAR_OFFSET_Y
+
+    love.graphics.setColor(0, 0, 0, 1)
+    love.graphics.rectangle("fill", barX - 1, barY - 1, barWidth * 2 + 2, ASTEROID_HEALTH_BAR_HEIGHT + 2)
+
+    love.graphics.setColor(colors.asteroidHealthBg)
+    love.graphics.rectangle("fill", barX, barY, barWidth * 2, ASTEROID_HEALTH_BAR_HEIGHT)
+
+    local ratio = math.max(0, math.min(1, healthCurrent / healthMax))
+    love.graphics.setColor(colors.asteroidHealth)
+    love.graphics.rectangle("fill", barX, barY, barWidth * 2 * ratio, ASTEROID_HEALTH_BAR_HEIGHT)
+end
+
+function AsteroidRenderSystem:draw(colors)
+    colors = colors or baseColors
+
+    for i = 1, self.asteroids.size do
+        local a = self.asteroids[i]
+
+        local px = a.position.x
+        local py = a.position.y
+        local angle = a.rotation and a.rotation.angle or 0
+        local data = (a.asteroidVisual and a.asteroidVisual.data) or a.data
+
+        love.graphics.push()
+        love.graphics.translate(px, py)
+        love.graphics.rotate(angle)
+        if data then
+            asteroid_generator.draw(data)
+        end
+        love.graphics.pop()
+
+        local health = a.health
+        if health and health.current and health.max then
+            local radius = (a.collisionRadius and a.collisionRadius.radius) or 20
+            drawAsteroidHealthBar(colors, px, py, radius, health.current, health.max)
+        end
+    end
+end
+
+--------------------------------------------------------------------------------
+-- WRECK RENDER SYSTEM
+--------------------------------------------------------------------------------
+
+local WreckRenderSystem = Concord.system({
+    wrecks = { "wreck", "position", "rotation" },
+})
+
+function WreckRenderSystem:draw(colors)
+    colors = colors or baseColors
+
+    for i = 1, self.wrecks.size do
+        local w = self.wrecks[i]
+
+        local wx = w.position and w.position.x or w.x
+        local wy = w.position and w.position.y or w.y
+        if wx and wy then
+            local angle = (w.rotation and w.rotation.angle) or w.angle or 0
+
+            local size = 24
+            if w.size then
+                size = type(w.size) == "table" and w.size.value or w.size
+            end
+
+            local lifetimeTotal = w.lifetimeTotal or DEFAULT_WRECK_LIFETIME
+            local age = w.age or 0
+            if w.lifetime and w.lifetime.remaining and lifetimeTotal > 0 then
+                age = lifetimeTotal - w.lifetime.remaining
+                if age < 0 then
+                    age = 0
+                end
+            end
+
+            love.graphics.push()
+            love.graphics.translate(wx, wy)
+            love.graphics.rotate(angle)
+
+            local fadeStart = lifetimeTotal * 0.8
+            local alpha = 1.0
+            if age > fadeStart and lifetimeTotal > fadeStart then
+                alpha = 1.0 - ((age - fadeStart) / (lifetimeTotal - fadeStart))
+            end
+
+            local halfSize = size / 2
+
+            love.graphics.setColor(0.45, 0.35, 0.25, alpha * 0.9)
+            love.graphics.rectangle("fill", -halfSize, -halfSize, size, size, 3, 3)
+
+            love.graphics.setColor(0.55, 0.45, 0.35, alpha * 0.8)
+            local inset = 4
+            love.graphics.rectangle("fill", -halfSize + inset, -halfSize + inset,
+                size - inset * 2, size - inset * 2, 2, 2)
+
+            love.graphics.setColor(0.35, 0.28, 0.18, alpha * 0.7)
+            love.graphics.setLineWidth(2)
+            love.graphics.line(-halfSize + 2, 0, halfSize - 2, 0)
+            love.graphics.line(0, -halfSize + 2, 0, halfSize - 2)
+
+            love.graphics.setColor(0.65, 0.55, 0.40, alpha * 0.6)
+            love.graphics.setLineWidth(1)
+            love.graphics.rectangle("line", -halfSize, -halfSize, size, size, 3, 3)
+
+            love.graphics.pop()
+        end
     end
 end
 
@@ -166,6 +296,8 @@ function ProjectileRenderSystem:draw(colors)
 end
 
 return {
+    AsteroidRenderSystem = AsteroidRenderSystem,
+    WreckRenderSystem = WreckRenderSystem,
     ShipRenderSystem = ShipRenderSystem,
     HealthBarSystem = HealthBarSystem,
     ItemRenderSystem = ItemRenderSystem,

@@ -86,7 +86,7 @@ end
 -- Update Logic
 --------------------------------------------------------------------------------
 
-function game.update(dt)
+function game.updateFrame(dt)
 	local playerEntity = playerModule.getEntity()
 
 	-- Update the input wrapper every frame so pressed/released transitions are
@@ -111,6 +111,14 @@ function game.update(dt)
 	if gameState ~= "playing" then
 		return
 	end
+end
+
+function game.updateFixed(dt)
+	if gameState ~= "playing" then
+		return
+	end
+
+	local playerEntity = playerModule.getEntity()
 
 	local updateCtx = {
 		player = playerEntity,
@@ -123,6 +131,11 @@ function game.update(dt)
 	systems.runUpdate(dt, updateCtx)
 
 	game.checkCollisions()
+end
+
+function game.update(dt)
+	game.updateFrame(dt)
+	game.updateFixed(dt)
 end
 
 function game.checkCollisions()

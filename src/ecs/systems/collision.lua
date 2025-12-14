@@ -7,6 +7,9 @@ local Concord = require("lib.concord")
 local baseColors = require("src.core.colors")
 local config = require("src.core.config")
 
+local floatingText = require("src.entities.floating_text")
+local shieldImpactFx = require("src.entities.shield_impact_fx")
+
 local CollisionSystem = Concord.system({
     -- Projectiles that can deal damage
     projectiles = { "projectile", "position", "damage", "faction" },
@@ -38,6 +41,19 @@ end
 
 local function isPlayerShip(e)
     return e and (e.playerControlled == true or e.playerControlled ~= nil or (e.faction and e.faction.name == "player"))
+end
+
+local function spawnDamageText(amount, x, y, radius, color)
+    if not amount or amount <= 0 then
+        return
+    end
+
+    local textY = y - radius - 10
+
+    floatingText.spawn(tostring(math.floor(amount + 0.5)), x, textY, nil, {
+        bgColor = { 0, 0, 0, 0 },
+        textColor = color,
+    })
 end
 
 --- Apply damage to an entity, shields first then hull
@@ -97,9 +113,27 @@ function CollisionSystem:handleProjectileHit(projectile, target, contactX, conta
     -- Apply damage
     local died, shieldDamage, hullDamage = applyDamage(target, damage)
 
-    -- Emit damage event for VFX systems to react
+    local x = target.position.x
+    local y = target.position.y
+    local radius = getCollisionRadius(target)
+
+    if shieldDamage and shieldDamage > 0 then
+        spawnDamageText(shieldDamage, x, y, radius, baseColors.shieldDamage)
+
+        local ix = contactX or x
+        local iy = contactY or y
+        if shieldImpactFx and shieldImpactFx.spawn then
+            shieldImpactFx.spawn(x, y, ix, iy, radius * 1.15, baseColors.shieldDamage, target)
+        end
+    end
+
+    if hullDamage and hullDamage > 0 then
+        local faction = target.faction and target.faction.name
+        local hullColor = (faction == "player") and baseColors.damagePlayer or baseColors.damageEnemy
+        spawnDamageText(hullDamage, x, y, radius, hullColor)
+    end
+
     local world = self:getWorld()
-    world:emit("onDamage", target, damage, shieldDamage, hullDamage, contactX, contactY)
 
     -- Handle death
     if died then
@@ -131,7 +165,27 @@ function CollisionSystem:handleShipRam(attacker, defender, contactX, contactY)
 
     -- Apply damage to defender
     local defenderDied, defShieldDmg, defHullDmg = applyDamage(defender, damage)
-    world:emit("onDamage", defender, damage, defShieldDmg, defHullDmg, contactX, contactY)
+
+    do
+        local x = defender.position.x
+        local y = defender.position.y
+        local radius = getCollisionRadius(defender)
+
+        if defShieldDmg and defShieldDmg > 0 then
+            spawnDamageText(defShieldDmg, x, y, radius, baseColors.shieldDamage)
+            local ix = contactX or x
+            local iy = contactY or y
+            if shieldImpactFx and shieldImpactFx.spawn then
+                shieldImpactFx.spawn(x, y, ix, iy, radius * 1.15, baseColors.shieldDamage, defender)
+            end
+        end
+
+        if defHullDmg and defHullDmg > 0 then
+            local faction = defender.faction and defender.faction.name
+            local hullColor = (faction == "player") and baseColors.damagePlayer or baseColors.damageEnemy
+            spawnDamageText(defHullDmg, x, y, radius, hullColor)
+        end
+    end
 
     if defenderDied then
         world:emit("onDeath", defender, attackerFaction)
@@ -139,7 +193,27 @@ function CollisionSystem:handleShipRam(attacker, defender, contactX, contactY)
 
     -- Optionally apply damage to attacker too (ramming costs)
     local attackerDied, atkShieldDmg, atkHullDmg = applyDamage(attacker, damage)
-    world:emit("onDamage", attacker, damage, atkShieldDmg, atkHullDmg, contactX, contactY)
+
+    do
+        local x = attacker.position.x
+        local y = attacker.position.y
+        local radius = getCollisionRadius(attacker)
+
+        if atkShieldDmg and atkShieldDmg > 0 then
+            spawnDamageText(atkShieldDmg, x, y, radius, baseColors.shieldDamage)
+            local ix = contactX or x
+            local iy = contactY or y
+            if shieldImpactFx and shieldImpactFx.spawn then
+                shieldImpactFx.spawn(x, y, ix, iy, radius * 1.15, baseColors.shieldDamage, attacker)
+            end
+        end
+
+        if atkHullDmg and atkHullDmg > 0 then
+            local faction = attacker.faction and attacker.faction.name
+            local hullColor = (faction == "player") and baseColors.damagePlayer or baseColors.damageEnemy
+            spawnDamageText(atkHullDmg, x, y, radius, hullColor)
+        end
+    end
 
     if attackerDied then
         world:emit("onDeath", attacker, defenderFaction)
@@ -212,8 +286,8 @@ function CollisionSystem:handleShipVsAsteroid(ship, asteroid, contactX, contactY
         end
 
         local world = self:getWorld()
-        if world and world.emit then
-            world:emit("onAsteroidBump", ship, ix, iy)
+        if shieldImpactFx and shieldImpactFx.spawn then
+            shieldImpactFx.spawn(ship.position.x, ship.position.y, ix, iy, shipRadius * 1.15, baseColors.shieldDamage, ship)
         end
     end
 end

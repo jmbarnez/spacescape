@@ -6,7 +6,8 @@
 local Concord = require("lib.concord")
 local physics = require("src.core.physics")
 local config = require("src.core.config")
-local wreckModule = require("src.entities.wreck")
+
+local DEFAULT_LOOT_RANGE = 90
 
 local PlayerControlSystem = Concord.system({
     -- Only entities with player control tag and movement components
@@ -18,6 +19,7 @@ local PlayerControlSystem = Concord.system({
 --------------------------------------------------------------------------------
 
 function PlayerControlSystem:prePhysics(dt)
+    local world = self:getWorld()
     for i = 1, self.players.size do
         local e = self.players[i]
 
@@ -37,17 +39,13 @@ function PlayerControlSystem:prePhysics(dt)
                 isValid = true
             end
 
-            -- Also check if it's still in the wreck list (not destroyed)
             if isValid then
-                local wreckList = (wreckModule.getList and wreckModule.getList()) or wreckModule.list or {}
-                local found = false
-                for _, w in ipairs(wreckList) do
-                    if w == lootTarget then
-                        found = true
-                        break
-                    end
+                if lootTarget._removed or lootTarget.removed then
+                    isValid = false
+                elseif lootTarget.wreck == nil and lootTarget.wreck ~= true then
+                    -- Not a wreck entity.
+                    isValid = false
                 end
-                isValid = found
             end
 
             if isValid then
@@ -59,7 +57,7 @@ function PlayerControlSystem:prePhysics(dt)
                 local dx = tx - e.position.x
                 local dy = ty - e.position.y
                 local dist = math.sqrt(dx * dx + dy * dy)
-                local lootRange = wreckModule.getLootRange() or 60
+                local lootRange = (config.player and config.player.lootRange) or DEFAULT_LOOT_RANGE
 
                 if dist <= lootRange then
                     -- Arrived! Stop and open loot

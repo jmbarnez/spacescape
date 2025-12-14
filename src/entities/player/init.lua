@@ -5,7 +5,7 @@
 
 local player = {}
 
-local worldRef = require("src.ecs.world_ref")
+local ecsWorld = require("src.ecs.world")
 local shipModule = require("src.entities.player.ship")
 local config = require("src.core.config")
 
@@ -24,7 +24,6 @@ player.entity = nil
 --- Reset the player (respawn).
 -- This destroys any old player entity and asks the world to spawn a new one.
 function player.reset(spawnX, spawnY)
-    local ecsWorld = worldRef.get()
     if not ecsWorld then return end
 
     -- Clear old entity if it exists (though world:clear() usually handles this)
@@ -60,7 +59,6 @@ function player.getEntity()
     end
 
     -- Try to find it in the world
-    local ecsWorld = worldRef.get()
     if ecsWorld then
         player.entity = ecsWorld:getPlayer()
     end
@@ -105,21 +103,18 @@ function player.addCargoResource(resourceType, amount)
 end
 
 function player.addExperience(amount)
-    local ecsWorld = worldRef.get()
     if ecsWorld and ecsWorld.emit then
         ecsWorld:emit("awardXp", amount)
     end
 end
 
 function player.addCurrency(amount)
-    local ecsWorld = worldRef.get()
     if ecsWorld and ecsWorld.emit then
         ecsWorld:emit("awardTokens", amount)
     end
 end
 
 function player.resetExperience()
-    local ecsWorld = worldRef.get()
     if ecsWorld and ecsWorld.emit then
         ecsWorld:emit("resetPlayerProgress")
     end

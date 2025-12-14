@@ -2,19 +2,13 @@ local hud_status = {}
 
 local config = require("src.core.config")
 local ui_theme = require("src.core.ui_theme")
-local worldRef = require("src.ecs.world_ref")
 
 function hud_status.draw(player, colors)
     local font = love.graphics.getFont()
     local hudPanelStyle = ui_theme.hudPanel
 
-    local ecsExperience = nil
-    local ecsCurrency = nil
-    local playerProgressEntity = worldRef.getPlayerProgressEntity and worldRef.getPlayerProgressEntity() or nil
-    if playerProgressEntity then
-        ecsExperience = playerProgressEntity.experience
-        ecsCurrency = playerProgressEntity.currency
-    end
+    local ecsExperience = player and player.experience or nil
+    local ecsCurrency = player and player.currency or nil
 
     -- Player stats
     local level = (ecsExperience and ecsExperience.level) or 1

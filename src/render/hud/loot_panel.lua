@@ -9,7 +9,6 @@ local ui_theme = require("src.core.ui_theme")
 local window_frame = require("src.render.hud.window_frame")
 local coreInput = require("src.core.input")
 local playerModule = require("src.entities.player")
-local wreckModule = require("src.entities.wreck")
 local itemDefs = require("src.data.items")
 local icon_renderer = require("src.render.icon_renderer")
 local hud_cargo = require("src.render.hud.cargo")
@@ -64,6 +63,41 @@ local function drawResourceIcon(id, cx, cy, size)
         size = size,
         context = "ui",
     })
+end
+
+local function isWreckEmpty(w)
+    if not w then
+        return true
+    end
+
+    local cargo = w.cargo
+    if not cargo and w.loot and w.loot.cargo then
+        cargo = w.loot.cargo
+        w.cargo = cargo
+    end
+
+    if cargo then
+        for _, slot in pairs(cargo) do
+            if slot and slot.id and slot.quantity and slot.quantity > 0 then
+                return false
+            end
+        end
+    end
+
+    return true
+end
+
+local function removeWreck(w)
+    if not w then
+        return
+    end
+
+    if w.give and not w.removed then
+        w:give("removed")
+        w._removed = true
+    else
+        w._removed = true
+    end
 end
 
 --------------------------------------------------------------------------------
@@ -364,8 +398,8 @@ local function lootAllFromWreck(player, wreck)
 
     -- Once the wreck no longer contains any items, remove it from the world
     -- and clear the current loot target.
-    if wreckModule.isEmpty(wreck) then
-        wreckModule.remove(wreck)
+    if isWreckEmpty(wreck) then
+        removeWreck(wreck)
         playerModule.clearLootTarget()
     end
 end
@@ -432,8 +466,8 @@ function loot_panel.mousepressed(x, y, button)
                     end
                 end
 
-                if wreckModule.isEmpty(wreck) then
-                    wreckModule.remove(wreck)
+                if isWreckEmpty(wreck) then
+                    removeWreck(wreck)
                     playerModule.clearLootTarget()
                 end
             else
@@ -483,18 +517,20 @@ function loot_panel.mousereleased(x, y, button)
 
             if wreck and cargo and dragState.sourceGrid == "wreck" and dragState.sourceSlot then
                 local sourceSlotIndex = dragState.sourceSlot
-                local sourceSlot = cargo[sourceSlotIndex]
+                local sourceSlot = sourceSlotIndex and cargo[sourceSlotIndex] or nil
                 if sourceSlot and sourceSlot.id == dragState.item.id and sourceSlot.quantity then
                     sourceSlot.quantity = sourceSlot.quantity - accepted
                     if sourceSlot.quantity <= 0 then
-                        cargo[sourceSlotIndex] = nil
+                        if sourceSlotIndex then
+                            cargo[sourceSlotIndex] = nil
+                        end
                     end
                 end
             end
 
             local wreck = player.lootTarget
-            if wreck and wreckModule.isEmpty(wreck) then
-                wreckModule.remove(wreck)
+            if wreck and isWreckEmpty(wreck) then
+                removeWreck(wreck)
                 playerModule.clearLootTarget()
             end
         end

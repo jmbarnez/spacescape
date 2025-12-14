@@ -1,6 +1,3 @@
-local asteroidModule = require("src.entities.asteroid")
-local projectileModule = require("src.entities.projectile")
-local wreckModule = require("src.entities.wreck")
 local config = require("src.core.config")
 local ecsWorld = require("src.ecs.world")
 
@@ -13,6 +10,18 @@ local fireInterval = config.combat.fireInterval
 local lockTarget = nil
 local lockTimer = 0
 local lockDuration = config.combat.lockDuration
+
+local function getEntityPosition(e)
+    if not e then
+        return nil, nil
+    end
+
+    if e.position and e.position.x and e.position.y then
+        return e.position.x, e.position.y
+    end
+
+    return e.x, e.y
+end
 
 -- Helper to get current enemy/asteroid lists dynamically
 local function getEnemies()
@@ -38,7 +47,14 @@ local function getAsteroids()
 end
 
 local function getWrecks()
-    return wreckModule.getList and wreckModule.getList() or wreckModule.list or {}
+    local wrecks = ecsWorld:query({ "wreck", "position" }) or {}
+    local out = {}
+    for _, w in ipairs(wrecks) do
+        if not w._removed and not w.removed then
+            out[#out + 1] = w
+        end
+    end
+    return out
 end
 
 local function isEnemyValid(e)
@@ -153,7 +169,50 @@ end
 --- @param maxRadius number Selection padding radius
 --- @return table|nil The wreck at position, or nil
 local function findWreckAtPosition(x, y, maxRadius)
-    return wreckModule.findAtPosition(x, y, maxRadius)
+    local paddingRadius = maxRadius or 0
+    local closest = nil
+    local closestDistSq = nil
+
+    local function considerWreck(w)
+        if not w then
+            return
+        end
+        local wx = w.position and w.position.x or w.x
+        local wy = w.position and w.position.y or w.y
+        if not wx or not wy then
+            return
+        end
+
+        local dx = wx - x
+        local dy = wy - y
+        local distSq = dx * dx + dy * dy
+
+        local entityRadius = 0
+        if w.collisionRadius then
+            entityRadius = type(w.collisionRadius) == "table" and w.collisionRadius.radius or w.collisionRadius
+        elseif w.size then
+            entityRadius = type(w.size) == "table" and w.size.value or w.size
+        else
+            entityRadius = 24
+        end
+
+        local hitRadius = entityRadius + paddingRadius
+        if hitRadius <= 0 then
+            hitRadius = paddingRadius
+        end
+
+        local hitRadiusSq = hitRadius * hitRadius
+        if distSq <= hitRadiusSq and (not closestDistSq or distSq < closestDistSq) then
+            closestDistSq = distSq
+            closest = w
+        end
+    end
+
+    for _, w in ipairs(getWrecks()) do
+        considerWreck(w)
+    end
+
+    return closest
 end
 
 --- Public function to check for wreck at position (used by input system)
@@ -220,9 +279,10 @@ function combat.updateAutoShoot(dt, player)
             -- unless the weapon is still on cooldown.
             if isEnemyValid(targetEnemy) and fireTimer >= interval then
                 fireTimer = 0
-                local tx = targetEnemy.position and targetEnemy.position.x or targetEnemy.x
-                local ty = targetEnemy.position and targetEnemy.position.y or targetEnemy.y
-                ecsWorld:emit("fireProjectile", player, tx, ty, targetEnemy)
+                local tx, ty = getEntityPosition(targetEnemy)
+                if tx and ty then
+                    ecsWorld:emit("fireProjectile", player, tx, ty, targetEnemy)
+                end
                 -- We fired this frame; skip the generic auto-fire logic below
                 -- to avoid double shots.
                 return
@@ -238,11 +298,12 @@ function combat.updateAutoShoot(dt, player)
 
     -- Standard auto-fire loop: once the cooldown reaches the required
     -- interval, fire and reset the timer.
-    if fireTimer >= interval then
+    if isEnemyValid(targetEnemy) and fireTimer >= interval then
         fireTimer = 0
-        local tx = targetEnemy.position and targetEnemy.position.x or targetEnemy.x
-        local ty = targetEnemy.position and targetEnemy.position.y or targetEnemy.y
-        ecsWorld:emit("fireProjectile", player, tx, ty, targetEnemy)
+        local tx, ty = getEntityPosition(targetEnemy)
+        if tx and ty then
+            ecsWorld:emit("fireProjectile", player, tx, ty, targetEnemy)
+        end
     end
 end
 
@@ -401,8 +462,7 @@ function combat.castExtraShot(player, extraShots)
         return
     end
 
-    local tx = targetEnemy.position and targetEnemy.position.x or targetEnemy.x
-    local ty = targetEnemy.position and targetEnemy.position.y or targetEnemy.y
+    local tx, ty = getEntityPosition(targetEnemy)
     if not tx or not ty then
         return
     end

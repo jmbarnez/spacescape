@@ -5,8 +5,6 @@
 
 local Concord = require("lib.concord")
 
-local worldRef = require("src.ecs.world_ref")
-
 -- Load all components first (registers them with Concord)
 require("src.ecs.components")
 
@@ -16,8 +14,6 @@ local movement = require("src.ecs.systems.movement")
 local render = require("src.ecs.systems.render")
 local playerProgression = require("src.ecs.systems.player_progression")
 local reward = require("src.ecs.systems.reward")
-local rewardBridge = require("src.ecs.systems.reward_bridge")
-local combatFeedbackBridge = require("src.ecs.systems.combat_feedback_bridge")
 local ai = require("src.ecs.systems.ai")
 local projectileSpawner = require("src.ecs.systems.projectile_spawner")
 local box2dCollisionProcessor = require("src.ecs.systems.box2d_collision_processor")
@@ -33,11 +29,6 @@ local projectileBounds = require("src.ecs.systems.projectile_bounds")
 local assemblages = require("src.ecs.assemblages")
 
 local world = Concord.world()
-
--- Publish the world instance through a tiny ref module so legacy modules can
--- access ECS queries/spawns without directly requiring this file (which is
--- a common source of require() cycles).
-worldRef.set(world)
 
 --------------------------------------------------------------------------------
 -- SYSTEM REGISTRATION
@@ -67,13 +58,13 @@ world:addSystems(
     box2dCollisionProcessor,
     collision.CollisionSystem,
     playerProgression,
-    combatFeedbackBridge,
     reward,
-    rewardBridge,
     respawner, -- Added respawner system
     collision.CleanupSystem,
 
     -- Rendering (order matters - drawn back to front)
+    render.AsteroidRenderSystem,
+    render.WreckRenderSystem,
     render.ShipRenderSystem,
     render.HealthBarSystem,
     render.ItemRenderSystem,

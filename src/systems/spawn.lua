@@ -2,8 +2,9 @@ local config = require("src.core.config")
 local world = require("src.core.world")
 local ecsWorld = require("src.ecs.world")
 
-local asteroidModule = require("src.entities.asteroid")
+local asteroid_generator = require("src.utils.procedural_asteroid_generator")
 local playerModule = require("src.entities.player")
+local asteroidSectorSpawner = require("src.systems.asteroid_sector_spawner")
 
 local spawn = {}
 
@@ -19,6 +20,70 @@ local function getEnemyEntities()
         end
     end
     return enemies
+end
+
+local function populateAsteroids(worldBox, count)
+    if not worldBox then
+        return
+    end
+
+    local minX, maxX = worldBox.minX, worldBox.maxX
+    local minY, maxY = worldBox.minY, worldBox.maxY
+    if not (minX and maxX and minY and maxY) then
+        return
+    end
+
+    local spawnMargin = 80
+    count = count or 0
+    if count <= 0 then
+        return
+    end
+
+    local oreChance = (config.spawn and config.spawn.mithrilOreAsteroidChance) or 0
+    local spawnedOre = 0
+
+    for i = 1, count do
+        local x = math.random(minX + spawnMargin, maxX - spawnMargin)
+        local y = math.random(minY + spawnMargin, maxY - spawnMargin)
+
+        local forceOre = (oreChance > 0) and (spawnedOre == 0) and (i == count)
+        local spawnOre = forceOre or (oreChance > 0 and math.random() < oreChance)
+
+        local sizeMin = (config.asteroid and config.asteroid.minSize) or 20
+        local sizeMax = (config.asteroid and config.asteroid.maxSize) or sizeMin
+        local size = sizeMin + math.random() * (sizeMax - sizeMin)
+
+        local data = nil
+        local variant = "ice"
+        if spawnOre then
+            variant = "mithril_ore"
+            data = asteroid_generator.generate(size, {
+                composition = {
+                    mithrilChance = 1.0,
+                    minMithrilShare = 0.78,
+                    maxMithrilShare = 1.0,
+                    baseRockVsIce = 0.1 + math.random() * 0.6,
+                }
+            })
+            if data then
+                data.glowColor = { 0.18, 0.10, 0.72 }
+                data.glowStrength = 3.0
+            end
+            spawnedOre = spawnedOre + 1
+        else
+            data = asteroid_generator.generate(size, {
+                composition = {
+                    mithrilChance = 0.0,
+                    baseRockVsIce = 0.05 + math.random() * 0.35,
+                }
+            })
+        end
+
+        local e = ecsWorld:spawnAsteroid(x, y, data, size)
+        if e then
+            e.asteroidVariant = variant
+        end
+    end
 end
 
 local function safeDestroyEcsEntity(e)
@@ -105,8 +170,10 @@ function spawn.reset()
         safeDestroyEcsEntity(enemies[i])
     end
 
-    if asteroidModule.populate then
-        asteroidModule.populate(world, config.spawn and config.spawn.initialAsteroidCount or 0)
+    if config.sectors and config.sectors.enabled and asteroidSectorSpawner and asteroidSectorSpawner.reset then
+        asteroidSectorSpawner.reset()
+    else
+        populateAsteroids(world, config.spawn and config.spawn.initialAsteroidCount or 0)
     end
 
     local initialEnemies = (config.spawn and config.spawn.initialEnemyCount) or 0

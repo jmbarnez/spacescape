@@ -1,7 +1,4 @@
 local playerModule = require("src.entities.player")
-local asteroidModule = require("src.entities.asteroid")
-local wreckModule = require("src.entities.wreck")
-local projectileModule = require("src.entities.projectile")
 local particlesModule = require("src.entities.particles")
 local projectileShards = require("src.entities.projectile_shards")
 local starfield = require("src.render.starfield")
@@ -30,9 +27,6 @@ function game_draw.draw(gameState, pauseMenu, camera)
 		player = playerModule.getEntity(),
 		playerModule = playerModule,
 
-		asteroidModule = asteroidModule,
-		wreckModule = wreckModule,
-		projectileModule = projectileModule,
 		projectileShards = projectileShards,
 		enemyList = gameQueries.getEnemyEntities(),
 		engineTrail = engineTrail,

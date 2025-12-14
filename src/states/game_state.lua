@@ -18,8 +18,13 @@
 --------------------------------------------------------------------------------
 
 local game = require("src.states.game")
+local perf = require("src.core.perf")
 
 local gameState = {}
+
+local FIXED_DT = 1 / 60
+local MAX_ACCUMULATOR = 0.25
+local accumulator = 0
 
 --------------------------------------------------------------------------------
 -- LIFECYCLE
@@ -30,6 +35,7 @@ function gameState:init()
 	if game.load then
 		game.load()
 	end
+	accumulator = 0
 end
 
 --------------------------------------------------------------------------------
@@ -37,6 +43,23 @@ end
 --------------------------------------------------------------------------------
 
 function gameState:update(dt)
+	if game.updateFixed then
+		perf.beginFrame()
+		perf.update(dt)
+
+		if game.updateFrame then
+			game.updateFrame(dt)
+		end
+
+		accumulator = math.min(accumulator + dt, MAX_ACCUMULATOR)
+		while accumulator >= FIXED_DT do
+			perf.onSimStep()
+			game.updateFixed(FIXED_DT)
+			accumulator = accumulator - FIXED_DT
+		end
+		return
+	end
+
 	if game.update then
 		return game.update(dt)
 	end

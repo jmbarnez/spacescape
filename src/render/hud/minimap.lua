@@ -51,6 +51,19 @@ function hud_minimap.draw(player, colors, enemyList, asteroidList)
     -- Panel background + border
     --------------------------------------------------------------------------
 
+    local radius = hudPanelStyle.radius or 0
+    love.graphics.setColor(0, 0, 0, 1)
+    love.graphics.rectangle("fill", panelX, panelY, panelWidth, panelHeight, radius, radius)
+
+    love.graphics.setColor(
+        hudPanelStyle.border[1],
+        hudPanelStyle.border[2],
+        hudPanelStyle.border[3],
+        hudPanelStyle.border[4]
+    )
+    love.graphics.setLineWidth(1)
+    love.graphics.rectangle("line", panelX, panelY, panelWidth, panelHeight, radius, radius)
+
     --------------------------------------------------------------------------
     -- World-to-minimap projection setup
     --
@@ -222,7 +235,8 @@ function hud_minimap.draw(player, colors, enemyList, asteroidList)
     local textWidth = font:getWidth(coordText)
     local textX = panelX + panelWidth / 2 - textWidth / 2
     local lineHeight = font:getHeight()
-    local textY = panelY + panelHeight + 4 + lineHeight + 4
+    local debugLinesUnderMinimap = 2
+    local textY = panelY + panelHeight + 4 + (lineHeight * debugLinesUnderMinimap) + 4
 
     love.graphics.setColor(colors.uiText[1], colors.uiText[2], colors.uiText[3], 0.9)
     love.graphics.print(coordText, textX, textY)
