@@ -8,6 +8,7 @@ item.list = {}
 
 local config = require("src.core.config")
 local playerModule = require("src.entities.player")
+local worldRef = require("src.ecs.world_ref")
 local floatingText = require("src.entities.floating_text")
 local colors = require("src.core.colors")
 local itemDefs = require("src.data.items")
@@ -37,6 +38,14 @@ local function getItemDef(itemType)
     end
 
     return itemDefs[itemType] or itemDefs.default or itemDefs.stone or {}
+end
+
+local function getEcsProgression()
+    local e = worldRef.getPlayerProgressEntity and worldRef.getPlayerProgressEntity() or nil
+    if e and e.experience then
+        return e
+    end
+    return nil
 end
 
 --------------------------------------------------------------------------------
@@ -147,8 +156,24 @@ local function applyPickupEffect(pickup, player)
         end
     elseif pickup.itemType == "xp" then
         local amount = pickup.amount or 0
-        if amount > 0 and playerModule.addExperience then
-            local leveledUp = playerModule.addExperience(amount)
+        if amount > 0 then
+            local ecsWorld = worldRef.get()
+            local prevLevel = nil
+            local playerProgressEntity = getEcsProgression()
+            if playerProgressEntity and playerProgressEntity.experience then
+                prevLevel = playerProgressEntity.experience.level
+            end
+
+            if ecsWorld and ecsWorld.emit then
+                ecsWorld:emit("awardXp", amount)
+            end
+
+            local leveledUp = false
+            local newPlayerProgressEntity = getEcsProgression()
+            if newPlayerProgressEntity and newPlayerProgressEntity.experience and prevLevel then
+                local newLevel = newPlayerProgressEntity.experience.level or prevLevel
+                leveledUp = newLevel > prevLevel
+            end
             local value = math.floor(amount + 0.5)
             local baseText = "XP"
             local textColor = colors.health or colors.white

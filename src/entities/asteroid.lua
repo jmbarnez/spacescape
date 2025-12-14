@@ -210,7 +210,7 @@ end
 
 --- Update all asteroids.
 -- @param dt number Delta time
--- @param world table World bounds for wrapping
+-- @param world table World bounds for bouncing
 function asteroid.update(dt, world)
     local asteroids = asteroid.getList()
 
@@ -229,20 +229,34 @@ function asteroid.update(dt, world)
             pos.x = pos.x + vel.vx * dt
             pos.y = pos.y + vel.vy * dt
 
-            -- Wrap around world boundaries
+            ------------------------------------------------------------------
+            -- World boundary bounce
+            --
+            -- Treat the world bounds like solid walls instead of wrapping
+            -- around. This keeps asteroids inside the playable area and
+            -- provides a predictable "arena" feel.
+            ------------------------------------------------------------------
             if world then
                 local radius = getCollisionRadius(a)
 
-                if pos.x < world.minX - radius then
-                    pos.x = world.maxX + radius
-                elseif pos.x > world.maxX + radius then
-                    pos.x = world.minX - radius
+                -- NOTE: We intentionally keep this perfectly elastic (1.0)
+                -- for now so asteroid drift doesn't slowly die out.
+                local bounceFactor = 1.0
+
+                if pos.x < world.minX + radius then
+                    pos.x = world.minX + radius
+                    vel.vx = math.abs(vel.vx) * bounceFactor
+                elseif pos.x > world.maxX - radius then
+                    pos.x = world.maxX - radius
+                    vel.vx = -math.abs(vel.vx) * bounceFactor
                 end
 
-                if pos.y < world.minY - radius then
-                    pos.y = world.maxY + radius
-                elseif pos.y > world.maxY + radius then
-                    pos.y = world.minY - radius
+                if pos.y < world.minY + radius then
+                    pos.y = world.minY + radius
+                    vel.vy = math.abs(vel.vy) * bounceFactor
+                elseif pos.y > world.maxY - radius then
+                    pos.y = world.maxY - radius
+                    vel.vy = -math.abs(vel.vy) * bounceFactor
                 end
             end
 

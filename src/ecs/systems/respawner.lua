@@ -7,7 +7,7 @@ local RespawnerSystem = Concord.system({
     timers = { "respawnTimer" }
 })
 
-function RespawnerSystem:update(dt)
+function RespawnerSystem:prePhysics(dt)
     dt = dt or 0
 
     -- Iterate backwards safely (Concord pools are Lists with a `.size` field).
@@ -52,6 +52,10 @@ function RespawnerSystem:update(dt)
 
         ::continue::
     end
+end
+
+function RespawnerSystem:update(dt)
+    self:prePhysics(dt)
 end
 
 return RespawnerSystem

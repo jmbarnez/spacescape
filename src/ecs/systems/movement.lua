@@ -6,6 +6,80 @@
 local Concord = require("lib.concord")
 local physics = require("src.core.physics")
 
+--------------------------------------------------------------------------------
+-- WORLD BOUNDS HANDLING
+--------------------------------------------------------------------------------
+
+local function getCollisionRadius(e)
+    local cr = e.collisionRadius
+    if type(cr) == "table" then
+        return cr.radius or 0
+    elseif type(cr) == "number" then
+        return cr
+    end
+    return 0
+end
+
+local function applyAsteroidWorldBounce(e, world)
+    if not e or not world or not e.position or not e.velocity then
+        return
+    end
+
+    local pos = e.position
+    local vel = e.velocity
+    local radius = getCollisionRadius(e)
+
+    -- Perfectly elastic reflection so asteroids keep their drift speed.
+    local bounceFactor = 1.0
+
+    if pos.x < world.minX + radius then
+        pos.x = world.minX + radius
+        vel.vx = math.abs(vel.vx) * bounceFactor
+    elseif pos.x > world.maxX - radius then
+        pos.x = world.maxX - radius
+        vel.vx = -math.abs(vel.vx) * bounceFactor
+    end
+
+    if pos.y < world.minY + radius then
+        pos.y = world.minY + radius
+        vel.vy = math.abs(vel.vy) * bounceFactor
+    elseif pos.y > world.maxY - radius then
+        pos.y = world.maxY - radius
+        vel.vy = -math.abs(vel.vy) * bounceFactor
+    end
+end
+
+local function applyEnemyWorldClamp(e, world)
+    if not e or not world or not e.position or not e.velocity then
+        return
+    end
+    if not e.faction or e.faction.name ~= "enemy" then
+        return
+    end
+
+    local pos = e.position
+    local vel = e.velocity
+    local radius = getCollisionRadius(e)
+
+    -- Treat bounds like a solid obstacle: keep the ship inside and remove
+    -- outward velocity so it slides along the boundary instead of bouncing.
+    if pos.x < world.minX + radius then
+        pos.x = world.minX + radius
+        if vel.vx < 0 then vel.vx = 0 end
+    elseif pos.x > world.maxX - radius then
+        pos.x = world.maxX - radius
+        if vel.vx > 0 then vel.vx = 0 end
+    end
+
+    if pos.y < world.minY + radius then
+        pos.y = world.minY + radius
+        if vel.vy < 0 then vel.vy = 0 end
+    elseif pos.y > world.maxY - radius then
+        pos.y = world.maxY - radius
+        if vel.vy > 0 then vel.vy = 0 end
+    end
+end
+
 local MovementSystem = Concord.system({
     -- All entities with position and velocity
     movers = { "position", "velocity" },
@@ -15,8 +89,21 @@ local MovementSystem = Concord.system({
     physicsBodies = { "position", "physics" },
 })
 
---- Update all moving entities
-function MovementSystem:update(dt)
+--------------------------------------------------------------------------------
+-- PRE / POST PHYSICS SPLIT
+--
+-- Why:
+--   Box2D beginContact events are generated during physics.world:update(dt).
+--   If we update kinematic transforms AFTER that step, contacts are effectively
+--   one frame late.
+--
+-- Contract:
+--   - prePhysics: integrate/sync kinematic transforms -> Box2D bodies.
+--   - postPhysics: sync physics-driven bodies (projectiles) back -> ECS position.
+--------------------------------------------------------------------------------
+
+--- Pre-physics movement integration + kinematic body sync.
+function MovementSystem:prePhysics(dt, playerEntity, world)
     local consts = physics.constants
 
     -- Update thrusters (apply thrust to velocity)
@@ -48,6 +135,13 @@ function MovementSystem:update(dt)
     for i = 1, self.movers.size do
         local e = self.movers[i]
 
+        -- Asteroids are still advanced by the legacy asteroid module so they
+        -- can maintain their own rotation and world-bounce behavior without
+        -- being double-integrated by both update paths.
+        if e.asteroid then
+            goto continue
+        end
+
         -- Projectiles with Box2D bodies are simulated by the physics step.
         -- If we also integrate position here, we'll effectively double-move
         -- them and/or desync the ECS transform from the physics transform.
@@ -61,25 +155,50 @@ function MovementSystem:update(dt)
         e.position.x = e.position.x + e.velocity.vx * dt
         e.position.y = e.position.y + e.velocity.vy * dt
 
+        -- Optional world bounds handling.
+        if world then
+            if e.ship then
+                applyEnemyWorldClamp(e, world)
+            end
+        end
+
         ::continue::
     end
 
-    -- Sync physics bodies with positions
+    -- Sync kinematic physics bodies with positions BEFORE the physics step.
+    --
+    -- Projectiles are the one exception: their bodies are physics-driven
+    -- (bullet=true) and must NOT be teleported here.
     for i = 1, self.physicsBodies.size do
         local e = self.physicsBodies[i]
-        if e.physics.body then
-            if e.projectile then
-                -- For projectiles, the physics body drives motion.
-                -- Keep ECS position in lockstep with Box2D for consistent
-                -- rendering + collision radius math.
-                local bx, by = e.physics.body:getPosition()
-                e.position.x = bx
-                e.position.y = by
-            else
-                e.physics.body:setPosition(e.position.x, e.position.y)
-            end
+        if e.physics and e.physics.body and not e.projectile then
+            e.physics.body:setPosition(e.position.x, e.position.y)
         end
     end
+end
+
+--- Post-physics sync pass.
+--
+-- After physics.world:update(dt) advances bullet bodies (projectiles), copy the
+-- authoritative Box2D position back into the ECS transform.
+function MovementSystem:postPhysics(dt, playerEntity, world)
+    for i = 1, self.physicsBodies.size do
+        local e = self.physicsBodies[i]
+        if e.projectile and e.physics and e.physics.body then
+            local bx, by = e.physics.body:getPosition()
+            e.position.x = bx
+            e.position.y = by
+        end
+    end
+end
+
+-- Backward-compatible single-phase update.
+--
+-- If something still emits the old "update" event, do a best-effort run of
+-- both passes (prePhysics first, then postPhysics).
+function MovementSystem:update(dt, playerEntity, world)
+    self:prePhysics(dt, playerEntity, world)
+    self:postPhysics(dt, playerEntity, world)
 end
 
 --------------------------------------------------------------------------------
@@ -107,6 +226,10 @@ function RotationSystem:update(dt)
     end
 end
 
+function RotationSystem:prePhysics(dt)
+    self:update(dt)
+end
+
 --------------------------------------------------------------------------------
 -- PROJECTILE MOVEMENT SYSTEM
 -- Handles homing projectiles and distance tracking
@@ -116,7 +239,7 @@ local ProjectileSystem = Concord.system({
     projectiles = { "projectile", "position", "velocity", "projectileData" },
 })
 
-function ProjectileSystem:update(dt)
+function ProjectileSystem:prePhysics(dt)
     for i = 1, self.projectiles.size do
         local e = self.projectiles[i]
         local data = e.projectileData
@@ -171,6 +294,10 @@ function ProjectileSystem:update(dt)
             end
         end
     end
+end
+
+function ProjectileSystem:update(dt)
+    self:prePhysics(dt)
 end
 
 return {

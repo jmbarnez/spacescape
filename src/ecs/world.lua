@@ -5,6 +5,8 @@
 
 local Concord = require("lib.concord")
 
+local worldRef = require("src.ecs.world_ref")
+
 -- Load all components first (registers them with Concord)
 require("src.ecs.components")
 
@@ -12,6 +14,7 @@ require("src.ecs.components")
 local collision = require("src.ecs.systems.collision")
 local movement = require("src.ecs.systems.movement")
 local render = require("src.ecs.systems.render")
+local playerProgression = require("src.ecs.systems.player_progression")
 local reward = require("src.ecs.systems.reward")
 local rewardBridge = require("src.ecs.systems.reward_bridge")
 local ai = require("src.ecs.systems.ai")
@@ -23,6 +26,11 @@ local respawner = require("src.ecs.systems.respawner")
 local assemblages = require("src.ecs.assemblages")
 
 local world = Concord.world()
+
+-- Publish the world instance through a tiny ref module so legacy modules can
+-- access ECS queries/spawns without directly requiring this file (which is
+-- a common source of require() cycles).
+worldRef.set(world)
 
 --------------------------------------------------------------------------------
 -- SYSTEM REGISTRATION
@@ -43,6 +51,7 @@ world:addSystems(
     -- Process Box2D beginContact queue after the physics step.
     box2dCollisionProcessor,
     collision.CollisionSystem,
+    playerProgression,
     reward,
     rewardBridge,
     respawner, -- Added respawner system

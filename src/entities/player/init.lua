@@ -6,10 +6,10 @@ local player = {}
 local physics = require("src.core.physics")
 local weapons = require("src.core.weapons")
 local config = require("src.core.config")
+local worldRef = require("src.ecs.world_ref")
 
 -- Load submodules
 local cargo = require("src.entities.player.cargo")
-local progression = require("src.entities.player.progression")
 local movement = require("src.entities.player.movement")
 local shipModule = require("src.entities.player.ship")
 local drawModule = require("src.entities.player.draw")
@@ -39,12 +39,6 @@ player.state = {
     -- scaled layout instance used for rendering and collisions.
     shipBlueprint = shipModule.getDefaultBlueprint(), -- Current ship blueprint table the player is piloting
     ship = nil,                                       -- core.ship layout instance (built from shipBlueprint)
-    level = 1,
-    xp = 0,                                           -- XP toward the *current* level (drives the XP ring)
-    xpToNext = config.player.xpBase,
-    xpRatio = 0,
-    totalXp = 0, -- Lifetime XP for this run; always increases
-    currency = 0,
     -- Simple cargo component for storing mined / salvaged resources on the
     -- currently piloted ship. This is now backed by a fixed-size slot array so
     -- the HUD can render a 4x4 inventory grid that supports drag-and-drop and
@@ -86,19 +80,47 @@ end
 -- @param amount number XP to add
 -- @return boolean True if the player leveled up
 function player.addExperience(amount)
-    return progression.addExperience(player.state, amount)
+    if not amount or amount <= 0 then
+        return false
+    end
+
+    local ecsWorld = worldRef.get()
+    if not (ecsWorld and ecsWorld.emit) then
+        return false
+    end
+
+    local e = worldRef.getPlayerProgressEntity and worldRef.getPlayerProgressEntity() or nil
+    local prevLevel = (e and e.experience and e.experience.level) or 1
+    ecsWorld:emit("awardXp", amount)
+
+    local e2 = worldRef.getPlayerProgressEntity and worldRef.getPlayerProgressEntity() or nil
+    local newLevel = (e2 and e2.experience and e2.experience.level) or prevLevel
+    return newLevel > prevLevel
 end
 
 --- Add currency to the player.
 -- @param amount number Amount to add
 -- @return number The amount that was actually added
 function player.addCurrency(amount)
-    return progression.addCurrency(player.state, amount)
+    if not amount or amount <= 0 then
+        return 0
+    end
+
+    local ecsWorld = worldRef.get()
+    if not (ecsWorld and ecsWorld.emit) then
+        return 0
+    end
+
+    ecsWorld:emit("awardTokens", amount)
+    return amount
 end
 
 --- Reset all progression state to initial values.
 function player.resetExperience()
-    progression.reset(player.state)
+    local ecsWorld = worldRef.get()
+    if ecsWorld and ecsWorld.emit then
+        ecsWorld:emit("resetPlayerProgress")
+    end
 end
 
 --- Center the player in the window.

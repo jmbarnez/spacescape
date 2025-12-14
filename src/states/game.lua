@@ -101,13 +101,46 @@ local function registerUpdateSystems()
 		ctx.inputSystem.update(dt, ctx.player, ctx.world, ctx.camera)
 	end, 10)
 
-	systems.registerUpdate("physics", function(dt, ctx)
-		physics.update(dt)
-	end, 20)
-
+	-- Update kinematic transforms BEFORE stepping Box2D so beginContact events
+	-- are generated in the same frame (instead of one frame late).
 	systems.registerUpdate("player", function(dt, ctx)
 		playerModule.update(dt, ctx.world)
-	end, 30)
+	end, 20)
+
+	-- ECS pre-physics: update AI/movement and sync ECS kinematic bodies into Box2D.
+	systems.registerUpdate("ecsPrePhysics", function(dt, ctx)
+		if playerModule.state then
+			ecsPlayerProxy.position.x = playerModule.state.x
+			ecsPlayerProxy.position.y = playerModule.state.y
+		end
+		if ecsWorld and ecsWorld.emit then
+			ecsWorld:emit("prePhysics", dt, ecsPlayerProxy, ctx.world)
+		end
+	end, 25)
+
+	-- Asteroids still run through their legacy update loop, but are ECS-backed.
+	-- They must update BEFORE physics so their bodies are in the correct place
+	-- when Box2D evaluates contacts.
+	systems.registerUpdate("asteroids", function(dt, ctx)
+		asteroidModule.update(dt, ctx.world)
+	end, 28)
+
+	-- Wrecks have sensor bodies; keep their transforms in sync before physics.
+	systems.registerUpdate("wrecks", function(dt, ctx)
+		wreckModule.update(dt, ctx.world)
+	end, 29)
+
+	systems.registerUpdate("physics", function(dt, ctx)
+		physics.update(dt)
+	end, 40)
+
+	-- ECS post-physics: drain Box2D collision queue + copy physics-driven bodies
+	-- (projectiles) back into ECS positions.
+	systems.registerUpdate("ecsPostPhysics", function(dt, ctx)
+		if ecsWorld and ecsWorld.emit then
+			ecsWorld:emit("postPhysics", dt, ecsPlayerProxy, ctx.world)
+		end
+	end, 45)
 
 	systems.registerUpdate("engineTrail", function(dt, ctx)
 		engineTrail.update(dt, ctx.player, getEnemyEntities())
@@ -120,10 +153,6 @@ local function registerUpdateSystems()
 	systems.registerUpdate("starfield", function(dt, ctx)
 		starfield.update(dt, ctx.camera.x, ctx.camera.y)
 	end, 60)
-
-	systems.registerUpdate("asteroids", function(dt, ctx)
-		asteroidModule.update(dt, ctx.world)
-	end, 70)
 
 	systems.registerUpdate("projectiles", function(dt, ctx)
 		projectileModule.update(dt, ctx.world)
@@ -164,9 +193,7 @@ local function registerUpdateSystems()
 		itemModule.update(dt, ctx.player, ctx.world)
 	end, 95)
 
-	systems.registerUpdate("wrecks", function(dt, ctx)
-		wreckModule.update(dt, ctx.world)
-	end, 96)
+	-- NOTE: wrecks are updated in the pre-physics phase now.
 end
 --------------------------------------------------------------------------------
 -- Initialization
@@ -216,14 +243,6 @@ function game.update(dt)
 	}
 
 	systems.runUpdate(dt, updateCtx)
-
-	-- ECS world update (emits update to all systems)
-	if playerModule.state then
-		ecsPlayerProxy.position.x = playerModule.state.x
-		ecsPlayerProxy.position.y = playerModule.state.y
-	end
-
-	ecsWorld:emit("update", dt, ecsPlayerProxy)
 
 	game.checkCollisions()
 end

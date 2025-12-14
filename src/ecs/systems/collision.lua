@@ -172,7 +172,7 @@ local CleanupSystem = Concord.system({
     toRemove = { "removed" },
 })
 
-function CleanupSystem:update(dt)
+function CleanupSystem:postPhysics(dt)
     for i = self.toRemove.size, 1, -1 do
         local e = self.toRemove[i]
         if e.physics and e.physics.body then
@@ -180,6 +180,10 @@ function CleanupSystem:update(dt)
         end
         e:destroy()
     end
+end
+
+function CleanupSystem:update(dt)
+    self:postPhysics(dt)
 end
 
 return {

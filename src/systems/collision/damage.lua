@@ -7,6 +7,7 @@ local baseColors = require("src.core.colors")
 local config = require("src.core.config")
 local floatingText = require("src.entities.floating_text")
 local playerModule = require("src.entities.player")
+local worldRef = require("src.ecs.world_ref")
 local projectileShards = require("src.entities.projectile_shards")
 local shieldImpactFx = require("src.entities.shield_impact_fx")
 local physics = require("src.core.physics")
@@ -89,8 +90,10 @@ function damage.awardXpAndTokensOnKill(xp, tokens)
         return
     end
 
-    if xp and xp > 0 and playerModule.addExperience then
-        playerModule.addExperience(xp)
+    local ecsWorld = worldRef.get()
+
+    if ecsWorld and ecsWorld.emit and xp and xp > 0 then
+        ecsWorld:emit("awardXp", xp)
         local value = math.floor(xp + 0.5)
         local baseText = "XP"
         floatingText.spawn(baseText, playerState.x, playerState.y - 22, nil, {
@@ -107,8 +110,8 @@ function damage.awardXpAndTokensOnKill(xp, tokens)
         })
     end
 
-    if tokens and tokens > 0 and playerModule.addCurrency then
-        playerModule.addCurrency(tokens)
+    if ecsWorld and ecsWorld.emit and tokens and tokens > 0 then
+        ecsWorld:emit("awardTokens", tokens)
         local value = math.floor(tokens + 0.5)
         local baseText = "Tokens"
         floatingText.spawn(baseText, playerState.x, playerState.y - 8, nil, {

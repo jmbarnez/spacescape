@@ -32,7 +32,7 @@ end
 -- SYSTEM UPDATE
 --------------------------------------------------------------------------------
 
-function Box2DCollisionProcessorSystem:update(dt)
+function Box2DCollisionProcessorSystem:postPhysics(dt)
     local pending = collisionQueue.drain()
     if not pending or #pending == 0 then
         return
@@ -61,6 +61,10 @@ function Box2DCollisionProcessorSystem:update(dt)
             collisionSystem:processCollision(entityA, entityB, entry.contactX, entry.contactY)
         end
     end
+end
+
+function Box2DCollisionProcessorSystem:update(dt)
+    self:postPhysics(dt)
 end
 
 return Box2DCollisionProcessorSystem

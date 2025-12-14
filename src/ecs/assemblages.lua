@@ -271,42 +271,42 @@ function assemblages.asteroid(e, x, y, asteroidData, size)
     local data = asteroidData or {}
     local collisionRadius = (data.shape and data.shape.boundingRadius) or s
 
-     -- Convert the asteroid's authored composition (0..1-ish weights) into a
-     -- concrete integer resource yield so the ECS RewardSystem can spawn drops
-     -- without depending on legacy collision reward code.
-     local yield = nil
-     if data.composition then
-         local comp = data.composition
-         local stone = tonumber(comp.stone) or 0
-         local ice = tonumber(comp.ice) or 0
-         local mithril = tonumber(comp.mithril) or 0
-         local total = stone + ice + mithril
+    -- Convert the asteroid's authored composition (0..1-ish weights) into a
+    -- concrete integer resource yield so the ECS RewardSystem can spawn drops
+    -- without depending on legacy collision reward code.
+    local yield = nil
+    if data.composition then
+        local comp = data.composition
+        local stone = tonumber(comp.stone) or 0
+        local ice = tonumber(comp.ice) or 0
+        local mithril = tonumber(comp.mithril) or 0
+        local total = stone + ice + mithril
 
-         -- Scale total number of chunks by asteroid size.
-         local baseChunks = math.max(1, math.floor((s or 20) / 10))
+        -- Scale total number of chunks by asteroid size.
+        local baseChunks = math.max(1, math.floor((s or 20) / 10))
 
-         if total <= 0 then
-             yield = { stone = baseChunks }
-         else
-             local function roundShare(v)
-                 return math.max(0, math.floor((v / total) * baseChunks + 0.5))
-             end
+        if total <= 0 then
+            yield = { stone = baseChunks }
+        else
+            local function roundShare(v)
+                return math.max(0, math.floor((v / total) * baseChunks + 0.5))
+            end
 
-             local stoneAmt = roundShare(stone)
-             local iceAmt = roundShare(ice)
-             local mithrilAmt = roundShare(mithril)
+            local stoneAmt = roundShare(stone)
+            local iceAmt = roundShare(ice)
+            local mithrilAmt = roundShare(mithril)
 
-             if (stoneAmt + iceAmt + mithrilAmt) <= 0 then
-                 stoneAmt = baseChunks
-             end
+            if (stoneAmt + iceAmt + mithrilAmt) <= 0 then
+                stoneAmt = baseChunks
+            end
 
-             yield = {
-                 stone = stoneAmt,
-                 ice = iceAmt,
-                 mithril = mithrilAmt,
-             }
-         end
-     end
+            yield = {
+                stone = stoneAmt,
+                ice = iceAmt,
+                mithril = mithrilAmt,
+            }
+        end
+    end
 
     e:give("position", x, y)
         :give("velocity", 0, 0)
@@ -318,8 +318,8 @@ function assemblages.asteroid(e, x, y, asteroidData, size)
         :give("collisionRadius", collisionRadius)
         :give("asteroidVisual", data)
 
-     -- Award XP when the player destroys an asteroid.
-     e:give("xpReward", config.player.xpPerAsteroid or 0)
+    -- Award XP when the player destroys an asteroid.
+    e:give("xpReward", config.player.xpPerAsteroid or 0)
 
     -- Resource yield based on composition
     if yield then

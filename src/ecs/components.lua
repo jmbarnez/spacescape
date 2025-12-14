@@ -171,9 +171,21 @@ Concord.component("destination", function(c, x, y)
     c.active = (x ~= nil and y ~= nil)
 end)
 
-Concord.component("experience", function(c, current, level)
-    c.current = current or 0
+Concord.component("experience", function(c, xp, level, totalXp)
+    c.xp = xp or 0
+    c.current = c.xp
     c.level = level or 1
+    c.totalXp = totalXp or 0
+
+    local base = (config.player and config.player.xpBase) or 100
+    local growth = (config.player and config.player.xpGrowth) or 0
+    local xpToNext = base + growth * ((c.level or 1) - 1)
+    if xpToNext <= 0 then
+        xpToNext = 1
+    end
+
+    c.xpToNext = xpToNext
+    c.xpRatio = math.max(0, math.min(1, (c.xp or 0) / xpToNext))
 end)
 
 Concord.component("currency", function(c, tokens)

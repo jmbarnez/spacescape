@@ -2,18 +2,27 @@ local hud_status = {}
 
 local config = require("src.core.config")
 local ui_theme = require("src.core.ui_theme")
+local worldRef = require("src.ecs.world_ref")
 
 function hud_status.draw(player, colors)
     local font = love.graphics.getFont()
     local hudPanelStyle = ui_theme.hudPanel
 
+    local ecsExperience = nil
+    local ecsCurrency = nil
+    local playerProgressEntity = worldRef.getPlayerProgressEntity and worldRef.getPlayerProgressEntity() or nil
+    if playerProgressEntity then
+        ecsExperience = playerProgressEntity.experience
+        ecsCurrency = playerProgressEntity.currency
+    end
+
     -- Player stats
-    local level = player.level or 1
+    local level = (ecsExperience and ecsExperience.level) or 1
     local hull = player.hull or player.health or 0
     local maxHull = player.maxHull or player.maxHealth or hull
     local shield = player.shield or 0
     local maxShield = player.maxShield or shield
-    local expRatio = math.max(0, math.min(1, player.expRatio or player.xpRatio or 0))
+    local expRatio = math.max(0, math.min(1, (ecsExperience and ecsExperience.xpRatio) or 0))
 
     if maxHull <= 0 then maxHull = 1 end
     if maxShield <= 0 then maxShield = 1 end
@@ -141,9 +150,9 @@ function hud_status.draw(player, colors)
     local infoBaseY = shieldBarY + barHeight + 6
 
     -- Lifetime XP
-    local totalXp = math.max(0, math.floor(player.totalXp or 0))
+    local totalXp = math.max(0, math.floor((ecsExperience and ecsExperience.totalXp) or 0))
     -- Generic currency/token placeholder
-    local totalCurrency = math.max(0, math.floor(player.currency or player.credits or 0))
+    local totalCurrency = math.max(0, math.floor((ecsCurrency and ecsCurrency.tokens) or 0))
 
     local iconRadius = 5
 

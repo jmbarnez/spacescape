@@ -11,9 +11,83 @@ local AISystem = Concord.system({
     enemies = { "aiState", "position", "velocity", "rotation", "faction", "thrust" },
 })
 
---- Update AI for all enemies
---- Update AI for all enemies
-function AISystem:update(dt, playerEntity)
+--------------------------------------------------------------------------------
+-- BOUNDS AVOIDANCE (WORLD EDGES)
+--------------------------------------------------------------------------------
+
+local function getCollisionRadius(e)
+    local cr = e.collisionRadius
+    if type(cr) == "table" then
+        return cr.radius or 0
+    elseif type(cr) == "number" then
+        return cr
+    end
+
+    return 0
+end
+
+local function computeWorldBoundsAvoidance(pos, radius, world)
+    if not world or not pos then
+        return 0, 0
+    end
+
+    local enemyCfg = config.enemy or {}
+    local avoidDist = enemyCfg.avoidanceRadius or 180
+    local strength = enemyCfg.avoidanceStrength or 1.0
+    if avoidDist <= 0 or strength == 0 then
+        return 0, 0
+    end
+
+    local ax, ay = 0, 0
+
+    local leftDist = pos.x - (world.minX + radius)
+    if leftDist < avoidDist then
+        ax = ax + (avoidDist - leftDist) / avoidDist
+    end
+
+    local rightDist = (world.maxX - radius) - pos.x
+    if rightDist < avoidDist then
+        ax = ax - (avoidDist - rightDist) / avoidDist
+    end
+
+    local topDist = pos.y - (world.minY + radius)
+    if topDist < avoidDist then
+        ay = ay + (avoidDist - topDist) / avoidDist
+    end
+
+    local bottomDist = (world.maxY - radius) - pos.y
+    if bottomDist < avoidDist then
+        ay = ay - (avoidDist - bottomDist) / avoidDist
+    end
+
+    return ax * strength, ay * strength
+end
+
+local function applyBoundsAvoidanceToAngle(baseAngle, pos, radius, world)
+    if not baseAngle or not world or not pos then
+        return baseAngle
+    end
+
+    local ax, ay = computeWorldBoundsAvoidance(pos, radius, world)
+    if ax == 0 and ay == 0 then
+        return baseAngle
+    end
+
+    local bx = math.cos(baseAngle)
+    local by = math.sin(baseAngle)
+
+    local nx = bx + ax
+    local ny = by + ay
+    local len = math.sqrt(nx * nx + ny * ny)
+    if len <= 0 then
+        return baseAngle
+    end
+
+    return math.atan2(ny / len, nx / len)
+end
+
+-- Update AI for all enemies (pre-physics phase).
+function AISystem:prePhysics(dt, playerEntity, world)
     if not playerEntity or not playerEntity.position then return end
 
     local playerX = playerEntity.position.x
@@ -32,16 +106,22 @@ function AISystem:update(dt, playerEntity)
             -- Active if within detection range
             local isActive = distSq <= detectionRange * detectionRange
 
-            self:updateEnemy(e, isActive, playerX, playerY, dt)
+            self:updateEnemy(e, isActive, playerX, playerY, dt, world)
         end
     end
 end
 
-function AISystem:updateEnemy(e, isActive, playerX, playerY, dt)
+function AISystem:update(dt, playerEntity, world)
+    self:prePhysics(dt, playerEntity, world)
+end
+
+function AISystem:updateEnemy(e, isActive, playerX, playerY, dt, world)
     local ai = e.aiState
     local pos = e.position
     local rot = e.rotation
     local thrust = e.thrust
+
+    local radius = getCollisionRadius(e)
 
     local dx = playerX - pos.x
     local dy = playerY - pos.y
@@ -69,6 +149,7 @@ function AISystem:updateEnemy(e, isActive, playerX, playerY, dt)
     if ai.state == "chase" then
         if distance > 0 then
             rot.targetAngle = math.atan2(dy, dx)
+            rot.targetAngle = applyBoundsAvoidanceToAngle(rot.targetAngle, pos, radius, world)
             local angleDiff = math.abs(physics.normalizeAngle(rot.targetAngle - rot.angle))
             if angleDiff < math.pi / 2 then
                 thrust.isThrusting = true
@@ -76,6 +157,7 @@ function AISystem:updateEnemy(e, isActive, playerX, playerY, dt)
         end
     elseif ai.state == "attack" then
         rot.targetAngle = math.atan2(dy, dx)
+        rot.targetAngle = applyBoundsAvoidanceToAngle(rot.targetAngle, pos, radius, world)
 
         local tooFar = distance > attackRange * config.enemy.attackTooFarFactor
         local tooClose = distance < attackRange * config.enemy.attackTooCloseFactor
@@ -87,6 +169,7 @@ function AISystem:updateEnemy(e, isActive, playerX, playerY, dt)
             end
         elseif tooClose and distance > 0 then
             local awayAngle = math.atan2(-dy, -dx)
+            awayAngle = applyBoundsAvoidanceToAngle(awayAngle, pos, radius, world)
             local angleDiff = math.abs(physics.normalizeAngle(awayAngle - rot.angle))
             if angleDiff < math.pi / 2 then
                 thrust.isThrusting = true
@@ -108,6 +191,7 @@ function AISystem:updateEnemy(e, isActive, playerX, playerY, dt)
 
                 if distHomeSq > maxRadiusSq then
                     rot.targetAngle = math.atan2(homeY - pos.y, homeX - pos.x)
+                    rot.targetAngle = applyBoundsAvoidanceToAngle(rot.targetAngle, pos, radius, world)
                     local angleDiff = math.abs(physics.normalizeAngle(rot.targetAngle - rot.angle))
                     if angleDiff < math.pi / 2 then
                         thrust.isThrusting = true
@@ -119,6 +203,7 @@ function AISystem:updateEnemy(e, isActive, playerX, playerY, dt)
                             math.random() * config.enemy.wanderIntervalRandom
                     end
                     rot.targetAngle = wander.angle
+                    rot.targetAngle = applyBoundsAvoidanceToAngle(rot.targetAngle, pos, radius, world)
 
                     if wander.timer > config.enemy.wanderThrustThreshold then
                         local angleDiff = math.abs(physics.normalizeAngle(rot.targetAngle - rot.angle))
@@ -141,7 +226,7 @@ local FiringSystem = Concord.system({
     shooters = { "weapon", "position", "rotation", "faction" },
 })
 
-function FiringSystem:update(dt, playerEntity)
+function FiringSystem:prePhysics(dt, playerEntity)
     if not playerEntity or not playerEntity.position then return end
 
     local playerX = playerEntity.position.x
@@ -184,6 +269,10 @@ function FiringSystem:update(dt, playerEntity)
 
         ::continue::
     end
+end
+
+function FiringSystem:update(dt, playerEntity)
+    self:prePhysics(dt, playerEntity)
 end
 
 return {

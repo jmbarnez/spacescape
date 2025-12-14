@@ -5,11 +5,7 @@
 
 local wreck = {}
 
-local ecsWorld = require("src.ecs.world")
-local assemblages = require("src.ecs.assemblages")
-local Concord = require("lib.concord")
-local physics = require("src.core.physics")
-local config = require("src.core.config")
+local worldRef = require("src.ecs.world_ref")
 
 -- Wreck configuration defaults
 local LIFETIME = 180  -- 3 minutes decay time
@@ -47,8 +43,9 @@ local function getWreckCargo(w)
 end
 
 --- Get all active wreck entities from the ECS world.
-function wreck.getList()
-    local all = ecsWorld:query({ "wreck", "position" }) or {}
+function wreck.getList(ecsWorld)
+    ecsWorld = ecsWorld or worldRef.get()
+    local all = (ecsWorld and ecsWorld.query and ecsWorld:query({ "wreck", "position" })) or {}
     local wrecks = {}
 
     for _, e in ipairs(all) do
@@ -83,30 +80,50 @@ setmetatable(wreck, {
 --------------------------------------------------------------------------------
 
 --- Spawn a wreck at the given position with generated loot
---- @param x number World X position
---- @param y number World Y position
---- @param cargo table Cargo slots table { [slotIndex] = { id = "...", quantity = N } }
---- @param coins number Amount of galactic coins in the wreck
---- @return table The spawned wreck
-function wreck.spawn(x, y, cargo, coins)
-    local e = Concord.entity(ecsWorld):assemble(assemblages.wreck, x, y, cargo, coins)
-    if not e then
+-- @param ecsWorld table|nil Optional ECS world. If nil, uses src.ecs.world_ref.
+-- @param x number World X position
+-- @param y number World Y position
+-- @param cargo table Cargo slots table { [slotIndex] = { id = "...", quantity = N } }
+-- @param coins number Amount of galactic coins in the wreck
+-- @return table|nil The spawned wreck
+function wreck.spawn(ecsWorld, x, y, cargo, coins)
+    -- Legacy form:
+    --   wreck.spawn(x, y, cargo, coins)
+    if type(ecsWorld) ~= "table" then
+        coins = cargo
+        cargo = y
+        y = x
+        x = ecsWorld
+        ecsWorld = worldRef.get()
+    end
+
+    if not ecsWorld then
+        return nil
+    end
+
+    local spawned = nil
+    if ecsWorld.spawnWreck then
+        spawned = ecsWorld:spawnWreck(x, y, cargo, coins)
+    end
+
+    local eWreck = spawned
+    if not eWreck then
         return nil
     end
 
     -- Backward-compatible fields used by HUD code.
-    if e.loot and e.loot.cargo then
-        e.cargo = e.loot.cargo
+    if eWreck.loot and eWreck.loot.cargo then
+        eWreck.cargo = eWreck.loot.cargo
     end
-    e.coins = coins or 0
+    eWreck.coins = coins or 0
 
     -- Keep an age counter for fade-out and UI consistency.
-    e.age = 0
-    if not e.lifetimeTotal then
-        e.lifetimeTotal = LIFETIME
+    eWreck.age = 0
+    if not eWreck.lifetimeTotal then
+        eWreck.lifetimeTotal = LIFETIME
     end
 
-    return e
+    return eWreck
 end
 
 --------------------------------------------------------------------------------

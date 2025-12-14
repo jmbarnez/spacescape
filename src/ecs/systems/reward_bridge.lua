@@ -3,14 +3,12 @@
 --
 -- Purpose:
 --   The ECS RewardSystem emits abstract reward + VFX events:
---     - awardXp(amount)
---     - awardTokens(amount)
 --     - spawnResources(x, y, resourcesTable)
 --     - spawnWreck(x, y, cargo, coins)
 --     - spawnExplosion(x, y, factionName, radius)
 --
---   This bridge implements those event handlers and routes them into the
---   currently-existing runtime modules (player progression + VFX + pickups).
+--   This bridge implements the *presentation* handlers (VFX + legacy pickups)
+--   and routes them into the currently-existing runtime modules.
 --
 -- Migration notes:
 --   - This is a temporary bridge while the player/items/VFX are migrated to ECS.
@@ -22,8 +20,42 @@ local Concord = require("lib.concord")
 
 local colors = require("src.core.colors")
 
-local playerModule = require("src.entities.player")
-local itemModule = require("src.entities.item")
+--------------------------------------------------------------------------------
+-- LAZY REQUIRES (CIRCULAR DEPENDENCY GUARD)
+--
+-- Why this exists:
+--   The legacy player module can depend (indirectly) on ECS-facing modules.
+--
+--   Historically this chain included a hard require on the ECS world:
+--     player -> movement -> wreck -> ecs.world -> reward_bridge
+--
+--   Wreck now uses `src.ecs.world_ref` instead of requiring `src.ecs.world`
+--   directly, which breaks that particular cycle. We still keep lazy requires
+--   here to make ECS bootstrap resilient to future legacy dependencies.
+--
+--   If reward_bridge eagerly requires player (or anything that requires player)
+--   during ecs.world construction, Lua's module loader detects a loop and
+--   errors.
+--
+--   To keep the bridge small and to avoid a bigger refactor, we load legacy
+--   modules on-demand inside handler calls.
+--------------------------------------------------------------------------------
+
+local itemModule = nil
+
+local function getItemModule()
+    if itemModule then
+        return itemModule
+    end
+
+    local ok, mod = pcall(require, "src.entities.item")
+    if ok then
+        itemModule = mod
+    end
+
+    return itemModule
+end
+
 local explosionFx = require("src.entities.explosion_fx")
 
 local RewardBridgeSystem = Concord.system({})
@@ -86,29 +118,13 @@ end
 -- EVENT HANDLERS
 --------------------------------------------------------------------------------
 
-function RewardBridgeSystem:awardXp(amount)
-    if not isNumber(amount) or amount <= 0 then
-        return
-    end
-
-    -- Legacy player progression is still authoritative until the player is ECS.
-    if playerModule and playerModule.addExperience then
-        playerModule.addExperience(amount)
-    end
-end
-
-function RewardBridgeSystem:awardTokens(amount)
-    if not isNumber(amount) or amount <= 0 then
-        return
-    end
-
-    if playerModule and playerModule.addCurrency then
-        playerModule.addCurrency(amount)
-    end
-end
-
 function RewardBridgeSystem:spawnResources(x, y, resources)
     if not isNumber(x) or not isNumber(y) then
+        return
+    end
+
+    local items = getItemModule()
+    if not (items and items.spawnResourceChunk) then
         return
     end
 
@@ -120,13 +136,13 @@ function RewardBridgeSystem:spawnResources(x, y, resources)
 
     -- Spawn one pickup per resource type (amount stored on pickup).
     if normalized.stone and normalized.stone > 0 then
-        itemModule.spawnResourceChunk(x, y, "stone", normalized.stone)
+        items.spawnResourceChunk(x, y, "stone", normalized.stone)
     end
     if normalized.ice and normalized.ice > 0 then
-        itemModule.spawnResourceChunk(x, y, "ice", normalized.ice)
+        items.spawnResourceChunk(x, y, "ice", normalized.ice)
     end
     if normalized.mithril and normalized.mithril > 0 then
-        itemModule.spawnResourceChunk(x, y, "mithril", normalized.mithril)
+        items.spawnResourceChunk(x, y, "mithril", normalized.mithril)
     end
 end
 
