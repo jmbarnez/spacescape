@@ -1,8 +1,8 @@
 local physics = require("src.core.physics")
 local world = require("src.core.world")
 local camera = require("src.core.camera")
+local ecsCollisionQueue = require("src.ecs.box2d_collision_queue")
 
-local collisionSystem = require("src.systems.collision")
 local spawnSystem = require("src.systems.spawn")
 local combatSystem = require("src.systems.combat")
 local abilitiesSystem = require("src.systems.abilities")
@@ -29,7 +29,7 @@ function game_bootstrap.load(initialSpawn)
 	love.graphics.setFont(font)
 
 	physics.init()
-	collisionSystem.init()
+	physics.setCollisionHandler(ecsCollisionQueue)
 
 	playerModule.reset(initialSpawn.x, initialSpawn.y)
 	local playerEntity = playerModule.getEntity()

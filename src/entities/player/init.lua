@@ -4,12 +4,10 @@
 -- player entity and provides helpers to interact with it.
 
 local player = {}
-
+ 
 local ecsWorld = require("src.ecs.world")
-local shipModule = require("src.entities.player.ship")
-local config = require("src.core.config")
-
-
+ 
+ 
 -- The current active player entity.
 -- Access this for reading position/components.
 player.entity = nil

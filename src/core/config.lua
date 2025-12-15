@@ -147,6 +147,12 @@ local config = {
         xpShardMaxPerEnemy = 5,
         xpShardMinPerAsteroid = 2,
         xpShardMaxPerAsteroid = 4,
+
+        dropScatterMaxItemsPerType = 0,
+        dropScatterRadius = 14,
+        dropScatterImpulseMin = 12,
+        dropScatterImpulseMax = 40,
+        dropScatterImpulseJitter = 4,
     },
     engineTrail = {
         bubbleSizeMin = 3,

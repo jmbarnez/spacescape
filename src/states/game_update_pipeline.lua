@@ -38,13 +38,6 @@ function game_update_pipeline.register()
 		asteroidSectorSpawner.update(dt, ctx)
 	end, 20)
 
-	systems.registerUpdate("ecsPrePhysics", function(dt, ctx)
-		-- Removed proxy sync steps, as we use direct ECS components now.
-		if ecsWorld and ecsWorld.emit then
-			ecsWorld:emit("prePhysics", dt, ctx.player, ctx.world)
-		end
-	end, 25)
-
 
 	-- Asteroids still run through their legacy update loop, but are ECS-backed.
 	-- They must update BEFORE physics so their bodies are in the correct place
@@ -60,18 +53,12 @@ function game_update_pipeline.register()
 	-- [DELETED] Legacy wreckModule.update (Moved to ECS Systems)
 
 
-	systems.registerUpdate("physics", function(dt, ctx)
-		physics.update(dt)
-	end, 40)
 
-	-- ECS post-physics: drain Box2D collision queue + copy physics-driven bodies
-	-- (projectiles) back into ECS positions.
-	systems.registerUpdate("ecsPostPhysics", function(dt, ctx)
+	systems.registerUpdate("physics", function(dt, ctx)
 		if ecsWorld and ecsWorld.emit then
-			ecsWorld:emit("postPhysics", dt, ctx.player, ctx.world)
+			ecsWorld:emit("stepPhysics", dt, ctx.player, ctx.world)
 		end
-		-- Removed ECS -> playerModule.state sync.
-	end, 45)
+	end, 40)
 
 
 	systems.registerUpdate("engineTrail", function(dt, ctx)

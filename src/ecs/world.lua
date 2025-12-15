@@ -16,6 +16,7 @@ local playerProgression = require("src.ecs.systems.player_progression")
 local reward = require("src.ecs.systems.reward")
 local ai = require("src.ecs.systems.ai")
 local projectileSpawner = require("src.ecs.systems.projectile_spawner")
+local physicsStep = require("src.ecs.systems.physics_step")
 local box2dCollisionProcessor = require("src.ecs.systems.box2d_collision_processor")
 local respawner = require("src.ecs.systems.respawner")
 local playerControl = require("src.ecs.systems.player_control")
@@ -39,6 +40,7 @@ world:addSystems(
 -- Movement and physics
     playerControl,
     asteroidBehavior,
+    physicsStep.PhysicsStepSystem,
     movement.RotationSystem,
     movement.MovementSystem,
     worldBounds,

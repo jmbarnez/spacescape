@@ -11,7 +11,8 @@
 --
 -- Notes:
 --   - This queue is intentionally data-only and does NOT depend on ecsWorld.
---   - The processor system decides which contacts to handle (ECS/ECS only).
+--   - The processor system forwards contacts to the ECS CollisionSystem, which
+--     decides which pairs to handle.
 --------------------------------------------------------------------------------
 
 local queue = {}

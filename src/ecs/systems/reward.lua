@@ -14,6 +14,47 @@ local RewardSystem = Concord.system({
     rewardable = { "xpReward" },
 })
 
+local function spawnScatteredResource(world, x, y, resourceType, totalAmount, itemsCfg)
+    if not (world and world.spawnItem) then
+        return
+    end
+
+    local maxItems = itemsCfg.dropScatterMaxItemsPerType or 0
+    local scatterRadius = itemsCfg.dropScatterRadius or 14
+    local impulseMin = itemsCfg.dropScatterImpulseMin or 40
+    local impulseMax = itemsCfg.dropScatterImpulseMax or 110
+    local jitter = itemsCfg.dropScatterImpulseJitter or 10
+
+    local count = totalAmount
+    if maxItems > 0 then
+        count = math.min(count, maxItems)
+    end
+
+    if count <= 0 then
+        return
+    end
+
+    local twoPi = math.pi * 2
+
+    for _ = 1, count do
+        local t = math.random()
+        local speed = impulseMin + (impulseMax - impulseMin) * t
+        local angle = math.random() * twoPi
+
+        local offsetR = scatterRadius * math.sqrt(math.random())
+        local ox = math.cos(angle) * offsetR
+        local oy = math.sin(angle) * offsetR
+
+        local e = world:spawnItem(x + ox, y + oy, tostring(resourceType), 1)
+        if e and e.velocity then
+            local jx = (math.random() * 2 - 1) * jitter
+            local jy = (math.random() * 2 - 1) * jitter
+            e.velocity.vx = (math.cos(angle) * speed) + jx
+            e.velocity.vy = (math.sin(angle) * speed) + jy
+        end
+    end
+end
+
  local function clampDropChance(value)
      if value == nil then
          return nil
@@ -62,10 +103,13 @@ function RewardSystem:onDeath(entity, killerFaction)
         local x = entity.position.x
         local y = entity.position.y
 
+        local itemsCfg = (config and config.items) or {}
+
         for resourceType, amount in pairs(res) do
             local n = tonumber(amount) or 0
-            if n > 0 then
-                world:spawnItem(x, y, tostring(resourceType), n)
+            local total = math.floor(n + 0.5)
+            if total > 0 then
+                spawnScatteredResource(world, x, y, tostring(resourceType), total, itemsCfg)
             end
         end
     end
@@ -97,7 +141,7 @@ function RewardSystem:onDeath(entity, killerFaction)
     end
 
     -- Spawn explosion VFX
-    if entity.position then
+    if entity.position and not entity.asteroid then
         local radius = entity.collisionRadius and entity.collisionRadius.radius or 20
         local faction = (entity.faction and entity.faction.name) or "neutral"
         local color = colors.explosion

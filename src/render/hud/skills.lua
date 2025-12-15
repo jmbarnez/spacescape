@@ -1,7 +1,6 @@
 local hud_skills = {}
 
 local window_frame = require("src.render.hud.window_frame")
-local coreInput = require("src.core.input")
 local ui_theme = require("src.core.ui_theme")
 
 --------------------------------------------------------------------------------
@@ -47,6 +46,30 @@ local function drawProgressBar(x, y, w, h, ratio)
     love.graphics.rectangle("line", x, y, w, h)
 end
 
+local function formatXpText(font, maxWidth, xp, xpToNext, ratio)
+    local xpInt = math.floor((xp or 0) + 0.5)
+    local toNextInt = math.floor((xpToNext or 0) + 0.5)
+
+    local candidates = {}
+    if toNextInt > 0 then
+        candidates[#candidates + 1] = string.format("%d / %d", xpInt, toNextInt)
+        candidates[#candidates + 1] = string.format("%d/%d", xpInt, toNextInt)
+    else
+        candidates[#candidates + 1] = tostring(xpInt)
+    end
+
+    local pct = math.floor(clamp01(ratio or 0) * 100 + 0.5)
+    candidates[#candidates + 1] = tostring(pct) .. "%"
+
+    for _, txt in ipairs(candidates) do
+        if font:getWidth(txt) <= maxWidth then
+            return txt
+        end
+    end
+
+    return candidates[#candidates]
+end
+
 --------------------------------------------------------------------------------
 -- DRAW
 --------------------------------------------------------------------------------
@@ -77,8 +100,7 @@ function hud_skills.draw(player, colors)
     love.graphics.print(levelLabel, contentX + contentW - levelWidth, contentY)
 
     local rowY = contentY + font:getHeight() + 10
-    local rowH = 56
-    local rowPad = 10
+    local rowMinH = 64
 
     -- For now we only show Mining, but we layout as a grid row so it scales to more skills later.
     local mining = player.miningSkill
@@ -90,13 +112,27 @@ function hud_skills.draw(player, colors)
         ratio = miningXp / miningToNext
     end
 
+    local rowPad = 10
+    local headerY = rowY + rowPad
+    local barGap = 12
+
+    local barX = contentX + 10
+    local barW = math.max(40, contentW - 20)
+    local barH = math.max(18, font:getHeight() + 6)
+    local barY = headerY + font:getHeight() + barGap
+
+    local rowH = (barY + barH + rowPad) - rowY
+    if rowH < rowMinH then
+        rowH = rowMinH
+    end
+
     love.graphics.setColor(1, 1, 1, 0.06)
     love.graphics.rectangle("fill", contentX, rowY, contentW, rowH)
     love.graphics.setColor(hudPanelStyle.border[1], hudPanelStyle.border[2], hudPanelStyle.border[3], 0.25)
     love.graphics.setLineWidth(1)
     love.graphics.rectangle("line", contentX, rowY, contentW, rowH)
 
-    local labelY = rowY + 10
+    local labelY = headerY
     love.graphics.setColor(colors.uiText[1], colors.uiText[2], colors.uiText[3], 0.95)
     love.graphics.print("Mining", contentX + 10, labelY)
 
@@ -104,22 +140,17 @@ function hud_skills.draw(player, colors)
     local lvlW = font:getWidth(levelText)
     love.graphics.print(levelText, contentX + contentW - lvlW - 10, labelY)
 
-    local barX = contentX + 10
-    local barY = rowY + 30
-    local barW = contentW - 20
-    local barH = 10
     drawProgressBar(barX, barY, barW, barH, ratio or 0)
 
-    local xpText = nil
-    if miningToNext and miningToNext > 0 then
-        xpText = string.format("%d / %d", math.floor(miningXp + 0.5), math.floor(miningToNext + 0.5))
-    else
-        xpText = tostring(math.floor(miningXp + 0.5))
-    end
-
+    local xpText = formatXpText(font, barW - 10, miningXp, miningToNext, ratio)
     local xpW = font:getWidth(xpText)
-    love.graphics.setColor(colors.uiText[1], colors.uiText[2], colors.uiText[3], 0.65)
-    love.graphics.print(xpText, contentX + contentW - xpW - 10, rowY + rowH - font:getHeight() - 8)
+    local xpX = barX + (barW - xpW) / 2
+    local xpY = barY + (barH - font:getHeight()) / 2
+
+    love.graphics.setColor(0, 0, 0, 0.35)
+    love.graphics.print(xpText, xpX + 1, xpY + 1)
+    love.graphics.setColor(1, 1, 1, 0.85)
+    love.graphics.print(xpText, xpX, xpY)
 end
 
 --------------------------------------------------------------------------------
