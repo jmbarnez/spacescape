@@ -89,6 +89,14 @@ local MovementSystem = Concord.system({
     physicsBodies = { "position", "physics" },
 })
 
+MovementSystem["physics.pre_step"] = function(self, dt, playerEntity, world)
+    self:prePhysics(dt, playerEntity, world)
+end
+
+MovementSystem["physics.post_step"] = function(self, dt, playerEntity, world)
+    self:postPhysics(dt, playerEntity, world)
+end
+
 --------------------------------------------------------------------------------
 -- PRE / POST PHYSICS SPLIT
 --
@@ -196,6 +204,10 @@ local RotationSystem = Concord.system({
     rotators = { "rotation" },
 })
 
+RotationSystem["physics.pre_step"] = function(self, dt)
+    self:prePhysics(dt)
+end
+
 function RotationSystem:update(dt)
     local consts = physics.constants
 
@@ -225,6 +237,10 @@ end
 local ProjectileSystem = Concord.system({
     projectiles = { "projectile", "position", "velocity", "projectileData" },
 })
+
+ProjectileSystem["physics.pre_step"] = function(self, dt)
+    self:prePhysics(dt)
+end
 
 function ProjectileSystem:prePhysics(dt)
     for i = 1, self.projectiles.size do

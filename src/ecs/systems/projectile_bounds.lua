@@ -4,6 +4,10 @@ local ProjectileBoundsSystem = Concord.system({
     projectiles = { "projectile", "position" },
 })
 
+ProjectileBoundsSystem["physics.post_step"] = function(self, dt, player, worldBox)
+    self:postPhysics(dt, player, worldBox)
+end
+
 function ProjectileBoundsSystem:postPhysics(dt, player, worldBox)
     if not worldBox then
         return

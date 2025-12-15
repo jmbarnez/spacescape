@@ -26,7 +26,6 @@ local itemPickups = require("src.ecs.systems.item_pickups")
 local projectileBounds = require("src.ecs.systems.projectile_bounds")
 local miningProgression = require("src.ecs.systems.mining_progression")
 
-
 -- Load assemblages
 local assemblages = require("src.ecs.assemblages")
 
@@ -40,7 +39,7 @@ world:addSystems(
 -- Movement and physics
     playerControl,
     asteroidBehavior,
-    physicsStep.PhysicsStepSystem,
+    physicsStep,
     movement.RotationSystem,
     movement.MovementSystem,
     worldBounds,
@@ -49,7 +48,6 @@ world:addSystems(
     -- Item and projectile lifecycle
     itemPickups,
     projectileBounds,
-
 
     -- AI and behavior
     ai.AISystem,

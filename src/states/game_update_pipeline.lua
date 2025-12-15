@@ -55,7 +55,7 @@ function game_update_pipeline.register()
 
 	systems.registerUpdate("physics", function(dt, ctx)
 		if ecsWorld and ecsWorld.emit then
-			ecsWorld:emit("stepPhysics", dt, ctx.player, ctx.world)
+			ecsWorld:emit("physics.step", dt, ctx.player, ctx.world)
 		end
 	end, 40)
 

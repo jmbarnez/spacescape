@@ -13,6 +13,10 @@ local WorldBoundsSystem = Concord.system({
     bounded = { "position", "velocity", "collisionRadius" }
 })
 
+WorldBoundsSystem["physics.pre_step"] = function(self, dt, player, worldBox)
+    self:prePhysics(dt, player, worldBox)
+end
+
 local function handleShieldBounce(e, bx, by)
     if not (e.shield and e.shield.current > 0) then return end
 

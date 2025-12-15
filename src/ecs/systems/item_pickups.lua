@@ -10,6 +10,10 @@ local ItemPickupSystem = Concord.system({
     items = { "item", "position", "velocity", "collisionRadius" },
 })
 
+ItemPickupSystem["physics.pre_step"] = function(self, dt)
+    self:prePhysics(dt)
+end
+
 local function isNumber(n)
     return type(n) == "number" and n == n
 end

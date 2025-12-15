@@ -14,6 +14,10 @@ local RewardSystem = Concord.system({
     rewardable = { "xpReward" },
 })
 
+RewardSystem["lifecycle.on_death"] = function(self, entity, killerFaction)
+    self:onDeath(entity, killerFaction)
+end
+
 local function spawnScatteredResource(world, x, y, resourceType, totalAmount, itemsCfg)
     if not (world and world.spawnItem) then
         return
@@ -55,32 +59,32 @@ local function spawnScatteredResource(world, x, y, resourceType, totalAmount, it
     end
 end
 
- local function clampDropChance(value)
-     if value == nil then
-         return nil
-     end
+local function clampDropChance(value)
+    if value == nil then
+        return nil
+    end
 
-     local chance = tonumber(value)
-     if not chance then
-         return nil
-     end
+    local chance = tonumber(value)
+    if not chance then
+        return nil
+    end
 
-     -- Support either 0..1 or 0..100 style values.
-     if chance > 1 then
-         chance = chance / 100
-     end
+    -- Support either 0..1 or 0..100 style values.
+    if chance > 1 then
+        chance = chance / 100
+    end
 
-     if chance < 0 then
-         chance = 0
-     elseif chance > 1 then
-         chance = 1
-     end
+    if chance < 0 then
+        chance = 0
+    elseif chance > 1 then
+        chance = 1
+    end
 
-     return chance
- end
+    return chance
+end
 
 --- Handle entity death - award XP and tokens to killer
---- Called via world:emit("onDeath", entity, killerFaction)
+--- Called via world:emit("lifecycle.on_death", entity, killerFaction)
 function RewardSystem:onDeath(entity, killerFaction)
     -- Only award to player faction
     if killerFaction ~= "player" then return end
@@ -89,12 +93,12 @@ function RewardSystem:onDeath(entity, killerFaction)
 
     -- Award XP
     if entity.xpReward and entity.xpReward.amount > 0 then
-        world:emit("awardXp", entity.xpReward.amount)
+        world:emit("progress.award_xp", entity.xpReward.amount)
     end
 
     -- Award tokens
     if entity.tokenReward and entity.tokenReward.amount > 0 then
-        world:emit("awardTokens", entity.tokenReward.amount)
+        world:emit("progress.award_tokens", entity.tokenReward.amount)
     end
 
     -- Spawn resource drops

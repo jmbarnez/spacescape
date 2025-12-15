@@ -7,6 +7,10 @@ local RespawnerSystem = Concord.system({
     timers = { "respawnTimer" }
 })
 
+RespawnerSystem["physics.pre_step"] = function(self, dt)
+    self:prePhysics(dt)
+end
+
 function RespawnerSystem:prePhysics(dt)
     dt = dt or 0
 

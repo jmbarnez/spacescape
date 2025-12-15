@@ -11,6 +11,10 @@ local AISystem = Concord.system({
     enemies = { "aiState", "position", "velocity", "rotation", "faction", "thrust" },
 })
 
+AISystem["physics.pre_step"] = function(self, dt, playerEntity, world)
+    self:prePhysics(dt, playerEntity, world)
+end
+
 --------------------------------------------------------------------------------
 -- BOUNDS AVOIDANCE (WORLD EDGES)
 --------------------------------------------------------------------------------
@@ -226,6 +230,10 @@ local FiringSystem = Concord.system({
     shooters = { "weapon", "position", "rotation", "faction" },
 })
 
+FiringSystem["physics.pre_step"] = function(self, dt, playerEntity)
+    self:prePhysics(dt, playerEntity)
+end
+
 function FiringSystem:prePhysics(dt, playerEntity)
     if not playerEntity or not playerEntity.position then return end
 
@@ -264,7 +272,7 @@ function FiringSystem:prePhysics(dt, playerEntity)
             weapon.fireTimer = 0
 
             -- Emit fire event for projectile spawning
-            self:getWorld():emit("fireProjectile", e, playerX, playerY, playerEntity)
+            self:getWorld():emit("combat.fire_projectile", e, playerX, playerY, playerEntity)
         end
 
         ::continue::

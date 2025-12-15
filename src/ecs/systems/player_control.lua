@@ -14,6 +14,10 @@ local PlayerControlSystem = Concord.system({
     players = { "playerControlled", "position", "velocity", "rotation", "destination", "thrust" }
 })
 
+PlayerControlSystem["physics.pre_step"] = function(self, dt)
+    self:prePhysics(dt)
+end
+
 --------------------------------------------------------------------------------
 -- UPDATE LOOP
 --------------------------------------------------------------------------------

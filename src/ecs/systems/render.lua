@@ -21,6 +21,10 @@ local ShipRenderSystem = Concord.system({
     ships = { "position", "rotation", "shipVisual" },
 })
 
+ShipRenderSystem["render.draw"] = function(self, colors)
+    self:draw(colors)
+end
+
 function ShipRenderSystem:draw(colors)
     colors = colors or baseColors
 
@@ -53,6 +57,10 @@ end
 local AsteroidRenderSystem = Concord.system({
     asteroids = { "asteroid", "position", "rotation", "asteroidVisual", "health", "collisionRadius" },
 })
+
+AsteroidRenderSystem["render.draw"] = function(self, colors)
+    self:draw(colors)
+end
 
 local function drawAsteroidHealthBar(colors, px, py, radius, healthCurrent, healthMax)
     if not (healthMax and healthMax > 0 and healthCurrent and healthCurrent >= 0) then
@@ -112,6 +120,10 @@ end
 local WreckRenderSystem = Concord.system({
     wrecks = { "wreck", "position", "rotation" },
 })
+
+WreckRenderSystem["render.draw"] = function(self, colors)
+    self:draw(colors)
+end
 
 function WreckRenderSystem:draw(colors)
     colors = colors or baseColors
@@ -180,6 +192,10 @@ local HealthBarSystem = Concord.system({
     damaged = { "ship", "position", "health", "collisionRadius" },
 })
 
+HealthBarSystem["render.draw"] = function(self, colors)
+    self:draw(colors)
+end
+
 function HealthBarSystem:draw(colors)
     colors = colors or baseColors
 
@@ -214,6 +230,10 @@ end
 local ItemRenderSystem = Concord.system({
     items = { "item", "position", "collisionRadius", "resourceYield" },
 })
+
+ItemRenderSystem["render.draw"] = function(self, colors)
+    self:draw(colors)
+end
 
 local function getFirstResourceType(e)
     if not (e and e.resourceYield and e.resourceYield.resources) then
@@ -263,6 +283,10 @@ end
 local ProjectileRenderSystem = Concord.system({
     projectiles = { "projectile", "position", "rotation" },
 })
+
+ProjectileRenderSystem["render.draw"] = function(self, colors)
+    self:draw(colors)
+end
 
 function ProjectileRenderSystem:draw(colors)
     colors = colors or baseColors

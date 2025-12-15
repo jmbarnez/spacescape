@@ -11,6 +11,22 @@ local floatingText = require("src.entities.floating_text")
 
 local PlayerProgressionSystem = Concord.system({})
 
+PlayerProgressionSystem["physics.pre_step"] = function(self, dt, playerProxy)
+    self:prePhysics(dt, playerProxy)
+end
+
+PlayerProgressionSystem["progress.award_xp"] = function(self, amount)
+    self:awardXp(amount)
+end
+
+PlayerProgressionSystem["progress.award_tokens"] = function(self, amount)
+    self:awardTokens(amount)
+end
+
+PlayerProgressionSystem["progress.reset_player_progress"] = function(self)
+    self:resetPlayerProgress()
+end
+
 local function isNumber(n)
     return type(n) == "number" and n == n
 end

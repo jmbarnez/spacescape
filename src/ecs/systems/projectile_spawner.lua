@@ -7,6 +7,10 @@ local Concord = require("lib.concord")
 
 local ProjectileSpawnerSystem = Concord.system({})
 
+ProjectileSpawnerSystem["combat.fire_projectile"] = function(self, shooter, targetX, targetY, targetEntity)
+    self:fireProjectile(shooter, targetX, targetY, targetEntity)
+end
+
 -- Handle fireProjectile event from FiringSystem
 function ProjectileSpawnerSystem:fireProjectile(shooter, targetX, targetY, targetEntity)
     -- ECS-first: projectiles are authoritative ECS entities.

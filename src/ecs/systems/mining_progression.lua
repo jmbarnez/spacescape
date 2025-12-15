@@ -4,6 +4,10 @@ local MiningProgressionSystem = Concord.system({
     players = { "playerControlled", "miningSkill" },
 })
 
+MiningProgressionSystem["lifecycle.on_death"] = function(self, entity, killerFaction)
+    self:onDeath(entity, killerFaction)
+end
+
 local function computeXpToNext(level)
     level = level or 1
     if level < 1 then

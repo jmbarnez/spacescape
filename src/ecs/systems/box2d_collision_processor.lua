@@ -17,6 +17,10 @@ local collisionSystems = require("src.ecs.systems.collision")
 
 local Box2DCollisionProcessorSystem = Concord.system({})
 
+Box2DCollisionProcessorSystem["physics.post_step"] = function(self, dt)
+    self:postPhysics(dt)
+end
+
 --------------------------------------------------------------------------------
 -- SYSTEM UPDATE
 --------------------------------------------------------------------------------

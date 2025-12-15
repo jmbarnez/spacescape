@@ -9,6 +9,10 @@ local AsteroidBehaviorSystem = Concord.system({
     rotators = { "rotation" }
 })
 
+AsteroidBehaviorSystem["physics.pre_step"] = function(self, dt)
+    self:prePhysics(dt)
+end
+
 function AsteroidBehaviorSystem:prePhysics(dt)
     for i = 1, self.rotators.size do
         local e = self.rotators[i]

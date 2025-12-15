@@ -344,7 +344,7 @@ local function drawWorldObjects(ctx)
     drawMovementIndicator(player, colors)
     -- Items are ECS entities now and are rendered by ECS systems.
     -- Draw all ECS-rendered entities (projectiles + enemy ships + ship health bars)
-    ecsWorld:emit("draw", colors)
+    ecsWorld:emit("render.draw", colors)
 
     -- Projectile shards are a separate effect layer (legacy module)
     projectileShards.draw()

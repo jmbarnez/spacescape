@@ -137,7 +137,7 @@ function CollisionSystem:handleProjectileHit(projectile, target, contactX, conta
 
     -- Handle death
     if died then
-        world:emit("onDeath", target, projectileFaction)
+        world:emit("lifecycle.on_death", target, projectileFaction)
     end
 
     -- Mark projectile for removal
@@ -188,7 +188,7 @@ function CollisionSystem:handleShipRam(attacker, defender, contactX, contactY)
     end
 
     if defenderDied then
-        world:emit("onDeath", defender, attackerFaction)
+        world:emit("lifecycle.on_death", defender, attackerFaction)
     end
 
     -- Optionally apply damage to attacker too (ramming costs)
@@ -216,7 +216,7 @@ function CollisionSystem:handleShipRam(attacker, defender, contactX, contactY)
     end
 
     if attackerDied then
-        world:emit("onDeath", attacker, defenderFaction)
+        world:emit("lifecycle.on_death", attacker, defenderFaction)
     end
 end
 
@@ -345,6 +345,10 @@ end
 local CleanupSystem = Concord.system({
     toRemove = { "removed" },
 })
+
+CleanupSystem["physics.post_step"] = function(self, dt)
+    self:postPhysics(dt)
+end
 
 function CleanupSystem:postPhysics(dt)
     for i = self.toRemove.size, 1, -1 do

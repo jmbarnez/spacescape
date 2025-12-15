@@ -281,7 +281,7 @@ function combat.updateAutoShoot(dt, player)
                 fireTimer = 0
                 local tx, ty = getEntityPosition(targetEnemy)
                 if tx and ty then
-                    ecsWorld:emit("fireProjectile", player, tx, ty, targetEnemy)
+                    ecsWorld:emit("combat.fire_projectile", player, tx, ty, targetEnemy)
                 end
                 -- We fired this frame; skip the generic auto-fire logic below
                 -- to avoid double shots.
@@ -302,7 +302,7 @@ function combat.updateAutoShoot(dt, player)
         fireTimer = 0
         local tx, ty = getEntityPosition(targetEnemy)
         if tx and ty then
-            ecsWorld:emit("fireProjectile", player, tx, ty, targetEnemy)
+            ecsWorld:emit("combat.fire_projectile", player, tx, ty, targetEnemy)
         end
     end
 end
@@ -472,7 +472,7 @@ function combat.castExtraShot(player, extraShots)
     fireTimer = 0
 
     for i = 1, extraShots do
-        ecsWorld:emit("fireProjectile", player, tx, ty, targetEnemy)
+        ecsWorld:emit("combat.fire_projectile", player, tx, ty, targetEnemy)
     end
 end
 

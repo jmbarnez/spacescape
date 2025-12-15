@@ -102,19 +102,19 @@ end
 
 function player.addExperience(amount)
     if ecsWorld and ecsWorld.emit then
-        ecsWorld:emit("awardXp", amount)
+        ecsWorld:emit("progress.award_xp", amount)
     end
 end
 
 function player.addCurrency(amount)
     if ecsWorld and ecsWorld.emit then
-        ecsWorld:emit("awardTokens", amount)
+        ecsWorld:emit("progress.award_tokens", amount)
     end
 end
 
 function player.resetExperience()
     if ecsWorld and ecsWorld.emit then
-        ecsWorld:emit("resetPlayerProgress")
+        ecsWorld:emit("progress.reset_player_progress")
     end
 end
 
