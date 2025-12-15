@@ -1,5 +1,4 @@
 local systems = require("src.core.systems")
-local physics = require("src.core.physics")
 local ecsWorld = require("src.ecs.world")
 local camera = require("src.core.camera")
 
