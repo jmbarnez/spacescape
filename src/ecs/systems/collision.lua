@@ -135,6 +135,10 @@ function CollisionSystem:handleProjectileHit(projectile, target, contactX, conta
 
     local world = self:getWorld()
 
+    if world and hullDamage and hullDamage > 0 and target.asteroid and projectileFaction == "player" then
+        world:emit("asteroid.on_hit", target, projectile, contactX, contactY, hullDamage)
+    end
+
     -- Handle death
     if died then
         world:emit("lifecycle.on_death", target, projectileFaction)

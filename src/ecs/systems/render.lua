@@ -103,6 +103,30 @@ function AsteroidRenderSystem:draw(colors)
         if data then
             asteroid_generator.draw(data)
         end
+
+        local surface = a.asteroidSurfaceDamage
+        if surface and surface.marks then
+            local marks = surface.marks
+            for j = 1, #marks do
+                local m = marks[j]
+                local duration = tonumber(m.duration) or 0
+                local age = tonumber(m.age) or 0
+
+                local alpha = 0.0
+                if duration > 0 then
+                    alpha = 1.0 - math.max(0, math.min(1, age / duration))
+                else
+                    alpha = 0.85
+                end
+
+                local r = tonumber(m.r) or 4
+                local mx = tonumber(m.x) or 0
+                local my = tonumber(m.y) or 0
+
+                love.graphics.setColor(0, 0, 0, 0.35 * alpha)
+                love.graphics.circle("fill", mx, my, r)
+            end
+        end
         love.graphics.pop()
 
         local health = a.health
@@ -319,6 +343,60 @@ function ProjectileRenderSystem:draw(colors)
     love.graphics.setLineWidth(1)
 end
 
+--------------------------------------------------------------------------------
+-- DEBRIS RENDER SYSTEM
+--------------------------------------------------------------------------------
+
+local DebrisRenderSystem = Concord.system({
+    debris = { "debris", "position", "rotation", "debrisVisual" },
+})
+
+DebrisRenderSystem["render.draw"] = function(self, colors)
+    self:draw(colors)
+end
+
+function DebrisRenderSystem:draw(colors)
+    for i = 1, self.debris.size do
+        local e = self.debris[i]
+        local px = e.position.x
+        local py = e.position.y
+        local angle = (e.rotation and e.rotation.angle) or 0
+
+        local lifetimeTotal = e.lifetimeTotal or 0
+        local alpha = 1.0
+        if lifetimeTotal > 0 and e.lifetime and e.lifetime.remaining then
+            local age = lifetimeTotal - e.lifetime.remaining
+            if age < 0 then age = 0 end
+            local fadeStart = lifetimeTotal * 0.65
+            if age > fadeStart and lifetimeTotal > fadeStart then
+                alpha = 1.0 - ((age - fadeStart) / (lifetimeTotal - fadeStart))
+            end
+        end
+
+        local dv = e.debrisVisual
+        local color = dv.color or { 0.5, 0.5, 0.5, 1 }
+        local r = color[1] or 0.5
+        local g = color[2] or 0.5
+        local b = color[3] or 0.5
+        local a = (color[4] or 1) * alpha
+
+        love.graphics.push()
+        love.graphics.translate(px, py)
+        love.graphics.rotate(angle)
+
+        love.graphics.setColor(r, g, b, a)
+        love.graphics.polygon("fill", dv.flatPoints)
+
+        love.graphics.setColor(r * 0.22, g * 0.22, b * 0.22, a * 0.9)
+        love.graphics.setLineWidth(1.5)
+        love.graphics.polygon("line", dv.flatPoints)
+
+        love.graphics.pop()
+    end
+
+    love.graphics.setLineWidth(1)
+end
+
 return {
     AsteroidRenderSystem = AsteroidRenderSystem,
     WreckRenderSystem = WreckRenderSystem,
@@ -326,4 +404,5 @@ return {
     HealthBarSystem = HealthBarSystem,
     ItemRenderSystem = ItemRenderSystem,
     ProjectileRenderSystem = ProjectileRenderSystem,
+    DebrisRenderSystem = DebrisRenderSystem,
 }

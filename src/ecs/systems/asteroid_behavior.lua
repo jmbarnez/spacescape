@@ -22,6 +22,9 @@ function AsteroidBehaviorSystem:prePhysics(dt)
 
         if speed ~= 0 then
             e.rotation.angle = e.rotation.angle + speed * dt
+            -- RotationSystem steers rotation.angle toward rotation.targetAngle;
+            -- keep them in sync for passive rotators so they actually spin.
+            e.rotation.targetAngle = e.rotation.angle
         end
     end
 end

@@ -25,6 +25,8 @@ local asteroidBehavior = require("src.ecs.systems.asteroid_behavior")
 local itemPickups = require("src.ecs.systems.item_pickups")
 local projectileBounds = require("src.ecs.systems.projectile_bounds")
 local miningProgression = require("src.ecs.systems.mining_progression")
+local lifetime = require("src.ecs.systems.lifetime")
+local asteroidSurfaceDamage = require("src.ecs.systems.asteroid_surface_damage")
 
 -- Load assemblages
 local assemblages = require("src.ecs.assemblages")
@@ -39,6 +41,7 @@ world:addSystems(
 -- Movement and physics
     playerControl,
     asteroidBehavior,
+    lifetime,
     physicsStep,
     movement.RotationSystem,
     movement.MovementSystem,
@@ -60,12 +63,14 @@ world:addSystems(
     collision.CollisionSystem,
     playerProgression,
     miningProgression,
+    asteroidSurfaceDamage,
     reward,
     respawner, -- Added respawner system
     collision.CleanupSystem,
 
     -- Rendering (order matters - drawn back to front)
     render.AsteroidRenderSystem,
+    render.DebrisRenderSystem,
     render.WreckRenderSystem,
     render.ShipRenderSystem,
     render.HealthBarSystem,

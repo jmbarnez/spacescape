@@ -170,6 +170,21 @@ local config = {
         maxHealth = 40,
         rotationSpeedRange = 0.09,
     },
+    mining = {
+        surfaceCells = 16,
+        markRadiusFactor = 0.08,
+        markDuration = 3.5,
+        maxMarks = 22,
+        chunkDamageThreshold = 10,
+        chunkDamageThresholdPerSize = 0.08,
+        debrisLifetime = 6,
+        debrisImpulseMin = 45,
+        debrisImpulseMax = 120,
+        debrisImpulseJitter = 18,
+        chunkDropChance = 0.18,
+        dropImpulseMin = 35,
+        dropImpulseMax = 85,
+    },
 }
 
 return config

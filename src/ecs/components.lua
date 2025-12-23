@@ -21,6 +21,7 @@ Concord.component("ship")
 Concord.component("asteroid")
 Concord.component("item")
 Concord.component("wreck")
+Concord.component("debris")
 
 --------------------------------------------------------------------------------
 -- TRANSFORM / PHYSICS
@@ -105,8 +106,19 @@ Concord.component("asteroidVisual", function(c, data)
     c.data = data
 end)
 
+Concord.component("debrisVisual", function(c, flatPoints, color)
+    c.flatPoints = flatPoints or {}
+    c.color = color or { 0.5, 0.5, 0.5, 1 }
+end)
+
 Concord.component("projectileVisual", function(c, config)
     c.config = config
+end)
+
+Concord.component("asteroidSurfaceDamage", function(c, cellCount)
+    c.cellCount = cellCount or 16
+    c.cells = {}
+    c.marks = {}
 end)
 
 Concord.component("size", function(c, value)
